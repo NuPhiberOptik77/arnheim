@@ -6,6 +6,7 @@ import { ShaderPass } from '../vendor/three/addons/postprocessing/ShaderPass.js'
 import { createBurn } from './three/burn.js';
 import { buildHall, buildPenthouse } from './three/halls.js';
 import { dressHall, loadPhoto, photoWanted } from './three/photo.js';
+import { createWalkNotes } from './walk-notes.js';
 import { D, H, W } from './three/rooms.js';
 import { createVoice } from './voice.js';
 
@@ -202,6 +203,12 @@ export function createWalk(ctx) {
   // Talking with whoever's ring you stand in, by typing or out loud (voice.js).
   const voice = createVoice({ hud, card, ctx, el, button, signal });
   const helpTimer = setTimeout(() => help.classList.add('aw-faded'), 9000);
+  // The founder's notes, hung in their office (walk-notes.js): the page gives them and is asked for more.
+  const notes = createWalkNotes({
+    stage, signal, coarse, notes: ctx.notes?.(), ask: () => ctx.onNotes?.(), wake: ctx.wake,
+    hideCard() { clearTimeout(cardTimer); card.hidden = true; },
+    remap() { if (here === penthouse && !ride) look(); },
+  });
 
   function openPicker() {
     if (ride) return;
@@ -248,6 +255,7 @@ export function createWalk(ctx) {
       ? buildPenthouse(s, { founder })
       : buildHall(s, { company: ctx.org.company, mission: ctx.org.mission });
     if (photo) dressHall(entry, photo);
+    if (s === penthouse) notes.hang(entry);
     const person = ctx.personRoom;
     if (entry.poe && person?.storey === s) {
       const P = person.spec.person;
@@ -644,6 +652,7 @@ export function createWalk(ctx) {
     const picks = [...hall.picks];
     for (const r of here.rooms) for (const o of r.objects) if (!o.person) picks.push(o.hit);
     const thing = ray.intersectObjects(picks, false).find((h) => h.distance < 10);
+    if (notes.tap(thing && (!surface || thing.distance <= surface.distance + 0.3) ? thing.object.userData : null)) return;
     if (thing && (!surface || thing.distance <= surface.distance + 0.3)) {
       const hit = thing.object.userData;
       if (hit.lift) { openPicker(); return; }
@@ -803,6 +812,7 @@ export function createWalk(ctx) {
       inLift = inside;
       setTalk(spots.find((s) => Math.hypot(me.x - s.x, me.z - s.z) < 0.42) || null);
     }
+    if (notes.update(dt, me, here === penthouse && !ride, still())) busy = true;
     if (burn.update(dt, camera, renderer)) busy = true;
 
     // The camera at eye height: a gentle bob and sway in step, and a little hand-held drift that
@@ -868,6 +878,7 @@ export function createWalk(ctx) {
       burning: burn.active, points: burn.count, inLift, doors: r2(hall?.lift.open || 0), picker: !picker.hidden, card: card.hidden ? null : cardTitle.textContent,
       photo: photoState, film: footage.enabled, talk: talking?.who.title || null, rings: spots.map((r) => [r2(r.x), r2(r.z)]),
       voice: voice.info(),
+      notes: notes.info(),
     };
   }
 
@@ -884,6 +895,7 @@ export function createWalk(ctx) {
       entry.dispose();
     }
     halls.clear();
+    notes.dispose();
     penthouse.group.removeFromParent();
     photo?.dispose(); // after the halls: their materials only borrowed these pictures
     photo = null;
@@ -929,5 +941,5 @@ export function createWalk(ctx) {
     });
   }
 
-  return { update, labels, info, dispose };
+  return { update, labels, info, dispose, setNotes: notes.set };
 }
