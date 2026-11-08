@@ -69,7 +69,7 @@ const PLAN_WALLS = [
   { n: FAR, w: INNER, e: CURB, s: CURB },
 ];
 
-export function createBuilding(canvas, org, { onPick, onHover, onStatus, labels, insets = [64, 44] }) {
+export function createBuilding(canvas, org, { onPick, onHover, onStatus, onWalk, labels, insets = [64, 44] }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'default' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -112,6 +112,9 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, labels,
   let resized = false;
   let selected = null;
   const signPart = { value: 0, goal: 0 };
+  let walker = null; // a first-person walk, while one is going (walk.js)
+  let walkStart = null;
+  let version = 0; // goes up whenever what stands in the rooms changes, so a walk looks again
 
   /* ---------- light and background ---------- */
 
@@ -500,7 +503,7 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, labels,
       room.live?.set(info);
       changed = true;
     }
-    if (changed) shadowsDirty = true;
+    if (changed) { shadowsDirty = true; version += 1; }
     rebuildTargets();
     wake(3);
   }
@@ -653,13 +656,13 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, labels,
     return gap > 0.003;
   }
 
-  function aimLights() {
+  function aimLights(near = null, reach = 0) {
     const s = focusStorey();
     const dir = new THREE.Vector3(7, 15, 10).normalize();
-    const goal = s ? rig.goal.target : new THREE.Vector3(0, 9, 0);
+    const goal = near || (s ? rig.goal.target : new THREE.Vector3(0, 9, 0));
     moon.target.position.copy(goal);
     moon.position.copy(goal).addScaledVector(dir, 42);
-    const span = s ? 13 : 24;
+    const span = reach || (s ? 13 : 24);
     const sc = moon.shadow.camera;
     sc.left = sc.bottom = -span;
     sc.right = sc.top = span;
@@ -676,6 +679,8 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, labels,
   scene.add(ring);
 
   function focus(next) {
+    // While someone walks the building the floors stay put; the view applies when the walk ends.
+    if (walker) { view = { floor: next.floor, room: next.room, item: next.item, close: !!next.close }; return; }
     const moved = next.floor !== view.floor || next.room !== view.room || !!next.close !== !!view.close;
     view = { floor: next.floor, room: next.room, item: next.item, close: !!next.close };
     if (personRoom && next.floor === personRoom.floorId) personWake = performance.now();
@@ -765,11 +770,13 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, labels,
   let lastActive = performance.now();
   const touched = () => { lastActive = performance.now(); };
   canvas.addEventListener('pointerdown', (event) => {
+    if (walker) return; // the walk has its own way of looking and tapping
     touched();
     press = { x: event.clientX, y: event.clientY, az: rig.goal.az, el: rig.goal.el, moved: false };
     canvas.setPointerCapture?.(event.pointerId);
   });
   canvas.addEventListener('pointermove', (event) => {
+    if (walker) return;
     touched();
     if (press) {
       const dx = event.clientX - press.x;
@@ -791,6 +798,7 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, labels,
     onHover?.(hit ? describe(hit) : null, event.clientX - box2.left, event.clientY - box2.top);
   });
   canvas.addEventListener('pointerup', (event) => {
+    if (walker) return;
     const wasTap = press && !press.moved;
     press = null;
     canvas.style.cursor = 'grab';
@@ -799,9 +807,10 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, labels,
     if (hit) { onHover?.(null); onPick?.(hit); }
   });
   canvas.addEventListener('pointercancel', () => { press = null; });
-  canvas.addEventListener('pointerleave', () => { onHover?.(null); highlight(null); });
+  canvas.addEventListener('pointerleave', () => { if (!walker) { onHover?.(null); highlight(null); } });
   canvas.addEventListener('wheel', (event) => {
     event.preventDefault();
+    if (walker) return;
     touched();
     zoomBy(Math.exp(event.deltaY * 0.0014));
   }, { passive: false });
@@ -823,6 +832,7 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, labels,
   });
 
   function wantedLabels() {
+    if (walker) return walker.labels();
     const out = [];
     const s = focusStorey();
     const r = focusRoom();
@@ -1060,12 +1070,13 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, labels,
   function step(now) {
     const dt = Math.min(0.12, Math.max(0.001, (now - last) / 1000));
     last = now;
-    const camMoving = updateRig(dt);
+    const walking = walker ? walker.update(dt, now) : false;
+    const camMoving = walker ? false : updateRig(dt);
     const moving = updateMotion(dt);
     const lit = updateLamps(dt, now);
     const painted = updateBackground(dt);
     const anim = ambient(now, dt);
-    const active = camMoving || moving || lit || painted;
+    const active = camMoving || moving || lit || painted || walking;
     if (moving) { moonOnly = true; settling = true; } else if (settling) { settling = false; shadowsDirty = true; awake = Math.max(awake, 2); }
     if (shadowsDirty) {
       renderer.shadowMap.needsUpdate = true;
@@ -1091,7 +1102,7 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, labels,
       composer.render(dt);
       stats.renderMs = Math.round(performance.now() - began);
       stats.frames += 1;
-      stats.why = camMoving ? 'camera' : moving ? 'floors' : lit ? 'lamps' : painted ? 'background' : anim ? 'ambient' : 'finishing';
+      stats.why = camMoving ? 'camera' : walking ? 'walking' : moving ? 'floors' : lit ? 'lamps' : painted ? 'background' : anim ? 'ambient' : 'finishing';
       awake = Math.max(0, awake - 1);
       if (checkDrawn > 0 && resized) confirmDrawn();
       if (disposed) return;
@@ -1115,7 +1126,7 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, labels,
     composer.setPixelRatio(pr);
     composer.setSize(width, height);
     camera.aspect = width / height;
-    camera.setViewOffset(width, height, 0, -(topInset - bottomInset) / 2, width, height);
+    if (walker) { camera.clearViewOffset(); camera.fov = walkFov(); } else camera.setViewOffset(width, height, 0, -(topInset - bottomInset) / 2, width, height);
     camera.updateProjectionMatrix();
     aim();
     if (!resized) {
@@ -1166,6 +1177,8 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, labels,
   function dispose() {
     if (disposed) return;
     disposed = true;
+    walker?.dispose();
+    walker = null;
     listeners.abort();
     observer.disconnect();
     if (raf) cancelAnimationFrame(raf);
@@ -1203,6 +1216,69 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, labels,
     return { x: Math.round(x), y: Math.round(y), wide: Math.round(Math.hypot(x1 - x0, y1 - y0)) };
   }
 
+  /* ---------- walking through it in first person (walk.js, loaded the first time) ---------- */
+
+  const walkFov = () => (camera.aspect < 0.9 ? 72 : 60);
+
+  async function walk(on = true) {
+    if (!on) { endWalk(); return false; }
+    if (walker || disposed) return !!walker;
+    walkStart ??= import('./walk.js');
+    const { createWalk } = await walkStart;
+    if (walker || disposed || contextLost) return !!walker;
+    selected = null;
+    onHover?.(null);
+    highlight(null);
+    // Every floor back in the building, rooms in a row, while one at a time is walked.
+    for (const s of storeys) { s.t = s.goalT = 0; s.part = s.goalPart = 0; placeStorey(s); }
+    signGroup.visible = false;
+    groundGroup.visible = false;
+    camera.near = 0.05;
+    camera.far = 90;
+    camera.clearViewOffset();
+    camera.fov = walkFov();
+    camera.updateProjectionMatrix();
+    try {
+      walker = createWalk({
+        scene, camera, canvas, renderer, storeys, org, reduced, personRoom, start: view.floor,
+        onPick, describe, infoText, roomWorld, wake, touched, version: () => version,
+        poeAwake() { personWake = performance.now(); },
+        shadows(near, reach) { aimLights(near, reach); shadowsDirty = true; wake(2); },
+        leave() { endWalk(); onWalk?.(false); },
+      });
+    } catch (error) {
+      console.error(error);
+      walker = null;
+      restoreView();
+      return false;
+    }
+    wake(3);
+    return true;
+  }
+
+  function restoreView() {
+    camera.near = 0.5;
+    camera.far = 260;
+    camera.fov = 24;
+    for (const s of storeys) placeStorey(s);
+    signGroup.visible = signPart.value < 0.92;
+    groundGroup.visible = signPart.value < 0.92;
+    resize();
+    const was = view;
+    view = {};
+    focus(was);
+    shadowsDirty = true;
+    wake(3);
+  }
+
+  function endWalk() {
+    if (!walker) return;
+    const ending = walker;
+    walker = null;
+    ending.dispose();
+    restoreView();
+  }
+
   /* ---------- start ---------- */
 
   labels.hidden = false;
@@ -1224,6 +1300,7 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, labels,
 
   return {
     setLive, setScene, setTheme, focus, highlight, zoomBy, turn, resetView, wake, where, dispose,
+    walk, walking: () => !!walker, walkInfo: () => walker?.info() || null,
     // One picture of the model as it stands now, without waiting for a frame.
     // It does a whole frame's work: a model that has never drawn (a hidden page) has no shadow maps
     // or lamp values yet, and WebGL refuses to draw lit materials without them, leaving only the decals.

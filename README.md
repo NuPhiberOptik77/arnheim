@@ -22,6 +22,15 @@ It opens on Fernhollow, a company that is made up. Its people, projects, website
 all invented, and the work you see moving is a short story on a loop. Tap a floor to bring it out,
 a room to look inside, and Poe to ask a question. The Live button pauses the story.
 
+## Walk through it
+
+Press Walk to step inside. You start at the door of the reception, with Poe behind the desk. On a
+computer, walk with WASD or the arrow keys and drag to look around; on a phone, use the stick and
+drag. Tap the floor to walk there, and tap a desk, a screen or Poe to open it. The lift at the end
+of each floor takes you up and down: the floor you leave burns away into glowing points, and the
+next one gathers out of them. Double-tap anywhere to burn the floor you are on and rebuild it.
+With reduced motion on, the camera keeps still and floors change at once.
+
 ## Make it yours
 
 The building comes from two files:

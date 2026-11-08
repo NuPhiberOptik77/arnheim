@@ -21,7 +21,7 @@ export function newScope() {
 export function useScope(next) { scope = next; }
 
 // Two local lamps added to the standard lighting, for this room's materials only.
-function lit(m) {
+export function lit(m) {
   if (!scope) return m;
   const u = scope.uniforms;
   m.onBeforeCompile = (shader) => {

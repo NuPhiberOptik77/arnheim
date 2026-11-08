@@ -629,6 +629,7 @@ function restartModel() {
   clearTimeout(modelTimer);
   clearTimeout(steadyTimer);
   building?.dispose();
+  setWalking(false);
   building = null;
   if (modelTries >= MODEL_WAITS.length) {
     stageMessage('The 3D building is not showing right now. Everything is still here in the panel.', true);
@@ -656,6 +657,7 @@ function onModelStatus(status) {
 async function startBuilding() {
   if (params.has('list')) {
     document.body.classList.add('no-3d');
+    $('walk').hidden = true;
     return;
   }
   try {
@@ -668,10 +670,12 @@ async function startBuilding() {
     building = createBuilding(canvas, org, {
       labels: $('labels'),
       onStatus: onModelStatus,
+      onWalk: setWalking,
       onPick(hit) {
         tip.hidden = true;
         if (hit.company) { location.hash = '#/company'; return; }
         if (hit.href === '#/poe') { location.hash = '#/poe'; return; }
+        if (hit.walk) { location.hash = hit.href || `#/${hit.floorId}/${hit.roomId}`; return; }
         if (route.floor !== hit.floorId) { location.hash = `#/${hit.floorId}`; return; }
         location.hash = hit.href || `#/${hit.floorId}/${hit.roomId}`;
       },
@@ -695,6 +699,20 @@ async function startBuilding() {
   }
 }
 
+/* ---------- walking through the building ---------- */
+
+function setWalking(on) {
+  $('walk').setAttribute('aria-pressed', String(!!on));
+}
+
+async function toggleWalk() {
+  if (!building) return;
+  const on = !building.walking();
+  setWalking(on);
+  document.activeElement?.blur?.(); // so Space and Enter don't press the button again mid-walk
+  setWalking(await building.walk(on));
+}
+
 function setupStageTools() {
   $('zoom-in').addEventListener('click', () => building?.zoomBy(0.86));
   $('zoom-out').addEventListener('click', () => building?.zoomBy(1.16));
@@ -707,7 +725,7 @@ function setupStageTools() {
     startBuilding();
   });
   $('stage').addEventListener('keydown', (event) => {
-    if (event.target !== $('stage')) return;
+    if (event.target !== $('stage') || building?.walking?.()) return;
     const turns = { ArrowLeft: [-6, 0], ArrowRight: [6, 0], ArrowUp: [0, 4], ArrowDown: [0, -4] };
     if (turns[event.key]) { event.preventDefault(); building?.turn(...turns[event.key]); }
     else if (event.key === '+' || event.key === '=') building?.zoomBy(0.86);
@@ -756,12 +774,14 @@ async function boot() {
   setupStageTools();
   setPlaying(params.get('live') !== 'off');
   $('live').addEventListener('click', () => setPlaying(!playing));
+  $('walk').addEventListener('click', toggleWalk);
   await startBuilding();
   onRoute();
   window.addEventListener('hashchange', onRoute);
   $('back').addEventListener('click', () => { location.hash = parentHash(); });
   $('content').addEventListener('focusout', () => { if (pending) setTimeout(render, 0); });
   document.addEventListener('keydown', (event) => {
+    if (building?.walking?.()) return; // the walk has its own keys
     const typing = event.target.matches?.('input, select, textarea, [contenteditable]');
     const free = !typing && !event.metaKey && !event.ctrlKey && !event.altKey;
     if (event.key === 'Escape') {
