@@ -65,21 +65,27 @@ The voice is Kokoro, an open text-to-speech model (82 million parameters, Apache
 server on the computer that shows the page, so a phone or laptop downloads nothing but the sound.
 On a recent Mac each sentence takes about half a second to make, and the next is made while the
 first plays. Voice stays off until you turn it on, and `?lite`, data saver and phones short of
-memory never use it. Typing always works. Listening needs a speech model on the same computer as
-well; until one is set up, the card says so and you type.
+memory never use it. Typing always works.
 
-To give a computer the voice, about 600 MB in all the first time (most of it PyTorch and the
-model), with Python 3.10 to 3.12:
+Listening is Whisper (OpenAI's open speech recognition, the 145 MB `base.en` model, MIT), on the
+same computer: a short question takes it about a sixth of a second. The microphone is used only
+while the voice is on and you stand in a ring, and what you say goes no further than that
+computer. A page can bring its own listening instead (`talk.hear`, below), such as the system's
+own speech recognition in a desktop app. Without either, the card says so and you type.
+
+To give a computer the voice and the ear, about 1.2 GB on disk in all (most of it PyTorch), with
+Python 3.10 to 3.12:
 
 ```
 python3.12 -m venv .voice
-.voice/bin/pip install kokoro
+.voice/bin/pip install kokoro openai-whisper
 ARNHEIM_VOICE_FETCH=1 python3 serve.py
 ```
 
-The first time the voice is turned on, it fetches the model and seven voices from Hugging Face
-(`hexgrad/Kokoro-82M`). After that, plain `python3 serve.py` uses them and fetches nothing.
-`ARNHEIM_VOICE_PYTHON` points at another Python that already has Kokoro.
+The first time the voice is turned on, it fetches Kokoro's model and seven voices from Hugging Face
+(`hexgrad/Kokoro-82M`) and Whisper's model from OpenAI, into `.voice/`. After that, plain
+`python3 serve.py` uses them and fetches nothing. `ARNHEIM_VOICE_PYTHON` points at another Python
+that already has them.
 
 ## Make it yours
 
@@ -105,8 +111,9 @@ The world knows nothing about the page around it. `src/demo.js` shows the whole 
 - `createPoe(kit)` from `src/poe-desk.js` gives you Poe's desk. Poe answers by keyword matching over
   the facts you pass in, with no AI, and a page can teach Poe its own words and topics.
 - `talk` in `createBuilding`'s options lets people in the walk talk back (`src/voice.js` says how):
-  `answer(who, text)` returns their reply, as words or as a stream of them, and `greet(who)` what
-  they say when you step up. Without it, the rings only open what someone is working on.
+  `answer(who, text)` returns their reply, as words or as a stream of them, `greet(who)` what
+  they say when you step up, and `hear(sound)`, if given, turns what you said into words instead
+  of the server. Without `talk`, the rings only open what someone is working on.
 
 ## How it is made
 

@@ -5,5 +5,5 @@ data/
 .env.*
 CLAUDE.local.md
 .claude/settings.local.json
-.voice/
+/.voice
 __pycache__/

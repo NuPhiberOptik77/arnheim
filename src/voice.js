@@ -4,8 +4,8 @@
 // The voice is Kokoro, an open text-to-speech model, run by the server that serves this page
 // (voice/ in this repository), so this device downloads nothing but the sound itself. It is off
 // until someone turns it on; ?lite, data saver and low-memory devices never use it; typing always
-// works. Nothing is listened to unless the voice is on, someone is in a ring, and the server can
-// hear (it says so in /voice/status).
+// works. Nothing is listened to unless the voice is on, someone is in a ring, and something can
+// hear: the page's own `hear`, or else the server (it says so in /voice/status).
 //
 // A page passes `talk` to createBuilding:
 //   answer(who, text, said)  what they say back: a string, a promise of one, or an async iterable
@@ -13,6 +13,9 @@
 //   greet(who)               optional: what they say when you first step up to them
 //   name(who)                optional: a short name for them in the captions
 //   voice(who)               optional: which Kokoro voice is theirs
+//   hear(sound)              optional: the page's own listening, such as the system's speech
+//                            recognition: given what was said as a WAV file (a Blob, 16-bit mono
+//                            at 16 kHz), it resolves to the words. If it fails, the server listens.
 //   headers()                optional: headers for the page's own server, such as a page token
 //   base                     optional: where the voice server is (by default ../voice/ beside src)
 
@@ -105,6 +108,7 @@ function wavFile(pcm, rate) {
 export function createVoice({ hud, card, ctx, el, button, signal }) {
   const talk = ctx.talk || null;
   const allowed = voiceWanted();
+  const ownEar = typeof talk?.hear === 'function';
   const base = talk?.base || BASE;
   const poeHref = ctx.personRoom?.spec?.person?.href;
   let on = allowed && recalled() === 'on';
@@ -187,7 +191,7 @@ export function createVoice({ hud, card, ctx, el, button, signal }) {
     else if (mode === 'hearing') text = 'Hearing you';
     else if (mode === 'thinking') text = `${name} is thinking`;
     else if (mode === 'speaking') text = `${name} is speaking`;
-    else if (!server.hear) { text = 'Type to talk. Listening is not set up on this computer yet.'; state = 'off'; }
+    else if (!canHear()) { text = 'Type to talk. Listening is not set up on this computer yet.'; state = 'off'; }
     else if (micTrouble) { text = `Type to talk. ${micTrouble}`; state = 'off'; }
     else text = 'Listening. Just speak.';
     line.textContent = text;
@@ -422,7 +426,7 @@ export function createVoice({ hud, card, ctx, el, button, signal }) {
   const vad = { floor: -55, on: false, voiced: 0, quiet: 0, len: 0, pre: [], parts: [] };
 
   async function listen() {
-    if (ear || !on || !who || !server?.hear || !audio || !navigator.mediaDevices?.getUserMedia) { drawLine(); return; }
+    if (ear || !on || !who || !canHear() || !audio || !navigator.mediaDevices?.getUserMedia) { drawLine(); return; }
     const mine = { stage: 'asking' }; // asking for the microphone, then loading the worklet
     ear = mine;
     try {
@@ -505,12 +509,29 @@ export function createVoice({ hud, card, ctx, el, button, signal }) {
     const asked = who;
     const g = gen;
     const pcm = to16k(parts, rate, length - Math.floor(quiet * rate * 0.6));
-    const got = await request('hear', wavFile(pcm, 16000), true).catch(() => null);
+    const text = await heardWords(wavFile(pcm, 16000));
     if (keyOf(asked) !== keyOf(who) || g !== gen) return;
     times.hearMs = Math.round(performance.now() - ended);
-    const text = got?.ok ? String(got.text || '').trim() : '';
     if (!text) { mode = 'listening'; drawLine(); return; }
     ask(text, ended);
+  }
+
+  function canHear() {
+    return ownEar || !!server?.hear;
+  }
+
+  // The words in what was said: the page's own listening if it has one, else the server's.
+  async function heardWords(sound) {
+    if (ownEar) {
+      try {
+        const words = await talk.hear(sound);
+        if (typeof words === 'string') { times.heardBy = 'page'; return words.trim(); }
+      } catch { /* the server listens instead, if it can */ }
+    }
+    if (!server?.hear) return '';
+    const got = await request('hear', sound, true).catch(() => null);
+    times.heardBy = 'server';
+    return got?.ok ? String(got.text || '').trim() : '';
   }
 
   /* ---------- the walk's hooks ---------- */
@@ -542,6 +563,7 @@ export function createVoice({ hud, card, ctx, el, button, signal }) {
       server: server && { say: !!server.say, state: server.state, hear: !!server.hear, voices: server.voices?.length || 0 },
       ear: ear?.stage || false, mic: micTrouble || null, heard, reply, sounds,
       firstSoundMs: since(times.asked), fromSpeechEndMs: since(times.spokenEnd), hearMs: times.hearMs ?? null, sayMs: times.sayMs ?? null,
+      ownEar, heardBy: times.heardBy || null,
     };
   }
 
