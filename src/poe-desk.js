@@ -175,6 +175,13 @@ export function createPoe(kit) {
     return { lines, links: convos.slice(0, 3) };
   }
 
+  // "What's happening?": what is working, then what needs you.
+  function happeningAnswer(f, floor) {
+    const run = runningAnswer(f, floor);
+    const need = needsAnswer(f, floor);
+    return { lines: [...run.lines, need.lines[0]], links: (run.links || []).slice(0, 3), go: need.go };
+  }
+
   function machinesAnswer(f) {
     const o = org();
     return { lines: (f.machines || []).map((m) => `${m.label}: ${m.big}${m.detail ? `, ${String(m.detail).toLowerCase()}` : ''}.`), go: go(o.basement && `#/${o.basement.id}`) };
@@ -270,6 +277,7 @@ export function createPoe(kit) {
     { id: 'keys', answer: (c) => W.keys && has(c.q, ['shortcut', 'keyboard', 'keys']) && { lines: [W.keys] } },
     { id: 'scenes', answer: (c) => has(c.q, ['scene', 'filter']) && { lines: [W.scenes] } },
     { id: 'colours', answer: (c) => has(c.q, ['colour', 'color', 'light', 'amber', 'glow', 'warm', 'dim']) && { lines: ['The light means something. Warm: working now. Amber: needs you. Dim: quiet.'] } },
+    { id: 'happening', answer: (c) => has(c.q, ['happening', 'going on', 'whats new', 'news', 'catch me up', 'latest']) && happeningAnswer(c.f, c.floor) },
     { id: 'running', answer: (c) => has(c.q, ['running', 'working', 'busy', 'queue', 'jobs', 'doing', 'progress']) && runningAnswer(c.f, c.floor) },
     { id: 'needs', answer: (c) => has(c.q, ['need', 'waiting', 'to do', 'todo', 'pending', 'urgent', 'first', 'today', 'next', 'on my plate', 'what should']) && needsAnswer(c.f, c.floor) },
     { id: 'prs', answer: (c) => has(c.q, ['pull request', 'prs', 'pr ']) && prAnswer(c.f) },

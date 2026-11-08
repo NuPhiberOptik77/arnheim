@@ -51,6 +51,36 @@ see those anywhere. A server that shows Arnheim needs to send `.jpg` and `.hdr` 
 `serve.py` does. The camera moves like a phone held in the hand: a little bob and sway as you walk,
 light motion blur as you turn, softer corners and fine grain. Reduced motion turns all of that off.
 
+## Talk with them
+
+Stand in a ring and a conversation opens in the card: type a question and they answer there. Turn
+on Voice, beside Leave, and they say it aloud, each in a voice of their own, and listen for you
+with no button to press: they hear you when you start talking and answer when you stop. While they
+speak they don't listen, so they never hear themselves. Poe answers from what the building holds,
+as at the desk. In the sample, the people at work answer from lines written for them in
+`sample/work.json`, and say so: they are made up. A page with real agents passes its own answers
+(`talk`, below), and there what you say can reach the agent doing the work.
+
+The voice is Kokoro, an open text-to-speech model (82 million parameters, Apache 2.0), run by the
+server on the computer that shows the page, so a phone or laptop downloads nothing but the sound.
+On a recent Mac each sentence takes about half a second to make, and the next is made while the
+first plays. Voice stays off until you turn it on, and `?lite`, data saver and phones short of
+memory never use it. Typing always works. Listening needs a speech model on the same computer as
+well; until one is set up, the card says so and you type.
+
+To give a computer the voice, about 600 MB in all the first time (most of it PyTorch and the
+model), with Python 3.10 to 3.12:
+
+```
+python3.12 -m venv .voice
+.voice/bin/pip install kokoro
+ARNHEIM_VOICE_FETCH=1 python3 serve.py
+```
+
+The first time the voice is turned on, it fetches the model and seven voices from Hugging Face
+(`hexgrad/Kokoro-82M`). After that, plain `python3 serve.py` uses them and fetches nothing.
+`ARNHEIM_VOICE_PYTHON` points at another Python that already has Kokoro.
+
 ## Make it yours
 
 The building comes from two files:
@@ -74,6 +104,9 @@ The world knows nothing about the page around it. `src/demo.js` shows the whole 
   `floor:<id>` for the line under each floor's name.
 - `createPoe(kit)` from `src/poe-desk.js` gives you Poe's desk. Poe answers by keyword matching over
   the facts you pass in, with no AI, and a page can teach Poe its own words and topics.
+- `talk` in `createBuilding`'s options lets people in the walk talk back (`src/voice.js` says how):
+  `answer(who, text)` returns their reply, as words or as a stream of them, and `greet(who)` what
+  they say when you step up. Without it, the rings only open what someone is working on.
 
 ## How it is made
 

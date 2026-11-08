@@ -4,15 +4,15 @@
     { "id": "s1", "project": "Studio", "title": "Write the plan for next year", "status": "open" },
     { "id": "s2", "project": "Studio", "title": "Renew the Lantern domain", "status": "needs_you", "note": "It runs out at the end of the month." },
     { "id": "s3", "project": "Studio", "title": "Choose an accountant", "status": "waiting", "note": "Waiting on two replies." },
-    { "id": "l1", "project": "Lantern", "title": "Fix the bookmark that jumps back a page", "status": "working" },
+    { "id": "l1", "project": "Lantern", "title": "Fix the bookmark that jumps back a page", "status": "working", "says": {"now": "I'm fixing the bookmark that jumps back a page. The fix is written, and I'm testing it now.", "next": "Then it goes to the spare laptop for a last check."} },
     { "id": "l2", "project": "Lantern", "title": "Decide on the reading streak badge", "status": "needs_you", "note": "Two designs are ready. Pick one." },
     { "id": "l3", "project": "Lantern", "title": "Test the app on the spare laptop", "status": "open" },
     { "id": "l4", "project": "Lantern", "title": "Write the notes for version 2", "status": "open" },
     { "id": "t1", "project": "Tidepool", "title": "Order a hundred more rain gauges", "status": "needs_you", "note": "The supplier needs a yes by Friday." },
-    { "id": "t2", "project": "Tidepool", "title": "Calibrate the wind sensor", "status": "working" },
+    { "id": "t2", "project": "Tidepool", "title": "Calibrate the wind sensor", "status": "working", "says": {"now": "I'm calibrating the wind sensor against the reference one. Three of five speeds are done.", "next": "The two fastest speeds are next."} },
     { "id": "t3", "project": "Tidepool", "title": "Translate the kit's instructions into Spanish", "status": "waiting" },
     { "id": "k1", "project": "Kitefield", "title": "Add a stunt kite template", "status": "open" },
-    { "id": "k2", "project": "Kitefield", "title": "Check the tail physics against the field test", "status": "working" },
+    { "id": "k2", "project": "Kitefield", "title": "Check the tail physics against the field test", "status": "working", "says": {"now": "I'm comparing the simulated tail with the field test, frame by frame.", "next": "When they match, I'll mark the test as passed."} },
     { "id": "k3", "project": "Kitefield", "title": "Pick a colour for the delta kite", "status": "open" }
   ],
   "goals": [
@@ -27,12 +27,12 @@
   "conversations": [
     { "id": "cs1", "project": "Studio", "title": "Planning next quarter" },
     { "id": "cs2", "project": "Studio", "title": "Sorting the subscriptions", "check": true },
-    { "id": "cl1", "project": "Lantern", "title": "Why the bookmark jumps", "working": true },
+    { "id": "cl1", "project": "Lantern", "title": "Why the bookmark jumps", "working": true, "says": {"now": "I'm finding out why the bookmark jumps back a page. It saves your place before the page has finished turning, so it keeps the page you were leaving.", "next": "Next I'll save it once the turn ends, then try it on a long book.", "when": "About an hour, if the long book behaves.", "needs": "Nothing yet. If the fix changes how pages turn, I'll ask you first."} },
     { "id": "cl2", "project": "Lantern", "title": "Reading streak ideas" },
     { "id": "cl3", "project": "Lantern", "title": "Pictures for the app store" },
     { "id": "ct1", "project": "Tidepool", "title": "Rain gauge supplier" },
-    { "id": "ct2", "project": "Tidepool", "title": "Wind sensor drift" },
-    { "id": "ck1", "project": "Kitefield", "title": "Tail physics", "working": true },
+    { "id": "ct2", "project": "Tidepool", "title": "Wind sensor drift", "says": {"now": "I'm looking at why the wind sensor reads high after a few days. It drifts by about half a metre a second.", "next": "Next I'll compare it with the spare sensor and write down a fix.", "when": "Once the spare has run for a day."} },
+    { "id": "ck1", "project": "Kitefield", "title": "Tail physics", "working": true, "says": {"now": "I'm checking the kite's tail against the field test video. In a strong wind it swings about a third too far.", "next": "Next I'll add a little drag to the tail and run the test again.", "when": "Two more test runs, so this afternoon.", "needs": "Not yet. You may want to watch the last run with me."} },
     { "id": "ck2", "project": "Kitefield", "title": "Template wish list" }
   ],
   "pullRequests": [

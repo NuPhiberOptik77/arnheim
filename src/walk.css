@@ -29,6 +29,29 @@
 .aw-load b { position: absolute; top: 0; bottom: 0; left: 0; width: 0; background: #ffcf8f; transition: width .25s; }
 .aw-load.aw-faded { opacity: 0; }
 .aw-load[hidden] { display: none; }
+/* Talking (voice.js): the Voice button beside Leave, and the conversation inside the talking card. */
+.aw-voice { margin-right: auto; }
+.aw-voice[aria-pressed="true"] { border-color: #ffcf8f; color: #ffd9a8; }
+.aw-voice[hidden], .aw-talk[hidden], .aw-said[hidden] { display: none; }
+.aw-card.aw-talking { flex-wrap: wrap; width: min(440px, calc(100% - 24px)); }
+.aw-card > .aw-talk { display: none; flex: 1 0 100%; min-width: 0; }
+.aw-card.aw-talking > .aw-talk:not([hidden]) { display: grid; gap: 8px; }
+.aw-said { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 32vh; overflow-y: auto; font-size: 13px; line-height: 1.4; }
+.aw-said li { overflow-wrap: anywhere; }
+.aw-said b { margin-right: 4px; font-weight: 600; color: #ffd9a8; }
+.aw-said .aw-you b { color: #c4d3ee; }
+.aw-mic { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 12px; color: #d6dbe6; }
+.aw-mic::before { content: ''; flex: none; width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, .35); }
+.aw-mic.aw-listening::before { background: #8fd3a8; animation: aw-breathe 1.6s ease-in-out infinite; }
+.aw-mic.aw-hearing::before { background: #7ee0a0; box-shadow: 0 0 10px #7ee0a0; }
+.aw-mic.aw-thinking::before { background: #ffd29a; animation: aw-breathe .9s ease-in-out infinite; }
+.aw-mic.aw-speaking::before { background: #ffb870; box-shadow: 0 0 10px #ffb870; }
+@keyframes aw-breathe { 50% { opacity: .3; } }
+.aw-ask { display: flex; gap: 6px; }
+.aw-ask input { flex: 1; min-width: 0; min-height: 36px; padding: 0 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(255, 255, 255, .08); color: #f7f2ea; font: 14px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+.aw-ask input::placeholder { color: rgba(247, 242, 234, .55); }
+.aw-ask input:focus-visible { outline: 2px solid #ffcf8f; outline-offset: 1px; }
+.aw-ask .aw-btn { min-height: 36px; padding: 0 12px; }
 @media (pointer: coarse) { .aw-stick { display: block; } .aw-help { left: 156px; bottom: 28px; } }
 @media (max-width: 820px) { .arnheim-walking { position: fixed !important; inset: 0 !important; width: auto !important; height: auto !important; min-height: 0 !important; z-index: 50; } }
-@media (prefers-reduced-motion: reduce) { .aw-help, .aw-load, .aw-load b { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .aw-help, .aw-load, .aw-load b { transition: none; } .aw-mic::before { animation: none; } }

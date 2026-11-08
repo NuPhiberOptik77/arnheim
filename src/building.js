@@ -69,7 +69,7 @@ const PLAN_WALLS = [
   { n: FAR, w: INNER, e: CURB, s: CURB },
 ];
 
-export function createBuilding(canvas, org, { onPick, onHover, onStatus, onWalk, labels, insets = [64, 44] }) {
+export function createBuilding(canvas, org, { onPick, onHover, onStatus, onWalk, labels, insets = [64, 44], talk = null }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'default' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -1248,7 +1248,7 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, onWalk,
     try {
       walker = createWalk({
         scene, camera, canvas, renderer, composer, photo, storeys, org, reduced, personRoom, start: view.floor,
-        onPick, describe, infoText, roomWorld, wake, touched, version: () => version,
+        onPick, describe, infoText, roomWorld, wake, touched, version: () => version, talk,
         poeAwake() { personWake = performance.now(); },
         shadows(near, reach) { aimLights(near, reach); shadowsDirty = true; wake(2); },
         leave() { endWalk(); onWalk?.(false); },

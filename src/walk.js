@@ -7,6 +7,7 @@ import { createBurn } from './three/burn.js';
 import { buildHall, buildPenthouse } from './three/halls.js';
 import { dressHall, loadPhoto, photoWanted } from './three/photo.js';
 import { D, H, W } from './three/rooms.js';
+import { createVoice } from './voice.js';
 
 const EYE = 1.62;
 const WALK = 1.5; // metres a second
@@ -198,6 +199,8 @@ export function createWalk(ctx) {
   loading.hidden = photoState !== 'loading';
   stage.append(hud, picker, card, help, stickEl, loading);
   stage.classList.add('arnheim-walking');
+  // Talking with whoever's ring you stand in, by typing or out loud (voice.js).
+  const voice = createVoice({ hud, card, ctx, el, button, signal });
   const helpTimer = setTimeout(() => help.classList.add('aw-faded'), 9000);
 
   function openPicker() {
@@ -488,6 +491,7 @@ export function createWalk(ctx) {
       showCard(spot.who, true);
       ctx.onPick?.({ ...spot.who, walk: true });
     } else if (card.classList.contains('aw-talking')) card.hidden = true;
+    voice.talkTo(spot?.who || null);
     ctx.wake(2);
   }
 
@@ -863,6 +867,7 @@ export function createWalk(ctx) {
       floor: here?.id, x: r2(me.x), z: r2(me.z), yaw: r2(me.yaw), speed: r2(me.speed), riding: ride?.phase || null,
       burning: burn.active, points: burn.count, inLift, doors: r2(hall?.lift.open || 0), picker: !picker.hidden, card: card.hidden ? null : cardTitle.textContent,
       photo: photoState, film: footage.enabled, talk: talking?.who.title || null, rings: spots.map((r) => [r2(r.x), r2(r.z)]),
+      voice: voice.info(),
     };
   }
 
@@ -872,6 +877,7 @@ export function createWalk(ctx) {
     clearTimeout(cardTimer);
     clearTimeout(helpTimer);
     clearTimeout(loadTimer);
+    voice.dispose();
     if (here) { placePoe(false); setWalls(here, false); }
     for (const entry of halls.values()) {
       entry.group.removeFromParent();

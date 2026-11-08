@@ -85,6 +85,20 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+## Kokoro and its helpers (the voice, not in this repository)
+
+The walk's voice (`voice/`, `src/voice.js`) runs Kokoro, an open text-to-speech model, on the
+computer that serves the page. None of it is copied here: whoever turns the voice on installs the
+Python packages and fetches the model, under their own licences.
+
+- The model and voices, `hexgrad/Kokoro-82M` on Hugging Face: Apache License 2.0.
+- The `kokoro` and `misaki` Python packages, which run it and turn words into sounds: Apache
+  License 2.0.
+- PyTorch, which runs the model: BSD 3-Clause License.
+- espeak-ng, which `misaki` uses for words it doesn't know, through `espeakng-loader`: GNU General
+  Public License, version 3. It runs as a separate library on that computer and is not part of
+  Arnheim.
+
 ## Poly Haven
 
 `vendor/polyhaven/` holds files from four Poly Haven assets, unchanged, at 1K: the light probe

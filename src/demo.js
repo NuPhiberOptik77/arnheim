@@ -3,7 +3,7 @@
 // on a loop (the story at the end of work.json), so there is always something to see. Nothing is
 // saved anywhere: a reload starts the sample again.
 import { icon } from './icons.js';
-import { createPoe, has, insertAfter, poeBadge } from './poe-desk.js';
+import { createPoe, has, insertAfter, norm, poeBadge } from './poe-desk.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -266,6 +266,59 @@ function setupPoe() {
     topics: (list) => insertAfter(insertAfter(list, 'thanks', [real]), 'tour', [howTo]),
   });
 }
+
+/* ---------- talking in the walk (voice.js) ---------- */
+
+// Poe answers as at the desk. The sample's people answer from their own lines in sample/work.json
+// ("says"), with no AI: they are made up, and so is what they say. A page with real agents passes
+// its own answers, and there what you say reaches the agent doing the work.
+const talkItem = (who) => work.conversations.find((c) => convoHref(c) === who.href) || work.tasks.find((t) => taskHref(t) === who.href) || null;
+
+function poeSays(text) {
+  if (has(norm(text), ['tour', 'show me round', 'show me around', 'look around'])) return 'I can show you round from the Poe tab, once you leave the walk.';
+  const a = poe.answer(text);
+  if (a.offer) return `I can add "${a.offer.title}" as a task from the Poe tab, where you pick its project.`;
+  const lines = [...a.lines];
+  // The things an answer links to belong to its first line, so they are said right after it.
+  if (a.links?.length && a.links.length <= 4) lines.splice(1, 0, `${a.links.map((x) => (x.sub ? `${x.title}, on ${x.sub}` : x.title)).join('. ')}.`);
+  return lines.join(' ');
+}
+
+function sampleReply(item, text) {
+  const q = norm(text);
+  const says = item.says || {};
+  const on = (words) => has(q, words);
+  if (on(['thank', 'cheers', 'great', 'nice one', 'well done', 'good job'])) return "Thanks. I'll keep going.";
+  if (on(['bye', 'see you', 'talk later'])) return 'Bye for now.';
+  if (on(['who are you', 'your name', 'what are you'])) return `I'm the ${item.project} agent on "${item.title}". This company is a sample, so I am made up too.`;
+  if (on(['next', 'after that', 'plan', 'left', 'remaining', 'then what'])) return says.next || "I'll know what's next when this step is done.";
+  if (on(['you should', 'instead', 'stop ', 'switch to', 'focus on', 'do this', 'can you', 'could you', 'i want you', 'please '])) return "I'm a made-up agent in a sample, so I can't take new work. With real agents, what you say here goes to the agent doing the work.";
+  if (on(['need me', 'need anything', 'need you', 'stuck', 'blocked', 'help', 'problem', 'decide', 'decision'])) return says.needs || 'Nothing from you right now. I will ask if I need you.';
+  if (on(['how long', 'when will', 'when did', 'started', 'finish', 'done by'])) return says.when || "I can't say exactly. I'll say when it's done.";
+  return [says.now, says.next].filter(Boolean).join(' ') || `I'm working on "${item.title}".`;
+}
+
+const talk = {
+  name(who) {
+    if (who.href === '#/poe') return 'Poe';
+    const item = talkItem(who);
+    return item ? `${item.project} agent` : null;
+  },
+  greet(who) {
+    if (who.href === '#/poe') {
+      const hr = new Date().getHours();
+      const hello = hr >= 5 && hr < 12 ? 'Good morning' : hr >= 12 && hr < 18 ? 'Good afternoon' : hr >= 18 && hr < 23 ? 'Good evening' : 'Hello';
+      return `${hello}. Ask me what's happening, or anything about the building.`;
+    }
+    const item = talkItem(who);
+    return item ? `Hi. I'm on "${item.title}". Ask me how it's going.` : null;
+  },
+  answer(who, text) {
+    if (who.href === '#/poe') return poeSays(text);
+    const item = talkItem(who);
+    return item ? sampleReply(item, text) : "I've finished here, so there's nothing new to tell.";
+  },
+};
 
 /* ---------- the panel ---------- */
 
@@ -668,6 +721,7 @@ async function startBuilding() {
     const canvas = $('scene').cloneNode(false);
     $('scene').replaceWith(canvas);
     building = createBuilding(canvas, org, {
+      talk,
       labels: $('labels'),
       onStatus: onModelStatus,
       onWalk: setWalking,
