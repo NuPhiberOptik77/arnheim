@@ -78,7 +78,8 @@ function sample(root, origin, eye, count) {
   const meshes = [];
   const visit = (o, top) => {
     if (!top && !o.visible) return;
-    if (o.isMesh && !o.userData.hit) {
+    // Instanced copies live in a matrix this does not read, and a backdrop such as a sky is no part of the floor.
+    if (o.isMesh && !o.isInstancedMesh && !o.userData.hit && !o.userData.backdrop) {
       const m = Array.isArray(o.material) ? o.material[0] : o.material;
       if (m && m.colorWrite !== false && (!m.transparent || o.userData.solid)) meshes.push({ mesh: o, color: tintOf(m) });
     }

@@ -4,7 +4,7 @@
 import * as THREE from '../vendor/three/three.module.js';
 import { ShaderPass } from '../vendor/three/addons/postprocessing/ShaderPass.js';
 import { createBurn } from './three/burn.js';
-import { buildHall } from './three/halls.js';
+import { buildHall, buildPenthouse } from './three/halls.js';
 import { dressHall, loadPhoto, photoWanted } from './three/photo.js';
 import { D, H, W } from './three/rooms.js';
 
@@ -116,6 +116,18 @@ export function createWalk(ctx) {
   const v = new THREE.Vector3();
   const ahead = new THREE.Vector3();
   const order = [...storeys].sort((a, b) => b.y - a.y); // top floor first
+  // The founder's office (three/halls.js): a floor above the others that only the walk has, at the
+  // top of the lift's list. Its height only matters to its own light.
+  const founder = ctx.org.founder || null;
+  const given = founder?.firstName || founder?.name?.trim().split(/\s+/)[0] || '';
+  const penthouse = {
+    id: 'penthouse', label: given ? `${given}'s office` : 'Penthouse', role: 'penthouse', rooms: [],
+    group: new THREE.Group(), y: order[0].y + H + 0.3,
+  };
+  penthouse.group.position.set(order[0].group.position.x, penthouse.y, order[0].group.position.z);
+  penthouse.group.visible = false;
+  scene.add(penthouse.group);
+  order.unshift(penthouse);
   const me = {
     x: 0, z: 0, yaw: 0, pitch: -0.05, yawGoal: 0, pitchGoal: -0.05, vx: 0, vz: 0, speed: 0,
     phase: 0, amp: 0, dip: 0, dipV: 0, striding: false, target: null, stuck: 0,
@@ -167,7 +179,8 @@ export function createWalk(ctx) {
   const cardSub = el('span');
   const cardText = el('div');
   cardText.append(cardTitle, cardSub);
-  card.append(cardText, button('Open', () => ctx.leave(), 'Leave the walk and open this in the list'));
+  const openButton = button('Open', () => ctx.leave(), 'Leave the walk and open this in the list');
+  card.append(cardText, openButton);
   const help = el('p', 'aw-help', coarse
     ? 'Walk with the stick and drag to look. Tap the floor to go there, or something to open it. Double-tap to burn this floor and rebuild it.'
     : 'WASD or the arrow keys to walk, Shift to hurry, drag to look. Click the floor to go there, or something to open it. Double-click to burn this floor and rebuild it. Esc to leave.');
@@ -208,6 +221,7 @@ export function createWalk(ctx) {
     cardTitle.textContent = info.title || hit.title || '';
     cardSub.textContent = info.sub || '';
     cardSub.hidden = !cardSub.textContent;
+    openButton.hidden = !!hit.stay; // a thing of the walk's own, with nothing to open in the list
     card.hidden = false;
     clearTimeout(cardTimer);
     cardTimer = setTimeout(() => { card.hidden = true; }, 7000);
@@ -224,7 +238,9 @@ export function createWalk(ctx) {
   function hallFor(s) {
     let entry = halls.get(s.id);
     if (entry) return entry;
-    entry = buildHall(s, { company: ctx.org.company, mission: ctx.org.mission });
+    entry = s === penthouse
+      ? buildPenthouse(s, { founder })
+      : buildHall(s, { company: ctx.org.company, mission: ctx.org.mission });
     if (photo) dressHall(entry, photo);
     const person = ctx.personRoom;
     if (entry.poe && person?.storey === s) {
@@ -535,7 +551,7 @@ export function createWalk(ctx) {
       const hit = thing.object.userData;
       if (hit.lift) { openPicker(); return; }
       showCard(hit);
-      ctx.onPick?.({ ...hit, walk: true });
+      if (!hit.stay) ctx.onPick?.({ ...hit, walk: true });
       return;
     }
     if (!surface) return;
@@ -732,6 +748,11 @@ export function createWalk(ctx) {
       v.set(p.x + hall.poe.x, p.y + 2.05, p.z + hall.poe.z);
       if (v.distanceTo(camera.position) < 12 && inView(hall.poe.x, hall.poe.z)) out.push({ key: 'w:poe', title: person.spec.person.name, sub: 'Receptionist', kind: 'quiet', align: 'center', at: v.toArray(), rank: 0 });
     }
+    if (hall.desk?.name) {
+      const p = here.group.position;
+      v.set(p.x + hall.desk.x, p.y + 1.75, p.z + hall.desk.z);
+      if (v.distanceTo(camera.position) < 14 && inView(hall.desk.x, hall.desk.z)) out.push({ key: 'w:founder', title: hall.desk.name, sub: hall.desk.title, kind: 'quiet', align: 'center', at: v.toArray(), rank: 0 });
+    }
     return out.sort((a, b) => a.rank - b.rank).slice(0, 5);
   }
 
@@ -757,6 +778,7 @@ export function createWalk(ctx) {
       entry.dispose();
     }
     halls.clear();
+    penthouse.group.removeFromParent();
     photo?.dispose(); // after the halls: their materials only borrowed these pictures
     photo = null;
     burn.dispose();

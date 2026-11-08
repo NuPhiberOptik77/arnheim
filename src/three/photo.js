@@ -18,7 +18,7 @@ const SKY = 'entrance_hall_1k.hdr';
 const FILES = Object.values(SETS).reduce((n, s) => n + (s.paint ? 2 : 3), 1);
 // How much of the real hall's light each kind shows: little on matt and polished stone, a lot on
 // metal and glass, which look flat without something to reflect.
-const SHEEN = { terrazzo: 0.3, oak: 0.25, plaster: 0.15, stone: 0.25, metal: 0.9 };
+const SHEEN = { terrazzo: 0.3, oak: 0.25, plaster: 0.15, stone: 0.25, polished: 0.55, metal: 0.9, glass: 0.12 };
 
 // Whether this device gets the real materials: not with ?lite in the address, not with data saver
 // on, and not on a device short of memory or with a small graphics chip.
@@ -183,8 +183,8 @@ function metreUV(geo, metres) {
 }
 
 // Dresses what a hall marked for it (halls.js sets material.userData.photo): plaster, oak and
-// terrazzo get the real pictures, keeping on average the gloss they were drawn with; 'stone' and
-// 'metal' things only gain the real hall's reflections.
+// terrazzo get the real pictures, keeping on average the gloss they were drawn with; 'stone',
+// 'polished', 'metal' and 'glass' things only gain the real hall's reflections (SHEEN says how much).
 export function dressHall(hall, photo) {
   hall.group.traverse((o) => {
     if (!o.isMesh || Array.isArray(o.material) || o.userData.dressed) return;
