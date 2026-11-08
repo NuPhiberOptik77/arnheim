@@ -699,5 +699,8 @@ export function buildPenthouse(storey, { founder = null } = {}) {
   return made(g, scope, extras, lift, {
     west, east, front, high, picks: [lift.call, hit],
     desk: { x: mid, z: dz + 0.85, name, title },
+    // Where the founder's notes hang (three/notes.js): an arc this far round the lift's doors, clear of
+    // the armchairs and the reading corner, the cards at eye height on threads from the ceiling.
+    notes: { x: mid, z: 1.05, r: 3.6, y: 1.52, high },
   });
 }

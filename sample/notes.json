@@ -1,0 +1,55 @@
+{
+  "about": "Made-up notes for the demo, written as Ellison, the made-up founder of Fernhollow. The walk hangs the newest eight in the founder's office. hoursAgo says how long before the page opened each was last changed; a page with real notes gives a date instead (when).",
+  "notes": [
+    {
+      "id": "small-lasting",
+      "title": "Small, lasting things",
+      "hoursAgo": 2,
+      "text": "What we make should outlast the reason we made it.\n\nA chair you can mend. A file you can still open in twenty years. An app that works on a slow train with one bar of signal.\n\nIf a feature only makes sense this year, it can wait until next year and see if it still does."
+    },
+    {
+      "id": "thursday",
+      "title": "Questions for Thursday",
+      "hoursAgo": 26,
+      "text": "Is Lantern's sync quick enough on a four-year-old phone?\nWho tries the Tidepool kit with a screwdriver rather than a laptop?\nCan Kitefield's wind model run with no internet at the field?\nWhat did we promise last month and not do yet?"
+    },
+    {
+      "id": "garden",
+      "title": "The garden at the end of the river",
+      "hoursAgo": 50,
+      "text": "In the story this building is named after, Ellison spends a fortune on a garden you reach slowly, by boat, round bend after bend, so that arriving feels earned.\n\nGood tools feel like that. You should not see all of it from the door. It should open as you go, and each turn should show you something you were ready for.\n\nNote to self: the lift does that. Keep it."
+    },
+    {
+      "id": "kite-field",
+      "title": "Kite field, Saturday",
+      "hoursAgo": 97,
+      "text": "Wind steady from the south west until three, then gusts.\n\nThe new spar bent less than the model said it would. Either the model is too careful or the ash is better than we thought. Test both.\n\nNext time: the long tail, and a flask of tea."
+    },
+    {
+      "id": "to-read",
+      "title": "To read",
+      "hoursAgo": 150,
+      "text": "Landor's Cottage, the other half of the garden story.\nSomething good on mending furniture.\nThe weather diaries of an old lighthouse keeper, if anyone kept them.\nOur own notes from a year ago, before deciding anything big."
+    },
+    {
+      "id": "workbench",
+      "title": "The workbench",
+      "hoursAgo": 220,
+      "pictures": 2,
+      "text": "Oiled the new bench. Two photos: before and after.\n\nThe left leg still wobbles a little. A wedge, not a new leg."
+    },
+    {
+      "id": "quiet-software",
+      "title": "On quiet software",
+      "hoursAgo": 300,
+      "text": "Most software wants your attention. Ours should want to give you your time back.\n\nSome rules we keep coming back to:\n\n1. Nothing moves unless something changed. A screen that sits still is a screen you can trust.\n2. Every number has a source. If we cannot say where it came from, it does not go on the screen.\n3. Bad news is shown plainly and early. A failed backup is not a footnote.\n4. Undo before confirm. Most mistakes are small, and the fastest fix is a button that puts things back.\n5. Work offline first. The network is a guest, not the landlord.\n6. The default is quiet. Notifications are for things a person would want to be woken for, and almost nothing is.\n\nWhy it matters: people use our things for years. A small irritation, repeated every day, becomes the whole of what they remember. A small kindness does too.\n\nFor Lantern, the bookmark is the product. Everything else is decoration, and decoration should be cheap to remove.\n\nFor Tidepool, the station keeps its own record when the app is closed, the phone is lost or the company is gone. A weather station that forgets the weather when our server is down is not a weather station.\n\nFor Kitefield, the model says how sure it is. A kite designer needs to know when to trust the numbers and when to go outside and fly the thing.\n\nAnd for us: fewer meetings, longer walks, and a habit of writing things down where the whole studio can find them. Like this note."
+    },
+    {
+      "id": "presents",
+      "title": "Presents for the team",
+      "hoursAgo": 410,
+      "locked": true,
+      "text": ""
+    }
+  ]
+}

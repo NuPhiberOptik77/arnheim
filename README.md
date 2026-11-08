@@ -41,6 +41,12 @@ on three sides and a dusk beyond. The lift opens onto a desk of pale oak that se
 two rings of light round a small sun behind it. A cloud of small lights hangs over the way in, with
 a library on one side and a lounge on the other. Tap the desk to see whose it is.
 
+The founder's newest notes hang there too, up to eight cards of lit paper on threads among the
+lights, in an arc in front of the lift. Each turns a little towards you as you come near. Tap one,
+or stand in the pool of light in front of it, to read it in full; walk on or press Esc to put it
+down. The page gives the notes and is asked for fresh ones whenever someone walks into the office,
+so an edited note shows the next time you come up. The sample's notes are made up.
+
 Walking brings in real materials: photographed terrazzo, white oak and plaster, and the light of a
 real entrance hall reflected in the glass, stone and metal. They are about 6 MB of free CC0
 pictures from Poly Haven (see `THIRD_PARTY_NOTICES.md`). They load only once you press Walk, and
@@ -53,13 +59,14 @@ light motion blur as you turn, softer corners and fine grain. Reduced motion tur
 
 ## Make it yours
 
-The building comes from two files:
+The building comes from three files:
 
 - `sample/company.json` is the map: the company's name and mission, its floors (one per project),
   the rooms on each floor, the lobby (Front of house), the basement (shared machines and the
   Library) and the founder, whose office is at the top of the lift in the walk. Every floor and room has an `about` line, which Poe uses to answer questions.
 - `sample/work.json` is what is going on: tasks, goals, conversations, pull requests, websites,
   machines and their jobs, and the story that plays on a loop.
+- `sample/notes.json` is the founder's notes, which hang in their office on a walk.
 
 Change them and reload. A floor can choose its colours with `palette`: terracotta, harbour, sage,
 indigo, plum, teal, sand or slate.
@@ -72,6 +79,10 @@ The world knows nothing about the page around it. `src/demo.js` shows the whole 
   draws the company map.
 - `building.setLive(rooms)` lights it: one plain object per room, keyed `floor/room`, plus
   `floor:<id>` for the line under each floor's name.
+- `building.setNotes(notes)` hangs the founder's newest notes in their office on a walk, each
+  `{ id, title, text, when, pictures, locked }` in plain text. An `onNotes` callback passed to
+  `createBuilding` is called when someone walks into the office and every two minutes while they
+  stay, so the page can answer with fresh notes.
 - `createPoe(kit)` from `src/poe-desk.js` gives you Poe's desk. Poe answers by keyword matching over
   the facts you pass in, with no AI, and a page can teach Poe its own words and topics.
 

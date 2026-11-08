@@ -69,7 +69,7 @@ const PLAN_WALLS = [
   { n: FAR, w: INNER, e: CURB, s: CURB },
 ];
 
-export function createBuilding(canvas, org, { onPick, onHover, onStatus, onWalk, labels, insets = [64, 44] }) {
+export function createBuilding(canvas, org, { onPick, onHover, onStatus, onWalk, onNotes, labels, insets = [64, 44] }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'default' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -115,6 +115,7 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, onWalk,
   let walker = null; // a first-person walk, while one is going (walk.js)
   let walkStart = null;
   let version = 0; // goes up whenever what stands in the rooms changes, so a walk looks again
+  let notes = []; // the founder's notes, hung in their office on a walk (setNotes)
 
   /* ---------- light and background ---------- */
 
@@ -1249,6 +1250,7 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, onWalk,
       walker = createWalk({
         scene, camera, canvas, renderer, composer, photo, storeys, org, reduced, personRoom, start: view.floor,
         onPick, describe, infoText, roomWorld, wake, touched, version: () => version,
+        notes: () => notes, onNotes,
         poeAwake() { personWake = performance.now(); },
         shadows(near, reach) { aimLights(near, reach); shadowsDirty = true; wake(2); },
         leave() { endWalk(); onWalk?.(false); },
@@ -1276,6 +1278,14 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, onWalk,
     focus(was);
     shadowsDirty = true;
     wake(3);
+  }
+
+  // The founder's newest notes, to hang in their office on a walk: [{ id, title, text, when, pictures,
+  // locked }] (three/notes.js says what each means). onNotes is called when someone walks into the
+  // office and every few minutes while they stay, so a page can answer with fresh ones.
+  function setNotes(list) {
+    notes = Array.isArray(list) ? list : [];
+    walker?.setNotes(notes);
   }
 
   function endWalk() {
@@ -1307,7 +1317,7 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, onWalk,
 
   return {
     setLive, setScene, setTheme, focus, highlight, zoomBy, turn, resetView, wake, where, dispose,
-    walk, walking: () => !!walker, walkInfo: () => walker?.info() || null,
+    walk, walking: () => !!walker, walkInfo: () => walker?.info() || null, setNotes,
     // One picture of the model as it stands now, without waiting for a frame.
     // It does a whole frame's work: a model that has never drawn (a hidden page) has no shadow maps
     // or lamp values yet, and WebGL refuses to draw lit materials without them, leaving only the decals.

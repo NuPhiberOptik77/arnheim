@@ -671,6 +671,7 @@ async function startBuilding() {
       labels: $('labels'),
       onStatus: onModelStatus,
       onWalk: setWalking,
+      onNotes: showNotes,
       onPick(hit) {
         tip.hidden = true;
         if (hit.company) { location.hash = '#/company'; return; }
@@ -689,6 +690,7 @@ async function startBuilding() {
     });
     building.setTheme(isDark());
     building.setLive(liveModel());
+    showNotes();
     applyScene();
     focusBuilding();
     window.__arnheim = { building, model: liveModel, poe };
@@ -700,6 +702,21 @@ async function startBuilding() {
 }
 
 /* ---------- walking through the building ---------- */
+
+// The founder's notes, hung in their office on a walk: made-up ones from sample/notes.json, read
+// again whenever someone walks into the office, as a page with real notes would read them afresh.
+let notesFrom = 0;
+async function showNotes() {
+  try {
+    const reply = await fetch('sample/notes.json', { cache: 'no-store' });
+    if (!reply.ok) return;
+    const { notes = [] } = await reply.json();
+    notesFrom ||= Date.now();
+    building?.setNotes(notes.map((n) => ({ ...n, when: n.when ?? notesFrom - (Number(n.hoursAgo) || 0) * 3600000 })));
+  } catch {
+    // no notes: the office is simply as it was
+  }
+}
 
 function setWalking(on) {
   $('walk').setAttribute('aria-pressed', String(!!on));
