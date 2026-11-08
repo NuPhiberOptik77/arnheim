@@ -63,8 +63,10 @@ function headShape(P) {
   return { unit, point, face };
 }
 
-// A sphere bent into shape, optionally keeping only some of its triangles. The seam sits at the back.
-function shaped(segW, segH, place, keep) {
+// A sphere bent into shape, optionally keeping only some of its triangles: those whose middle
+// passes `keep`, or with `any`, those with any corner that passes (so `place` can pull the rest
+// onto a clean edge). The seam sits at the back.
+function shaped(segW, segH, place, keep, any = false) {
   const geo = new THREE.SphereGeometry(1, segW, segH, -Math.PI / 2);
   const pos = geo.attributes.position;
   const unit = pos.array.slice();
@@ -76,9 +78,13 @@ function shaped(segW, segH, place, keep) {
     const index = geo.index.array;
     const kept = [];
     for (let i = 0; i < index.length; i += 3) {
-      let x = 0; let y = 0; let z = 0;
-      for (let k = 0; k < 3; k++) { const j = index[i + k] * 3; x += unit[j]; y += unit[j + 1]; z += unit[j + 2]; }
-      if (keep(x / 3, y / 3, z / 3)) kept.push(index[i], index[i + 1], index[i + 2]);
+      let x = 0; let y = 0; let z = 0; let hit = false;
+      for (let k = 0; k < 3; k++) {
+        const j = index[i + k] * 3;
+        x += unit[j]; y += unit[j + 1]; z += unit[j + 2];
+        if (any && keep(unit[j], unit[j + 1], unit[j + 2])) hit = true;
+      }
+      if (any ? hit : keep(x / 3, y / 3, z / 3)) kept.push(index[i], index[i + 1], index[i + 2]);
     }
     geo.setIndex(kept);
   }
@@ -108,6 +114,45 @@ function lock(points, r0, r1, flat = 0.7) {
   }
   geo.computeVertexNormals();
   return geo;
+}
+
+// A braid along a curve: two strands of small beads winding round each other, thinning towards
+// the end. Gives the beads and the curve, so ties and clips can be put on it.
+function braid(points, r, material, turns = 6) {
+  const curve = new THREE.CatmullRomCurve3(points);
+  const steps = turns * 4;
+  const frames = curve.computeFrenetFrames(steps, false);
+  const bead = new THREE.SphereGeometry(1, 10, 8);
+  const along = new THREE.Vector3(0, 0, 1);
+  const beads = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const rr = r * (1 - 0.3 * t);
+    for (const strand of [0, Math.PI]) {
+      const a = t * turns * Math.PI * 2 + strand;
+      const m = new THREE.Mesh(bead, material);
+      m.position.copy(curve.getPointAt(t))
+        .addScaledVector(frames.normals[i], Math.cos(a) * rr * 0.42)
+        .addScaledVector(frames.binormals[i], Math.sin(a) * rr * 0.42);
+      m.quaternion.setFromUnitVectors(along, frames.tangents[i]);
+      m.scale.set(rr * 0.66, rr * 0.66, rr * 1.05);
+      beads.push(m);
+    }
+  }
+  return { beads, curve, frames };
+}
+
+// A small flower lying on a surface: petals round a centre, facing out along `out`.
+function flower(at, out, size, petals, centre, count = 5) {
+  const g = new THREE.Group();
+  g.position.copy(at);
+  g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), out.clone().normalize());
+  for (let k = 0; k < count; k++) {
+    const a = (k / count) * Math.PI * 2;
+    g.add(ball([Math.cos(a) * size, Math.sin(a) * size, 0], 1, petals, [size * 0.8, size * 0.8, size * 0.42]));
+  }
+  g.add(ball([0, 0, size * 0.2], 1, centre, [size * 0.5, size * 0.5, size * 0.4]));
+  return g;
 }
 
 const v3 = (p) => (p.isVector3 ? p.clone() : new THREE.Vector3(...p));
@@ -178,9 +223,10 @@ export function buildPerson(P = POE) {
     return mat(c[key], { rough, ...(f ? { emissive: f[0], emissiveIntensity: f[1] } : {}), ...extra });
   };
   const M = {
-    skin: paint('skin', 0.55), lips: paint('lips', 0.5), eyes: paint('eyes', 0.3), whites: paint('whites', 0.4), hair: paint('hair', 0.45),
+    skin: paint('skin', 0.55), lips: paint('lips', 0.5), eyes: paint('eyes', 0.3), whites: paint('whites', 0.4), hair: paint('hair', P.hairRough ?? 0.45),
     coat: paint('coat', 0.7), lapel: paint('lapel', 0.45), shirt: paint('shirt', 0.8), square: paint('square', 0.6),
-    brass: paint('brass', 0.3, { metal: 0.7 }), trousers: paint('trousers', 0.8), shoes: paint('shoes', 0.35),
+    brass: paint('brass', 0.3, { metal: P.collar === 'round' ? 0 : 0.7 }), trousers: paint('trousers', 0.8), shoes: paint('shoes', 0.35),
+    gold: mat(c.gold || c.brass, { rough: 0.3, metal: 0.7 }),
   };
   const S = headShape(P);
   const root = new THREE.Group();
@@ -190,17 +236,52 @@ export function buildPerson(P = POE) {
   /* ---------- head and hair ---------- */
   head.add(new THREE.Mesh(shaped(40, 28, (x, y, z) => S.unit(x, y, z)), M.skin));
   const line = (x, z) => { const a = Math.atan2(x, z); return table(a >= 0 ? P.hairline.long : P.hairline.short, Math.abs(a)); };
+  // How far the hair stands out from the head, once past the hairline: Poe's sweeps to one side.
+  const volume = P.volume || ((x, y) => 0.025 + 0.05 * smooth(-0.3, 0.7, x) + 0.03 * smooth(0.3, 1, y));
+  const ramp = P.ramp || 0.28; // how soon past the hairline the hair reaches its full volume
+  // Points just below the hairline are pulled up onto it, so its edge is a clean line, not steps.
   const hairAt = (x, y, z) => {
-    const over = smooth(0, 0.28, y - line(x, z));
-    return S.unit(x, y, z, 1.012 + (0.025 + 0.05 * smooth(-0.3, 0.7, x) + 0.03 * smooth(0.3, 1, y)) * over);
+    const edge = line(x, z);
+    if (y < edge) {
+      const a = Math.atan2(x, z);
+      const s = Math.sqrt(1 - edge * edge);
+      [x, y, z] = [Math.sin(a) * s, edge, Math.cos(a) * s];
+    }
+    return S.unit(x, y, z, 1.012 + volume(x, y, z) * smooth(0, ramp, y - edge));
   };
-  head.add(new THREE.Mesh(shaped(48, 32, hairAt, (x, y, z) => y > line(x, z)), M.hair));
+  const [hairW, hairH] = P.hairDetail || [48, 32];
+  head.add(new THREE.Mesh(shaped(hairW, hairH, hairAt, (x, y, z) => y > line(x, z), true), M.hair));
   for (const L of P.locks) head.add(new THREE.Mesh(lock(L.path.map(([a, y, g]) => S.point(a, y, g)), ...L.r), M.hair));
+  if (P.bun) head.add(ball(S.point(Math.PI, P.bun.y, P.bun.out), 1, M.hair, [P.bun.r, P.bun.r * 0.9, P.bun.r]));
+  // A centre parting from the hairline over the crown: a thin line of scalp lying on the hair.
+  if (P.part) {
+    const lift = (y) => 1.016 + volume(0, y, 1) * smooth(0, ramp, y - line(0, 1));
+    const path = [[0, P.hairline.long[0][1] + 0.03], [0, 0.8], [0, 0.97], [Math.PI, 0.9], [Math.PI, 0.72]];
+    head.add(new THREE.Mesh(lock(path.map(([a, y]) => S.point(a, y, lift(y))), 0.0016, 0.0016, 2.6), M.skin));
+  }
+  // Braids, each held by a tie near its root and a clip further down.
+  const centre = new THREE.Vector3(0, P.head.y, P.head.z);
+  for (const B of P.braids || []) {
+    const { beads, curve, frames } = braid(B.path.map(([a, y, g]) => S.point(a, y, g)), B.r, M.hair, B.turns);
+    head.add(...beads);
+    if (B.tie) {
+      const tie = new THREE.Mesh(new THREE.TorusGeometry(B.r * 0.95, B.r * 0.42, 8, 20), mat(B.tie, { rough: 0.55 }));
+      tie.position.copy(curve.getPointAt(0.04));
+      tie.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), frames.tangents[0]);
+      head.add(tie);
+    }
+    if (B.clip) {
+      const p = curve.getPointAt(B.clipAt ?? 0.72);
+      const out = p.clone().sub(centre).normalize();
+      head.add(flower(p.clone().addScaledVector(out, B.r * 0.7), out, B.r * 0.62, mat(B.clip, { rough: 0.35 }), mat(B.clip, { rough: 0.25 })));
+    }
+  }
+  const eye = P.eyeSize || 1;
   for (const side of [-1, 1]) {
     const a = 0.37 * side;
     head.add(
-      ball(S.face(a, 0.1, -0.001), 1, M.whites, [0.0155, 0.0072, 0.005], a),
-      ball(S.face(a * 0.97, 0.1, 0.0035), 1, M.eyes, [0.0062, 0.0062, 0.003], a),
+      ball(S.face(a, 0.1, -0.001), 1, M.whites, [0.0155 * eye, 0.0072 * eye, 0.005], a),
+      ball(S.face(a * 0.97, 0.1, 0.0035), 1, M.eyes, [0.0062 * eye, 0.0062 * eye, 0.003], a),
       ball(S.face(a, 0.16, 0.0005), 1, M.eyes, [0.0165, 0.0026, 0.0055], a, 0.05 * side),
       ...limb(S.face(0.15 * side, 0.37, 0.001), S.face(0.42 * side, 0.405, 0.001), 0.0042, 0.0036, M.hair),
       ...limb(S.face(0.42 * side, 0.405, 0.001), S.face(0.62 * side, 0.33, 0.001), 0.0036, 0.0026, M.hair),
@@ -208,11 +289,23 @@ export function buildPerson(P = POE) {
   }
   head.add(
     ball(S.face(0, -0.08, -0.002), 1, M.skin, [0.0095, 0.03, 0.012]),
-    ball(S.face(0, -0.25, 0.004), 0.011, M.skin, [1, 0.85, 1]),
+    ball(S.face(0, -0.25, 0.004), 0.011, M.skin, P.noseTip || [1, 0.85, 1]),
     ball(S.face(0, -0.5, -0.002), 1, M.lips, [0.02, 0.0052, 0.008]),
     ball(S.face(0, -0.565, -0.002), 1, M.lips, [0.018, 0.0062, 0.0085]),
-    ball(S.point(-Math.PI / 2, 0, 0.99), 1, M.skin, [0.011, 0.026, 0.017]), // the ear on the short side
   );
+  // The ears: Poe's long side covers one, so only the short side shows unless the spec says both.
+  const ears = P.ears === 'both' ? [-1, 1] : [-1];
+  for (const side of ears) {
+    head.add(ball(S.point((side * Math.PI) / 2, 0, 0.99), 1, M.skin, [0.011, 0.026, 0.017]));
+    if (P.earrings === 'studs') {
+      head.add(ball(S.point(side * (Math.PI / 2 - 0.08), -0.15, 1.1), 0.0034, M.gold));
+    } else if (P.earrings) {
+      const hoop = new THREE.Mesh(new THREE.TorusGeometry(0.011, 0.0022, 8, 24), M.gold);
+      hoop.position.copy(S.point((side * Math.PI) / 2, -0.28, 1.06));
+      hoop.rotation.y = Math.PI / 2; // hanging flat against the side of the head
+      head.add(hoop);
+    }
+  }
 
   /* ---------- the tailored coat, shirt and arms ---------- */
   const profile = new THREE.SplineCurve(P.coat.map(([r, y]) => new THREE.Vector2(r, y))).getPoints(40);
@@ -228,17 +321,45 @@ export function buildPerson(P = POE) {
   upper.add(new THREE.Mesh(body, M.coat));
   const vee = (y) => 0.052 * Math.max(0, (y - 1.24) / 0.265) ** 0.9;
   const lapel = (y) => (y > 1.39 ? 0.022 + (0.032 * (1.5 - y)) / 0.11 : 0.054 * Math.max(0, (y - 1.19) / 0.2));
-  upper.add(
-    strip(front, 1.24, 1.505, (y) => -vee(y), vee, 0.0025, M.shirt),
-    strip(front, 1.19, 1.5, (y) => -vee(y) - lapel(y), (y) => -vee(y) + 0.002, 0.005, M.lapel),
-    strip(front, 1.19, 1.5, (y) => vee(y) - 0.002, (y) => vee(y) + lapel(y), 0.005, M.lapel),
-    strip(front, 0.84, 1.18, () => -0.0025, () => 0.0025, 0.002, M.lapel, 6, 1),
-    strip(front, 1.325, 1.348, () => 0.072, () => 0.106, 0.004, M.square, 2, 2),
-    ball([0, 1.185, front(0, 1.185) + 0.006], 0.0085, M.brass, [1, 1, 0.5]),
-    ball([0.066, 1.43, front(0.066, 1.43) + 0.009], 0.0065, M.brass),
-    ...limb([0, 1.47, 0], [0, 1.6, 0.008], 0.05, 0.045, M.skin),
-    tube([0, 1.488, 0.002], [0, 1.545, 0.006], 0.06, 0.056, M.shirt),
-  );
+  upper.add(...limb([0, 1.47, 0], [0, 1.6, 0.008], 0.05, 0.045, M.skin));
+  if (P.collar === 'round') {
+    // A cardigan buttoned to the neck: a button band down the front and a rounded collar lying
+    // flat round the bare neck.
+    upper.add(
+      strip(front, 0.84, 1.49, () => -0.0065, () => 0.0065, 0.002, M.lapel, 12, 1),
+      tube([0, 1.486, 0.002], [0, 1.516, 0.004], 0.058, 0.055, M.coat), // the neckline, a little up the neck
+    );
+    for (const y of [1.45, 1.35, 1.25, 1.15, 1.05]) upper.add(ball([0, y, front(0, y) + 0.004], 0.0058, M.brass, [1, 1, 0.45]));
+    for (const side of [-1, 1]) {
+      const flap = ball([0.047 * side, 1.5, 0.05], 1, M.lapel, [0.05, 0.03, 0.006]);
+      flap.rotation.set(-1.05, 0.55 * side, 0.32 * side);
+      upper.add(flap);
+    }
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.058, 0.0075, 8, 32), M.lapel);
+    band.position.set(0, 1.512, -0.004);
+    band.rotation.x = Math.PI / 2;
+    band.scale.set(1, 0.86, 1);
+    upper.add(band);
+  } else {
+    upper.add(
+      strip(front, 1.24, 1.505, (y) => -vee(y), vee, 0.0025, M.shirt),
+      strip(front, 1.19, 1.5, (y) => -vee(y) - lapel(y), (y) => -vee(y) + 0.002, 0.005, M.lapel),
+      strip(front, 1.19, 1.5, (y) => vee(y) - 0.002, (y) => vee(y) + lapel(y), 0.005, M.lapel),
+      strip(front, 0.84, 1.18, () => -0.0025, () => 0.0025, 0.002, M.lapel, 6, 1),
+      ball([0, 1.185, front(0, 1.185) + 0.006], 0.0085, M.brass, [1, 1, 0.5]),
+      ball([0.066, 1.43, front(0.066, 1.43) + 0.009], 0.0065, M.brass),
+      tube([0, 1.488, 0.002], [0, 1.545, 0.006], 0.06, 0.056, M.shirt),
+    );
+  }
+  if (P.pocket !== false) upper.add(strip(front, 1.325, 1.348, () => 0.072, () => 0.106, 0.004, M.square, 2, 2));
+  // A flower brooch on the right of the chest (on the left as you face them): [petals, centre].
+  if (P.brooch) {
+    const [petals, middle] = Array.isArray(P.brooch) ? P.brooch : [P.brooch, P.brooch];
+    const x = -0.084;
+    const y = 1.372;
+    const out = new THREE.Vector3((P.depth * x) / Math.sqrt(Math.max(1e-6, radiusAt(y) ** 2 - x * x)), 0.05, 1);
+    upper.add(flower(new THREE.Vector3(x, y, front(x, y) + 0.004), out, 0.0105, mat(petals, { rough: 0.95 }), mat(middle, { rough: 0.9 }), 6));
+  }
   for (const side of [-1, 1]) {
     const sh = [0.172 * side, 1.425, -0.01];
     const el = [0.212 * side, 1.17, 0.035];
@@ -283,6 +404,74 @@ export function buildPerson(P = POE) {
       head.rotation.x = 0.02 * Math.sin(t * 0.21);
     },
   };
+}
+
+/* ---------- someone else built like Poe ---------- */
+
+// A neat hairline round the face, over the ears and down to the nape, for hair drawn back: a bun,
+// or braids from a centre parting.
+const NEAT_LINE = [[0, 0.55], [0.5, 0.5], [0.95, 0.3], [1.35, 0.12], [1.7, -0.14], [2.3, -0.42], [3.15, -0.56]];
+const shade = (hex, k) => `#${new THREE.Color(hex).multiplyScalar(k).getHexString()}`;
+
+// A person in Poe's style from a page's plain description, such as the founder's assistant
+// (org.assistant.look). Colours are hex strings; anything left out is Poe's.
+//   skin, hair, lips, coat, shirt, trousers
+//   style: 'braids' (a centre parting and a braid each side, with `ties` and `clips` colours),
+//     'bun', or Poe's swept cut if left out
+//   accent: buttons and pocket square; pocket: false for none
+//   collar: 'round' for a cardigan buttoned to the neck with a rounded collar
+//   brooch: a flower on the chest, one colour or [petals, centre]
+//   earrings: 'studs' or 'hoops', in `gold` (the accent if left out)
+//   face: 'round' for a rounder face with larger eyes
+export function lookSpec(look = {}, base = POE) {
+  const c = base.colors;
+  const skin = look.skin || c.skin;
+  const hair = look.hair || c.hair;
+  const coat = look.coat || c.coat;
+  const accent = look.accent || c.square;
+  const cardigan = look.collar === 'round';
+  const spec = {
+    ...base,
+    colors: {
+      ...c, skin, hair, coat, lapel: shade(coat, cardigan ? 0.94 : 0.72), shirt: look.shirt || c.shirt, square: accent, brass: accent,
+      gold: look.gold || accent, trousers: look.trousers || c.trousers,
+      whites: `#${new THREE.Color(c.whites).lerp(new THREE.Color(skin), 0.14).getHexString()}`,
+      lips: look.lips || `#${new THREE.Color(skin).lerp(new THREE.Color('#8c3b3a'), 0.3).multiplyScalar(0.82).getHexString()}`,
+    },
+    fill: { ...base.fill, skin: [shade(skin, 0.5), 0.2], hair: [shade(hair, 0.6), 0.14], coat: [shade(coat, 0.5), cardigan ? 0.12 : 0.28] },
+    earrings: look.earrings || null,
+    collar: look.collar || null,
+    brooch: look.brooch || null,
+    pocket: look.pocket ?? true,
+  };
+  if (look.face === 'round') {
+    Object.assign(spec, { head: { ...base.head, w: 0.097, h: 0.12, d: 0.102 }, eyeSize: 1.16, noseTip: [1.2, 0.88, 1] });
+  }
+  if (look.style === 'braids') {
+    Object.assign(spec, {
+      hairline: { long: NEAT_LINE, short: NEAT_LINE },
+      locks: [],
+      volume: (_x, y) => 0.03 + 0.02 * smooth(0.4, 1, y),
+      hairRough: 0.9,
+      hairDetail: [96, 64],
+      ears: 'both',
+      part: true,
+      // From a tie high on each side, up and out, then down the side of the head to the ear.
+      braids: [-1, 1].map((s) => ({
+        r: 0.0185, turns: 6, tie: look.ties || null, clip: look.clips || null, clipAt: 0.68,
+        path: [[s * 0.95, 0.88, 1.08], [s * 1.18, 0.9, 1.34], [s * 1.42, 0.6, 1.36], [s * 1.55, 0.26, 1.28], [s * 1.62, 0.0, 1.17]],
+      })),
+    });
+  } else if (look.style === 'bun') {
+    Object.assign(spec, {
+      hairline: { long: NEAT_LINE, short: NEAT_LINE },
+      locks: [],
+      volume: (_x, y) => 0.03 + 0.025 * smooth(0.3, 1, y),
+      ears: 'both',
+      bun: { y: 0.42, out: 1.3, r: 0.056 },
+    });
+  }
+  return spec;
 }
 
 /* ---------- the people at work ---------- */

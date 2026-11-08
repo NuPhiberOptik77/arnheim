@@ -287,6 +287,8 @@ export function createVoice({ hud, card, ctx, el, button, signal }) {
     if (own) return own;
     const list = server?.voices || [];
     if (!list.length) return null;
+    // A voice the page's own data gives them (such as org.assistant.voice), if this computer has it.
+    if (person.voice && String(person.voice).split(',').every((n) => list.includes(n.trim()))) return person.voice;
     if (person.href && person.href === poeHref) return list.includes(POE_VOICE) ? POE_VOICE : list[0];
     // Everyone else: one of the voices, or an even mix of two with the same accent.
     const singles = list.filter((v) => v !== POE_VOICE);

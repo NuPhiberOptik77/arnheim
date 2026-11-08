@@ -252,7 +252,7 @@ export function createWalk(ctx) {
     let entry = halls.get(s.id);
     if (entry) return entry;
     entry = s === penthouse
-      ? buildPenthouse(s, { founder })
+      ? buildPenthouse(s, { founder, assistant: ctx.org.assistant || null })
       : buildHall(s, { company: ctx.org.company, mission: ctx.org.mission });
     if (photo) dressHall(entry, photo);
     if (s === penthouse) notes.hang(entry);
@@ -490,6 +490,8 @@ export function createWalk(ctx) {
       const P = person.spec.person;
       add({ title: P.name, sub: 'The receptionist', href: P.href, floorId: person.floorId, roomId: person.roomId }, hall.poe.x, hall.poe.z, hall.poe.x, hall.poe.z + 1.75);
     }
+    const A = hall.assistant; // the founder's assistant, in their office
+    if (A) add({ ...A.who, floorId: here.id, roomId: 'office' }, A.x, A.z, A.stand[0], A.stand[1]);
     if (!was) return;
     const same = spots.find((s) => (s.who.href || s.who.title) === (was.who.href || was.who.title) && Math.hypot(me.x - s.x, me.z - s.z) < 0.42);
     if (same) {
@@ -881,6 +883,12 @@ export function createWalk(ctx) {
       const p = here.group.position;
       v.set(p.x + hall.desk.x, p.y + 1.75, p.z + hall.desk.z);
       if (v.distanceTo(camera.position) < 14 && inView(hall.desk.x, hall.desk.z)) out.push({ key: 'w:founder', title: hall.desk.name, sub: hall.desk.title, kind: 'quiet', align: 'center', at: v.toArray(), rank: 0 });
+    }
+    if (hall.assistant) {
+      const p = here.group.position;
+      const A = hall.assistant;
+      v.set(p.x + A.x, p.y + 2.1, p.z + A.z);
+      if (v.distanceTo(camera.position) < 12 && inView(A.x, A.z)) out.push({ key: 'w:assistant', title: A.who.title, sub: A.who.sub, kind: 'quiet', align: 'center', at: v.toArray(), rank: 0 });
     }
     return out.sort((a, b) => a.rank - b.rank).slice(0, 5);
   }

@@ -41,6 +41,11 @@ on three sides and a dusk beyond. The lift opens onto a desk of pale oak that se
 two rings of light round a small sun behind it. A cloud of small lights hangs over the way in, with
 a library on one side and a lounge on the other. Tap the desk to see whose it is.
 
+If the map names the founder's assistant, she stands at a slim desk of her own on the left as you
+step out of the lift, facing you, with a ring in front of her desk: step in to talk to her as you
+would to Poe. In the sample she is Wren, made up, and answers as Poe does. A page with its own
+answers can make her the one who knows everything (see `talk` below).
+
 The founder's newest notes hang in the library there, up to eight cards of lit paper on threads in
 front of the shelves, to the right as you step out of the lift. Each turns a little towards you as
 you come near. Tap one, or stand in the pool of light in front of it, to read it in full; walk on or
@@ -101,6 +106,14 @@ The building comes from three files:
 - `sample/company.json` is the map: the company's name and mission, its floors (one per project),
   the rooms on each floor, the lobby (Front of house), the basement (shared machines and the
   Library) and the founder, whose office is at the top of the lift in the walk. Every floor and room has an `about` line, which Poe uses to answer questions.
+  An optional `assistant` stands in the founder's office: `name`, `title`, `voice` (a Kokoro voice,
+  used if this computer has it), `href` (what a page's `talk` knows her by; `#/assistant` if left
+  out) and `look`. Its colours are hex: `skin`, `hair`, `lips`, `coat`, `shirt`, `trousers` and
+  `accent` (buttons and pocket square). `style` is `braids` (a centre parting and a braid each
+  side, with `ties` and `clips` colours), `bun`, or Poe's swept cut if left out. `collar: "round"`
+  makes the coat a cardigan buttoned to the neck with a rounded collar, and `brooch` pins a flower
+  on it (one colour, or petals and centre). `earrings` is `studs` or `hoops`, in `gold`; `pocket:
+  false` leaves out the pocket square; `face: "round"` gives a rounder face with larger eyes.
 - `sample/work.json` is what is going on: tasks, goals, conversations, pull requests, websites,
   machines and their jobs, and the story that plays on a loop.
 - `sample/notes.json` is the founder's notes, which hang in their office on a walk.

@@ -7,6 +7,12 @@
     "name": "Ellison",
     "title": "made-up founder, named after the hero of Poe's story"
   },
+  "assistant": {
+    "name": "Wren",
+    "title": "Ellison's assistant, made up",
+    "voice": "bf_emma",
+    "look": { "skin": "#deaa82", "hair": "#5a3926", "style": "bun", "coat": "#a8752b", "shirt": "#f4ecdf", "accent": "#e8c27a" }
+  },
   "rooms": [
     {
       "id": "goals",

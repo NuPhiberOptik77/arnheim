@@ -7,6 +7,7 @@
 import * as THREE from '../../vendor/three/three.module.js';
 import { at, box, cyl, decal, freeze, lit, mat, newScope, rng, useScope } from './kit.js';
 import { piece } from './furniture.js';
+import { buildPerson, lookSpec } from './poe.js';
 import { D, H, W } from './rooms.js';
 
 export const WEST = -2.8; // the lift's far wall; the rooms start at 0
@@ -474,7 +475,7 @@ function duskSky() {
 // the desk, a slab of pale oak that seems to float. Behind it, two rings of light round a small
 // sun hang in the air before the glass, "as if by miracle", as in Poe's story. A cloud of pearls
 // of light hangs over the way in; a library fills the wall to one side, a lounge the other.
-export function buildPenthouse(storey, { founder = null } = {}) {
+export function buildPenthouse(storey, { founder = null, assistant = null } = {}) {
   const { half, front, high } = PENTHOUSE;
   const mid = LIFT.x;
   const west = mid - half;
@@ -561,6 +562,45 @@ export function buildPenthouse(storey, { founder = null } = {}) {
     const seat = at(piece('armchair', { color: '#cbbba6' }), mid + side * 0.95, 0, dz - 1.5);
     seat.rotation.y = -side * 0.2;
     still.add(decal(1.1, 1, mid + side * 0.95, dz - 1.5), seat);
+  }
+
+  // The founder's assistant, if the page names one (org.assistant): on the left as you step out of
+  // the lift, standing at a slim desk of her own and facing the lift, off the way to the founder's desk.
+  let aide = null;
+  if (assistant?.name) {
+    const ax = 2.5;
+    const az = 3.15;
+    const tx = ax - 0.5; // the desk, between her and whoever comes to talk
+    still.add(
+      at(box(0.62, 0.045, 1.5, oak, { r: 0.01 }), tx, 0.98, az),
+      at(box(0.5, 0.98, 0.04, metal, { r: 0.006 }), tx, 0, az - 0.68),
+      at(box(0.5, 0.98, 0.04, metal, { r: 0.006 }), tx, 0, az + 0.68),
+      at(box(0.025, 0.62, 1.36, metal, { r: 0.006 }), tx - 0.27, 0.3, az),
+      at(box(0.02, 0.012, 1.3, glow('#ffcf96', 2.2), { r: 0 }), tx - 0.31, 0.96, az),
+      at(box(0.2, 0.012, 0.28, glow('#9fb7d6', 0.7), { r: 0.006 }), tx + 0.12, 1.025, az + 0.2),
+      at(box(0.15, 0.014, 0.21, leather, { r: 0.004 }), tx + 0.05, 1.025, az - 0.3),
+      at(cyl(0.05, 0.06, 0.02, metal, 20), tx + 0.1, 1.025, az - 0.6),
+      at(cyl(0.008, 0.008, 0.3, metal, 8), tx + 0.1, 1.04, az - 0.6),
+      at(new THREE.Mesh(new THREE.SphereGeometry(0.05, 20, 14), glow('#ffd29a', 2.4)), tx + 0.1, 1.38, az - 0.6),
+      decal(1.6, 2.1, ax - 0.25, az, { color: '#ffb877', opacity: 0.22, add: true }),
+    );
+    const spec = lookSpec(assistant.look || {});
+    spec.at = [ax, 0, az];
+    spec.turn = -1.5; // towards the lift
+    spec.look = -0.12;
+    const person = buildPerson(spec);
+    g.add(person.group);
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.85, 1.6), new THREE.MeshBasicMaterial());
+    hit.position.set(ax - 0.3, 0.92, az);
+    hit.visible = false;
+    hit.userData = { hit: true, stay: true, title: assistant.name, sub: `${assistant.title || 'Assistant'}. Step into the ring by her desk to talk.` };
+    g.add(hit);
+    extras.push(hit.material);
+    aide = {
+      x: ax, z: az, stand: [ax - 1.75, az], hit,
+      // stay: she has no page of her own in the list, so her card has no Open button.
+      who: { title: assistant.name, sub: assistant.title || 'Assistant', href: assistant.href || '#/assistant', voice: assistant.voice || null, stay: true },
+    };
   }
 
   // The centrepiece, between the desk and the glass: two rings of light round a small sun.
@@ -697,8 +737,9 @@ export function buildPenthouse(storey, { founder = null } = {}) {
   freeze(still);
   useScope(null);
   return made(g, scope, extras, lift, {
-    west, east, front, high, picks: [lift.call, hit],
+    west, east, front, high, picks: [lift.call, hit, ...(aide ? [aide.hit] : [])],
     desk: { x: mid, z: dz + 0.85, name, title },
+    assistant: aide, // where the founder's assistant stands and where to talk to her (walk.js)
     // Where the founder's notes hang (three/notes.js): in the library, a row at eye height in front of
     // the shelves, the newest nearest the lift, parted round the ladder and turned a little towards the
     // reading chairs, each on a thread from the ceiling.

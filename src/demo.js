@@ -298,9 +298,13 @@ function sampleReply(item, text) {
   return [says.now, says.next].filter(Boolean).join(' ') || `I'm working on "${item.title}".`;
 }
 
+// The founder's assistant (org.assistant), in their office: in the sample she answers as Poe does.
+const isAide = (who) => !!org.assistant && who.href === (org.assistant.href || '#/assistant');
+
 const talk = {
   name(who) {
     if (who.href === '#/poe') return 'Poe';
+    if (isAide(who)) return org.assistant.name;
     const item = talkItem(who);
     return item ? `${item.project} agent` : null;
   },
@@ -310,11 +314,12 @@ const talk = {
       const hello = hr >= 5 && hr < 12 ? 'Good morning' : hr >= 12 && hr < 18 ? 'Good afternoon' : hr >= 18 && hr < 23 ? 'Good evening' : 'Hello';
       return `${hello}. Ask me what's happening, or anything about the building.`;
     }
+    if (isAide(who)) return `Hello. I'm ${org.assistant.name}, ${org.founder?.name || 'the founder'}'s assistant. This company is made up, and so am I. Ask me anything about it.`;
     const item = talkItem(who);
     return item ? `Hi. I'm on "${item.title}". Ask me how it's going.` : null;
   },
   answer(who, text) {
-    if (who.href === '#/poe') return poeSays(text);
+    if (who.href === '#/poe' || isAide(who)) return poeSays(text);
     const item = talkItem(who);
     return item ? sampleReply(item, text) : "I've finished here, so there's nothing new to tell.";
   },
@@ -730,6 +735,7 @@ async function startBuilding() {
         tip.hidden = true;
         if (hit.company) { location.hash = '#/company'; return; }
         if (hit.href === '#/poe') { location.hash = '#/poe'; return; }
+        if (isAide(hit)) return; // she has no page of her own: the talk opens in the walk
         if (hit.walk) { location.hash = hit.href || `#/${hit.floorId}/${hit.roomId}`; return; }
         if (route.floor !== hit.floorId) { location.hash = `#/${hit.floorId}`; return; }
         location.hash = hit.href || `#/${hit.floorId}/${hit.roomId}`;
