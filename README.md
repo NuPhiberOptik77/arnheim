@@ -61,7 +61,7 @@ light motion blur as you turn, softer corners and fine grain. Reduced motion tur
 ## Talk with them
 
 Stand in a ring and a conversation opens in the card: type a question and they answer there. Turn
-on Voice, beside Leave, and they say it aloud, each in a voice of their own, and listen for you
+on Voice, beside Leave (a microphone on a phone), and they say it aloud, each in a voice of their own, and listen for you
 with no button to press: they hear you when you start talking and answer when you stop. While they
 speak they don't listen, so they never hear themselves. Poe answers from what the building holds,
 as at the desk. In the sample, the people at work answer from lines written for them in
