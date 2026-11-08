@@ -4,7 +4,7 @@
 import * as THREE from '../../vendor/three/three.module.js';
 import { at, box, cyl, decal, mat } from './kit.js';
 import { piece } from './furniture.js';
-import { POE } from './poe.js';
+import { POE, buildSeated } from './poe.js';
 
 export const W = 5;
 export const D = 4.4;
@@ -193,7 +193,8 @@ export const ROOMS = {
       g.add(decal(2, 0.7, W / 2, 0.3), at(piece('sideboard', { width: 1.8 }), W / 2, 0, 0.28));
       g.add(decal(0.9, 0.9, W - 0.45, 0.45), at(piece('plant', { height: 1.1 }), W - 0.45, 0, 0.45));
     },
-    // A desk per open task, front row first, the most pressing first. Past the limit, a stack and "+N".
+    // A desk per open task, front row first, the most pressing first, with someone at it while the
+    // task is being worked on now. Past the limit, a stack and "+N".
     fill(g, info, ctx) {
       const list = info.items || [];
       const cap = 9;
@@ -212,8 +213,15 @@ export const ROOMS = {
             : mat('#0c0f14', { rough: 0.3, emissive: '#3a4a6b', emissiveIntensity: 0.25 });
         desk(g, x, z, screen);
         if (needs) g.add(decal(1.5, 1.2, x, z + 0.2, { color: AMBER, opacity: 0.3, add: true, y: 0.018 }));
-        if (working) g.add(decal(1.4, 1.1, x, z + 0.2, { color: WARM, opacity: 0.22, add: true, y: 0.018 }));
-        ctx.object({ x, y: 0, z: z + 0.15, w: 1.2, h: 1.15, d: 1.2, title: task.title, sub: task.sub, href: task.href, mood: task.mood });
+        if (working) {
+          g.add(decal(1.4, 1.1, x, z + 0.2, { color: WARM, opacity: 0.22, add: true, y: 0.018 }));
+          const person = at(buildSeated(identity(task.id ?? task.title), { seat: 0.47, pose: 'desk' }), x, 0, z + 0.48);
+          person.rotation.y = Math.PI; // facing the screen
+          g.add(person);
+        }
+        // figure: where someone sits, and a good place to stand and talk to them (walk.js).
+        const figure = working ? { x, z: z + 0.48, stand: [x + 0.75, z + 0.65] } : null;
+        ctx.object({ x, y: 0, z: z + 0.15, w: 1.2, h: 1.15, d: 1.2, title: task.title, sub: task.sub, href: task.href, mood: task.mood, figure });
       });
       if (list.length > shown.length) {
         const x = xs[2];
@@ -233,7 +241,7 @@ export const ROOMS = {
       g.add(rug, decal(1.1, 1.1, W / 2, D / 2 + 0.15), at(cyl(0.42, 0.42, 0.04, mat(WOOD, { rough: 0.5 }), 24), W / 2, 0.38, D / 2 + 0.15), at(cyl(0.05, 0.07, 0.38, mat(DARK), 10), W / 2, 0, D / 2 + 0.15));
       g.add(decal(0.9, 0.9, W - 0.42, 0.42), at(piece('plant', { height: 1.3 }), W - 0.42, 0, 0.42));
     },
-    // A seat per conversation. A small glowing figure sits there while it is working now.
+    // A seat per conversation, with someone in it while the conversation is working now.
     fill(g, info, ctx, s) {
       const list = info.items || [];
       const cap = 8;
@@ -255,16 +263,12 @@ export const ROOMS = {
         );
         g.add(decal(1, 1, seat.position.x, seat.position.z), seat);
         if (c.working) {
-          // Stable per conversation: the same id always gets the same shape and tint.
-          const id = identity(c.id);
-          const tint = ['#ffb066', '#ffc46e', '#ff9f5a', '#ffd08a', '#ffab7a'][id % 5];
-          const tall = 0.92 + ((id >>> 3) % 5) * 0.04;
-          const glow = mat(tint, { rough: 0.6, emissive: tint, emissiveIntensity: 2.6 });
-          seat.add(at(cyl(0.085, 0.13, 0.36 * tall, glow, 14), 0, 0.44, 0), at(new THREE.Mesh(new THREE.SphereGeometry(0.095, 16, 12), glow), 0, 0.44 + 0.46 * tall, 0));
+          seat.add(buildSeated(identity(c.id), { seat: 0.46, pose: 'chat' })); // the same person for the same id
           g.add(decal(1.5, 1.5, seat.position.x, seat.position.z, { color: WARM, opacity: 0.3, add: true, y: 0.02 }));
         }
         if (c.check) seat.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 8), mat(COOL, { emissive: COOL, emissiveIntensity: 2.4 })), 0, 0.98, -0.24));
-        ctx.object({ x: seat.position.x, y: 0, z: seat.position.z, w: 0.8, h: 1.05, d: 0.8, title: c.title, sub: c.sub, href: c.href, mood: c.working ? 'working' : c.check ? 'check' : 'quiet', figure: c.working ? c.id : null });
+        ctx.object({ x: seat.position.x, y: 0, z: seat.position.z, w: 0.8, h: 1.05, d: 0.8, title: c.title, sub: c.sub, href: c.href, mood: c.working ? 'working' : c.check ? 'check' : 'quiet',
+          figure: c.working ? { x: seat.position.x, z: seat.position.z, stand: [seat.position.x + (cx - seat.position.x) * 0.55, seat.position.z + (cz - seat.position.z) * 0.55] } : null });
       });
       if (list.length > shown.length) ctx.more(list.length - shown.length, cx, 0.72, cz);
     },

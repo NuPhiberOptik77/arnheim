@@ -1,9 +1,9 @@
 # Arnheim
 
 A company as a building you can turn and walk through. Each project is a floor, each kind of work
-is a room, a receptionist called Poe answers questions at the front desk, and the live work lights
-up as it happens: warm while something is working, amber when something needs you, dim when all is
-quiet.
+is a room, a receptionist called Poe answers questions at the front desk, and the live work shows
+as it happens: someone sits at a desk or in a chair while a thing is being worked on, and the rooms
+glow warm while something is working, amber when something needs you, and dim when all is quiet.
 
 It is named after Edgar Allan Poe's story "The Domain of Arnheim", about a man who shapes a
 landscape into a world of its own. Arnheim is free and open, and never sold.
@@ -31,6 +31,16 @@ of each floor takes you up and down: the floor you leave burns away into glowing
 next one gathers out of them. Double-tap anywhere to burn the floor you are on and rebuild it.
 With reduced motion on, the camera keeps still and floors change at once.
 
+A ring of light lies on the floor beside each person at work, and in front of Poe's desk. Stand in
+it and the walk knows who you mean: the ring brightens, a card names them, and the page opens what
+they are working on, as if you had tapped it.
+
+At the top of the lift is the founder's office, a floor only the walk has, named after the founder
+in the map ("Ellison's office" in the sample). It is one wide room under a high ceiling, with glass
+on three sides and a dusk beyond. The lift opens onto a desk of pale oak that seems to float, with
+two rings of light round a small sun behind it. A cloud of small lights hangs over the way in, with
+a library on one side and a lounge on the other. Tap the desk to see whose it is.
+
 Walking brings in real materials: photographed terrazzo, white oak and plaster, and the light of a
 real entrance hall reflected in the glass, stone and metal. They are about 6 MB of free CC0
 pictures from Poly Haven (see `THIRD_PARTY_NOTICES.md`). They load only once you press Walk, and
@@ -46,8 +56,8 @@ light motion blur as you turn, softer corners and fine grain. Reduced motion tur
 The building comes from two files:
 
 - `sample/company.json` is the map: the company's name and mission, its floors (one per project),
-  the rooms on each floor, the lobby (Front of house) and the basement (shared machines and the
-  Library). Every floor and room has an `about` line, which Poe uses to answer questions.
+  the rooms on each floor, the lobby (Front of house), the basement (shared machines and the
+  Library) and the founder, whose office is at the top of the lift in the walk. Every floor and room has an `about` line, which Poe uses to answer questions.
 - `sample/work.json` is what is going on: tasks, goals, conversations, pull requests, websites,
   machines and their jobs, and the story that plays on a loop.
 

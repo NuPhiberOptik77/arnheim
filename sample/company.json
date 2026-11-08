@@ -16,12 +16,12 @@
     {
       "id": "work",
       "label": "Work",
-      "about": "The project's tasks, a desk each. A desk glows amber when it needs you and warm while someone is on it."
+      "about": "The project's tasks, a desk each. A desk glows amber when it needs you, and someone sits at it, lit warm, while it is being worked on."
     },
     {
       "id": "conversations",
       "label": "Conversations",
-      "about": "Chats where the work gets talked through or done. A small figure sits in a seat while one is working."
+      "about": "Chats where the work gets talked through or done. Someone sits in a seat while one is working. Walking, stand in the ring beside them to bring it up."
     },
     {
       "id": "code",

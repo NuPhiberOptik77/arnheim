@@ -216,15 +216,18 @@ export function createWalk(ctx) {
   }
   function closePicker() { picker.hidden = true; }
 
-  function showCard(hit) {
+  // A card naming what was tapped, for a few seconds; or, while someone stands in a talking ring,
+  // naming who they are with, for as long as they stay.
+  function showCard(hit, talk = false) {
     const info = ctx.describe(hit) || {};
     cardTitle.textContent = info.title || hit.title || '';
     cardSub.textContent = info.sub || '';
     cardSub.hidden = !cardSub.textContent;
     openButton.hidden = !!hit.stay; // a thing of the walk's own, with nothing to open in the list
+    card.classList.toggle('aw-talking', talk);
     card.hidden = false;
     clearTimeout(cardTimer);
-    cardTimer = setTimeout(() => { card.hidden = true; }, 7000);
+    if (!talk) cardTimer = setTimeout(() => { if (talking) showCard(talking.who, true); else card.hidden = true; }, 7000);
   }
 
   function input() {
@@ -305,6 +308,7 @@ export function createWalk(ctx) {
     me.vx = me.vz = me.speed = 0;
     me.target = null;
     free();
+    placeSpots();
     hall.lift.open = 0;
     hall.setDoors(0);
     inLift = hall.inLift(me.x, me.z);
@@ -314,6 +318,7 @@ export function createWalk(ctx) {
   }
 
   function leave(s) {
+    setTalk(null);
     setWalls(s, false);
     placePoe(false);
     const entry = halls.get(s.id);
@@ -396,6 +401,94 @@ export function createWalk(ctx) {
     map = survey(here);
     surveyed = performance.now();
     seen = ctx.version();
+  }
+
+  /* ---------- talking: a ring on the floor by each agent at work, and by Poe ---------- */
+
+  // Stand in a ring and the walk knows who you mean: the ring lights, a card names them, and the
+  // page hears of them as if they had been tapped.
+  const ringGeo = new THREE.RingGeometry(0.3, 0.4, 48).rotateX(-Math.PI / 2);
+  const ringIdle = new THREE.MeshBasicMaterial({ color: '#ffc985', transparent: true, opacity: 0.4, depthWrite: false });
+  const ringLit = new THREE.MeshBasicMaterial({ color: '#ffe4bd', transparent: true, opacity: 0.95, depthWrite: false });
+  let spots = [];
+  let talking = null;
+
+  // Every square of this floor's plan the walker can reach from where they stand.
+  function reach() {
+    const { cols, rows, x0, z0 } = map;
+    const open = new Uint8Array(cols * rows);
+    const q0 = Math.floor((me.x - x0) / CELL);
+    const r0 = Math.floor((me.z - z0) / CELL);
+    if (q0 < 0 || r0 < 0 || q0 >= cols || r0 >= rows) return open;
+    const queue = [r0 * cols + q0];
+    open[queue[0]] = 1;
+    while (queue.length) {
+      const i = queue.pop();
+      const q = i % cols;
+      const r = (i - q) / cols;
+      for (const [nq, nr] of [[q + 1, r], [q - 1, r], [q, r + 1], [q, r - 1]]) {
+        const j = nr * cols + nq;
+        if (nq < 0 || nr < 0 || nq >= cols || nr >= rows || open[j]) continue;
+        if (blocked(x0 + (nq + 0.5) * CELL, z0 + (nr + 0.5) * CELL)) continue;
+        open[j] = 1;
+        queue.push(j);
+      }
+    }
+    return open;
+  }
+
+  // A ring for each agent at work on this floor, and for Poe: at the place the walker can reach
+  // that is nearest a good spot to talk from, not too close to them and not on another ring.
+  function placeSpots() {
+    setTalk(null);
+    for (const s of spots) s.ring.removeFromParent();
+    spots = [];
+    const open = reach();
+    const add = (who, ax, az, sx, sz) => {
+      let best = null;
+      let gap = Infinity;
+      for (let i = 0; i < open.length; i++) {
+        if (!open[i]) continue;
+        const q = i % map.cols;
+        const x = map.x0 + (q + 0.5) * CELL;
+        const z = map.z0 + ((i - q) / map.cols + 0.5) * CELL;
+        const away = Math.hypot(x - ax, z - az);
+        if (away < 0.55 || away > 1.9 || spots.some((s) => Math.hypot(x - s.x, z - s.z) < 0.9)) continue;
+        const d = Math.hypot(x - sx, z - sz);
+        if (d < gap) { gap = d; best = { x, z }; }
+      }
+      if (!best) return;
+      const ring = new THREE.Mesh(ringGeo, ringIdle);
+      ring.position.set(best.x, 0.025, best.z);
+      hall.group.add(ring);
+      spots.push({ ...best, ring, who, ax, az });
+    };
+    for (const room of here.rooms) {
+      const { x: rx, z: rz } = room.g.position;
+      for (const o of room.objects) {
+        const f = o.figure;
+        if (f) add({ title: o.title, sub: o.sub, href: o.href, floorId: room.floorId, roomId: room.roomId }, rx + f.x, rz + f.z, rx + f.stand[0], rz + f.stand[1]);
+      }
+    }
+    const person = ctx.personRoom;
+    if (hall.poe && person?.storey === here) {
+      const P = person.spec.person;
+      add({ title: P.name, sub: 'The receptionist', href: P.href, floorId: person.floorId, roomId: person.roomId }, hall.poe.x, hall.poe.z, hall.poe.x, hall.poe.z + 1.75);
+    }
+  }
+
+  function setTalk(spot) {
+    if (spot === talking) return;
+    if (talking) talking.ring.material = ringIdle;
+    talking = spot;
+    if (spot) {
+      // Walking into the ring by a tap: on arrival, turn to face whoever it is for.
+      if (me.target && Math.hypot(me.target.x - spot.x, me.target.z - spot.z) < 0.5) me.target.face = [spot.ax, spot.az];
+      spot.ring.material = ringLit;
+      showCard(spot.who, true);
+      ctx.onPick?.({ ...spot.who, walk: true });
+    } else if (card.classList.contains('aw-talking')) card.hidden = true;
+    ctx.wake(2);
   }
 
   /* ---------- moving ---------- */
@@ -598,7 +691,7 @@ export function createWalk(ctx) {
     if (!here) return false;
     let busy = false;
     if (ride) { advance(dt); busy = true; }
-    if (!ride && ctx.version() !== seen && now - surveyed > 1500) look();
+    if (!ride && ctx.version() !== seen && now - surveyed > 1500) { look(); placeSpots(); }
 
     // Turning: smooth, whether by drag, keys or walking somewhere.
     const turn = (keys.has('ArrowLeft') ? 1 : 0) - (keys.has('ArrowRight') ? 1 : 0);
@@ -640,8 +733,14 @@ export function createWalk(ctx) {
       const dx = me.target.x - me.x;
       const dz = me.target.z - me.z;
       const dist = Math.hypot(dx, dz);
-      if (dist < 0.12) me.target = null;
-      else {
+      if (dist < 0.12) {
+        const them = me.target.face;
+        me.target = null;
+        if (them) {
+          const turn = Math.atan2(-(them[0] - me.x), -(them[1] - me.z)) - me.yawGoal;
+          me.yawGoal += Math.atan2(Math.sin(turn), Math.cos(turn));
+        }
+      } else {
         const pace = Math.min(WALK, 0.3 + dist * 1.4);
         wx = (dx / dist) * pace;
         wz = (dz / dist) * pace;
@@ -698,6 +797,7 @@ export function createWalk(ctx) {
       if (inside && !inLift) openPicker();
       else if (!inside && inLift) closePicker();
       inLift = inside;
+      setTalk(spots.find((s) => Math.hypot(me.x - s.x, me.z - s.z) < 0.42) || null);
     }
     if (burn.update(dt, camera, renderer)) busy = true;
 
@@ -762,7 +862,7 @@ export function createWalk(ctx) {
     return {
       floor: here?.id, x: r2(me.x), z: r2(me.z), yaw: r2(me.yaw), speed: r2(me.speed), riding: ride?.phase || null,
       burning: burn.active, points: burn.count, inLift, doors: r2(hall?.lift.open || 0), picker: !picker.hidden, card: card.hidden ? null : cardTitle.textContent,
-      photo: photoState, film: footage.enabled,
+      photo: photoState, film: footage.enabled, talk: talking?.who.title || null, rings: spots.map((r) => [r2(r.x), r2(r.z)]),
     };
   }
 
@@ -785,6 +885,9 @@ export function createWalk(ctx) {
     ctx.composer.removePass(footage);
     footage.dispose();
     hitMaterial.dispose();
+    ringGeo.dispose();
+    ringIdle.dispose();
+    ringLit.dispose();
     for (const node of [hud, picker, card, help, stickEl, loading]) node.remove();
     stage.classList.remove('arnheim-walking');
     here = null;

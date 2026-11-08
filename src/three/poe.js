@@ -1,7 +1,8 @@
 // Poe, the receptionist: one person standing behind the front desk, in the building's warm,
 // smooth style. Plain data in (POE below), a figure out, made only from Three.js shapes: no
 // textures, no downloads. Three parts can move (the body, the chest and the head), and each is
-// merged by material, so the whole person costs about a dozen draw calls.
+// merged by material, so the whole person costs about a dozen draw calls. The people at work
+// (buildSeated, at the end) are made the same way, seated and plainer.
 import * as THREE from '../../vendor/three/three.module.js';
 import { freeze, mat } from './kit.js';
 
@@ -282,4 +283,90 @@ export function buildPerson(P = POE) {
       head.rotation.x = 0.02 * Math.sin(t * 0.21);
     },
   };
+}
+
+/* ---------- the people at work ---------- */
+
+// Each person at work gets a look picked by a number from their id, so the same agent always
+// looks the same: skin, hair and its cut, a top and trousers.
+const LOOKS = {
+  skin: ['#f0c8a4', '#deaa82', '#c8926e', '#a8714f', '#7f5238', '#5c3a27'],
+  hair: ['#1d1613', '#3a261f', '#5a3926', '#8b5a33', '#c8a26b', '#a7a39d'],
+  top: ['#b5603f', '#3f6f7a', '#d4a24c', '#2f4a5c', '#6d7f4e', '#e6dac6', '#7a4f6d', '#c86f5c'],
+  legs: ['#27303d', '#3b3b42', '#5b5246', '#2f3c34'],
+};
+const CUTS = [
+  [[0, 0.5], [0.55, 0.47], [1.05, 0.25], [1.5, 0.12], [1.8, -0.08], [2.3, -0.48], [3.15, -0.62]], // short
+  POE.hairline.long, // to the jaw all round
+  [[0, 0.62], [0.7, 0.55], [1.3, 0.3], [1.8, 0.05], [2.4, -0.3], [3.15, -0.42]], // cropped close
+];
+
+// Someone seated, in Poe's smooth style but plainer: a sweater, no coat or locks. They face +z
+// from the middle of a seat whose top is `seat` metres up; 'desk' puts their hands on a desk in
+// front of them, 'chat' rests them on their knees. Plain meshes, so a room merges them with the
+// rest of its things. `n` is a number from their id (rooms.js identity()).
+export function buildSeated(n, { seat = 0.46, pose = 'chat' } = {}) {
+  const pick = (list, shift) => list[(n >>> shift) % list.length];
+  const skin = pick(LOOKS.skin, 0);
+  const warm = (color, rough, k = 0.1) => mat(color, { rough, emissive: color, emissiveIntensity: k });
+  const M = {
+    skin: warm(skin, 0.55), hair: warm(pick(LOOKS.hair, 3), 0.5, 0.06), top: warm(pick(LOOKS.top, 6), 0.8, 0.08),
+    legs: mat(pick(LOOKS.legs, 9), { rough: 0.8 }), shoes: mat('#1a1b20', { rough: 0.35 }),
+    eyes: mat('#241815', { rough: 0.3 }), whites: mat('#efe9e2', { rough: 0.4 }),
+    lips: mat(`#${new THREE.Color(skin).multiplyScalar(0.72).getHexString()}`, { rough: 0.5 }),
+  };
+  const cut = CUTS[(n >>> 11) % CUTS.length];
+  const drop = POE.coat[0][1] - seat; // a seated body is this much lower than Poe standing
+  const S = headShape({ head: { ...POE.head, y: POE.head.y - drop } });
+  const g = new THREE.Group();
+
+  // The head, hair, and a face like Poe's.
+  g.add(new THREE.Mesh(shaped(28, 20, (x, y, z) => S.unit(x, y, z)), M.skin));
+  const line = (x, z) => table(cut, Math.abs(Math.atan2(x, z)));
+  const hairAt = (x, y, z) => S.unit(x, y, z, 1.012 + (0.03 + 0.03 * smooth(0.3, 1, y)) * smooth(0, 0.28, y - line(x, z)));
+  g.add(new THREE.Mesh(shaped(36, 24, hairAt, (x, y, z) => y > line(x, z)), M.hair));
+  for (const side of [-1, 1]) {
+    const a = 0.37 * side;
+    g.add(
+      ball(S.face(a, 0.1, -0.001), 1, M.whites, [0.0155, 0.0072, 0.005], a),
+      ball(S.face(a * 0.97, 0.1, 0.0035), 1, M.eyes, [0.0062, 0.0062, 0.003], a),
+      ...limb(S.face(0.15 * side, 0.37, 0.001), S.face(0.5 * side, 0.38, 0.001), 0.0042, 0.003, M.hair),
+    );
+    if (cut !== CUTS[1]) g.add(ball(S.point((side * Math.PI) / 2, 0, 0.99), 1, M.skin, [0.011, 0.026, 0.017]));
+  }
+  g.add(
+    ball(S.face(0, -0.08, -0.002), 1, M.skin, [0.0095, 0.03, 0.012]),
+    ball(S.face(0, -0.25, 0.004), 0.011, M.skin, [1, 0.85, 1]),
+    ball(S.face(0, -0.53, -0.002), 1, M.lips, [0.02, 0.0058, 0.0085]),
+    ...limb([0, 1.47 - drop, 0], [0, 1.6 - drop, 0.008], 0.05, 0.045, M.skin),
+  );
+
+  // The body, the shape of Poe's coat as a sweater, and the arms: at the keyboard or at rest.
+  const profile = new THREE.SplineCurve(POE.coat.map(([r, y]) => new THREE.Vector2(r, y - drop))).getPoints(30);
+  const body = new THREE.LatheGeometry(profile, 24, Math.PI);
+  body.scale(1, 1, POE.depth);
+  g.add(new THREE.Mesh(body, M.top));
+  const desk = pose === 'desk';
+  for (const side of [-1, 1]) {
+    const sh = [0.172 * side, 1.425 - drop, -0.01];
+    const el = desk ? [0.215 * side, 1.17 - drop, 0.06] : [0.21 * side, 1.16 - drop, 0.05];
+    const wr = desk ? [0.15 * side, 0.77, 0.34] : [0.14 * side, seat + 0.16, 0.3];
+    g.add(
+      ball([0.162 * side, 1.44 - drop, -0.008], 1, M.top, [0.05, 0.03, 0.06]),
+      ...limb(sh, el, 0.05, 0.043, M.top),
+      ...limb(el, wr, 0.043, 0.036, M.top),
+      ball(v3(wr).add(new THREE.Vector3(-0.015 * side, -0.015, 0.06)), 1, M.skin, [0.032, 0.018, 0.05], -0.2 * side),
+    );
+  }
+
+  // Legs: thighs along the seat, shins down to the floor.
+  for (const side of [-1, 1]) {
+    const knee = [0.095 * side, seat + 0.065, 0.42];
+    g.add(
+      ...limb([0.085 * side, seat + 0.07, 0], knee, 0.068, 0.052, M.legs),
+      ...limb(knee, [0.095 * side, 0.1, 0.46], 0.05, 0.04, M.legs),
+      ball([0.095 * side, 0.04, 0.53], 1, M.shoes, [0.046, 0.038, 0.1]),
+    );
+  }
+  return g;
 }
