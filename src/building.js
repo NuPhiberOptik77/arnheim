@@ -1240,7 +1240,7 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, onWalk,
     camera.updateProjectionMatrix();
     try {
       walker = createWalk({
-        scene, camera, canvas, renderer, storeys, org, reduced, personRoom, start: view.floor,
+        scene, camera, canvas, renderer, composer, storeys, org, reduced, personRoom, start: view.floor,
         onPick, describe, infoText, roomWorld, wake, touched, version: () => version,
         poeAwake() { personWake = performance.now(); },
         shadows(near, reach) { aimLights(near, reach); shadowsDirty = true; wake(2); },

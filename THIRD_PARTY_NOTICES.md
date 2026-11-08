@@ -1,6 +1,7 @@
 # Third-party notices
 
-Arnheim builds on three projects. Their licences are below, as they came.
+Arnheim builds on three projects and uses four free photo sets. Their licences are below, as they
+came.
 
 ## House Control
 
@@ -83,3 +84,20 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Poly Haven
+
+`vendor/polyhaven/` holds files from four Poly Haven assets, unchanged, at 1K: the light probe
+`entrance_hall_1k.hdr`; the surface (OpenGL normal) and roughness pictures of `terrazzo_tiles`,
+`white_oak_veneer` and `white_plaster_02`; and the colour pictures of the first two. Walk mode
+loads them only once someone starts walking (`src/three/photo.js`).
+
+They are CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/): their authors gave them to
+the public domain, so they may be used for anything, with no credit needed. Arnheim credits them
+anyway. Each asset's page names its author, and Poly Haven's licence page is
+https://polyhaven.com/license.
+
+- https://polyhaven.com/a/entrance_hall
+- https://polyhaven.com/a/terrazzo_tiles
+- https://polyhaven.com/a/white_oak_veneer
+- https://polyhaven.com/a/white_plaster_02

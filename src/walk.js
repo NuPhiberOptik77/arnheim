@@ -2,8 +2,10 @@
 // adds the halls (three/halls.js), the controls on the page, the lift and the burn between floors
 // (three/burn.js), and gives everything back when the walk ends. It loads only when someone walks.
 import * as THREE from '../vendor/three/three.module.js';
+import { ShaderPass } from '../vendor/three/addons/postprocessing/ShaderPass.js';
 import { createBurn } from './three/burn.js';
 import { buildHall } from './three/halls.js';
+import { dressHall, loadPhoto, photoWanted } from './three/photo.js';
 import { D, H, W } from './three/rooms.js';
 
 const EYE = 1.62;
@@ -14,7 +16,45 @@ const CELL = 0.2; // the floor plan that stops you is drawn in squares this size
 const STRIDE = 0.74;
 const QUIET_MS = 4000; // the hand-held drift fades this long after the last touch
 const CURB = 0.14;
+const SHUTTER = 1 / 160; // seconds: the motion blur is what a phone's shutter would catch
 const MOVES = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight']);
+
+// The look of phone footage, drawn last: a little motion blur as the camera turns, softer
+// corners, a faint vignette and fine grain that is stronger in the shadows. Kept subtle, and
+// off for anyone who asks for reduced motion.
+const FOOTAGE = {
+  uniforms: {
+    tDiffuse: { value: null }, uVel: { value: new THREE.Vector2() }, uRes: { value: new THREE.Vector2(1, 1) },
+    uTime: { value: 0 }, uGrain: { value: 1 }, uSoft: { value: 1 },
+  },
+  vertexShader: /* glsl */ `
+varying vec2 vUv;
+void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: /* glsl */ `
+uniform sampler2D tDiffuse;
+uniform vec2 uVel;
+uniform vec2 uRes;
+uniform float uTime;
+uniform float uGrain;
+uniform float uSoft;
+varying vec2 vUv;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+void main() {
+  vec2 c = vUv - 0.5;
+  float edge = dot(c, c) * 2.0;
+  vec4 sum = vec4(0.0);
+  for (int i = 0; i < 7; i++) {
+    float t = float(i) / 6.0 - 0.5;
+    sum += texture2D(tDiffuse, vUv + uVel * t + c * (edge * uSoft * 0.012 * t));
+  }
+  vec4 col = sum / 7.0;
+  float n = hash(floor(vUv * uRes) + fract(uTime * 7.31) * 113.0) - 0.5;
+  float luma = dot(col.rgb, vec3(0.299, 0.587, 0.114));
+  col.rgb += n * uGrain * (0.045 - 0.025 * luma);
+  col.rgb *= 1.0 - edge * 0.16;
+  gl_FragColor = col;
+}`,
+};
 
 const CSS = `
 .arnheim-walking canvas { touch-action: none; }
@@ -39,9 +79,14 @@ const CSS = `
 .aw-help.aw-faded { opacity: 0; }
 .aw-stick { position: absolute; z-index: 5; left: 20px; bottom: 24px; width: 120px; height: 120px; border-radius: 50%; background: rgba(14, 16, 24, .36); border: 1px solid rgba(255, 255, 255, .3); touch-action: none; display: none; }
 .aw-stick span { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgba(255, 238, 220, .85); box-shadow: 0 2px 10px rgba(0, 0, 0, .35); pointer-events: none; }
+.aw-load { position: absolute; z-index: 4; top: 62px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-radius: 999px; background: rgba(14, 16, 24, .72); border: 1px solid rgba(255, 255, 255, .18); color: #f7f2ea; font: 600 13px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif; white-space: nowrap; pointer-events: none; transition: opacity .6s; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.aw-load i { position: relative; width: 84px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .2); overflow: hidden; }
+.aw-load b { position: absolute; top: 0; bottom: 0; left: 0; width: 0; background: #ffcf8f; transition: width .25s; }
+.aw-load.aw-faded { opacity: 0; }
+.aw-load[hidden] { display: none; }
 @media (pointer: coarse) { .aw-stick { display: block; } .aw-help { left: 156px; bottom: 28px; } }
 @media (max-width: 820px) { .arnheim-walking { position: fixed !important; inset: 0 !important; width: auto !important; height: auto !important; min-height: 0 !important; z-index: 50; } }
-@media (prefers-reduced-motion: reduce) { .aw-help { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .aw-help, .aw-load, .aw-load b { transition: none; } }
 `;
 
 export function createWalk(ctx) {
@@ -52,6 +97,18 @@ export function createWalk(ctx) {
   const listeners = new AbortController();
   const { signal } = listeners;
   const burn = createBurn(scene, { count: coarse || stage.clientWidth < 820 ? 20000 : 46000 });
+  const footage = new ShaderPass(FOOTAGE);
+  footage.enabled = !still();
+  ctx.composer.addPass(footage);
+  const px = new THREE.Vector2();
+  let lastYaw = 0;
+  let lastPitch = 0;
+  // The real materials (photo.js): they start loading as the walk begins, unless this device
+  // should keep it light; until they arrive, and if they never do, the drawn ones stand.
+  let photo = null;
+  let photoState = photoWanted(renderer) ? 'loading' : 'off';
+  let loadTimer = 0;
+  let gone = false;
   const hitMaterial = new THREE.MeshBasicMaterial();
   const halls = new Map();
   const ray = new THREE.Raycaster();
@@ -123,7 +180,15 @@ export function createWalk(ctx) {
   const knob = el('span');
   stickEl.append(knob);
   stickEl.setAttribute('aria-hidden', 'true');
-  stage.append(hud, picker, card, help, stickEl);
+  const loading = el('div', 'aw-load');
+  loading.setAttribute('role', 'status');
+  const loadingText = el('span', null, 'Loading real materials');
+  const loadingBar = el('b');
+  const track = el('i');
+  track.append(loadingBar);
+  loading.append(loadingText, track);
+  loading.hidden = photoState !== 'loading';
+  stage.append(hud, picker, card, help, stickEl, loading);
   stage.classList.add('arnheim-walking');
   const helpTimer = setTimeout(() => help.classList.add('aw-faded'), 9000);
 
@@ -165,6 +230,7 @@ export function createWalk(ctx) {
     let entry = halls.get(s.id);
     if (entry) return entry;
     entry = buildHall(s, { company: ctx.org.company, mission: ctx.org.mission });
+    if (photo) dressHall(entry, photo);
     const person = ctx.personRoom;
     if (entry.poe && person?.storey === s) {
       const P = person.spec.person;
@@ -639,6 +705,18 @@ export function createWalk(ctx) {
       Math.sin(me.phase) * 0.005 * me.amp,
       'YXZ',
     );
+    footage.enabled = !still();
+    if (footage.enabled) {
+      const vfov = THREE.MathUtils.degToRad(camera.fov);
+      const hfov = 2 * Math.atan(Math.tan(vfov / 2) * camera.aspect);
+      // The smear a phone's shutter catches at this speed of turn, whatever the frame rate, kept light.
+      const smear = (d, span) => THREE.MathUtils.clamp(((d / Math.max(dt, 0.004)) * SHUTTER) / span, -0.008, 0.008);
+      footage.uniforms.uVel.value.set(smear(camera.rotation.y - lastYaw, hfov), smear(camera.rotation.x - lastPitch, vfov));
+      footage.uniforms.uTime.value = t;
+      footage.uniforms.uRes.value.copy(renderer.getDrawingBufferSize(px));
+    }
+    lastYaw = camera.rotation.y;
+    lastPitch = camera.rotation.x;
     return busy;
   }
 
@@ -668,22 +746,29 @@ export function createWalk(ctx) {
     return {
       floor: here?.id, x: r2(me.x), z: r2(me.z), yaw: r2(me.yaw), speed: r2(me.speed), riding: ride?.phase || null,
       burning: burn.active, points: burn.count, inLift, doors: r2(hall?.lift.open || 0), picker: !picker.hidden, card: card.hidden ? null : cardTitle.textContent,
+      photo: photoState, film: footage.enabled,
     };
   }
 
   function dispose() {
+    gone = true;
     listeners.abort();
     clearTimeout(cardTimer);
     clearTimeout(helpTimer);
+    clearTimeout(loadTimer);
     if (here) { placePoe(false); setWalls(here, false); }
     for (const entry of halls.values()) {
       entry.group.removeFromParent();
       entry.dispose();
     }
     halls.clear();
+    photo?.dispose(); // after the halls: their materials only borrowed these pictures
+    photo = null;
     burn.dispose();
+    ctx.composer.removePass(footage);
+    footage.dispose();
     hitMaterial.dispose();
-    for (const node of [hud, picker, card, help, stickEl]) node.remove();
+    for (const node of [hud, picker, card, help, stickEl, loading]) node.remove();
     stage.classList.remove('arnheim-walking');
     here = null;
   }
@@ -698,6 +783,26 @@ export function createWalk(ctx) {
     here.group.visible = false;
     const eye = chest(new THREE.Vector3());
     burn.start({ root: here.group, origin: eye, inward: true, eye });
+  }
+
+  if (photoState === 'loading') {
+    loadPhoto(renderer, (k) => { loadingBar.style.width = `${Math.round(k * 100)}%`; }).then((p) => {
+      if (gone) { p.dispose(); return; }
+      photo = p;
+      for (const entry of halls.values()) dressHall(entry, p);
+      photoState = 'on';
+      loadingText.textContent = 'Real materials on';
+      loadTimer = setTimeout(() => {
+        loading.classList.add('aw-faded');
+        loadTimer = setTimeout(() => { loading.hidden = true; }, 700);
+      }, 900);
+      ctx.wake(3);
+    }, (error) => {
+      if (gone) return;
+      photoState = 'failed';
+      loading.hidden = true;
+      console.warn('Arnheim: the real materials did not load, so the drawn ones stay.', error);
+    });
   }
 
   return { update, labels, info, dispose };

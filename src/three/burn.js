@@ -63,7 +63,8 @@ function corner(geometry, f, matrix) {
 // The colour a point takes from its material: the base colour, plus a little of any glow.
 function tintOf(m) {
   const c = new THREE.Color();
-  if (m.map) c.setRGB(0.42, 0.36, 0.3);
+  if (m.userData.tint) c.copy(m.userData.tint); // a photo-dressed material: its drawn colour
+  else if (m.map) c.setRGB(0.42, 0.36, 0.3);
   else if (m.color) c.copy(m.color);
   else c.setRGB(0.6, 0.6, 0.6);
   if (m.emissive && m.emissiveIntensity > 0) c.add(new THREE.Color().copy(m.emissive).multiplyScalar(Math.min(2.5, m.emissiveIntensity) * 0.5));

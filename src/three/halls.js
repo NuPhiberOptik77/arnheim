@@ -1,7 +1,9 @@
 // The halls you walk through: a corridor in front of every floor's rooms, the reception in the
 // lobby, and a lift at the west end of each floor. They exist only while someone walks the
-// building (walk.js). Shapes, light and colour made in code: no images, textures or models to
-// download.
+// building (walk.js). Shapes, light and colour are made in code, so a hall is whole on its own;
+// materials marked with userData.photo are dressed in real photographed ones once those have
+// loaded (photo.js): 'plaster', 'oak' and 'terrazzo' get pictures, 'stone' and 'metal' only
+// reflections.
 import * as THREE from '../../vendor/three/three.module.js';
 import { at, box, cyl, decal, freeze, lit, mat, newScope, rng, useScope } from './kit.js';
 import { piece } from './furniture.js';
@@ -100,14 +102,21 @@ export function buildHall(storey, { company = '', mission = '' } = {}) {
   const ceiling = mat(lobby ? '#ddd5c8' : '#e7e4dd', { rough: 0.95 });
   const metal = mat('#2d2a27', { rough: 0.45, metal: 0.5 });
   const glow = (color, k) => mat('#1c1611', { rough: 0.7, emissive: color, emissiveIntensity: k });
+  wall.userData.photo = 'plaster';
+  ceiling.userData.photo = 'plaster';
+  metal.userData.photo = 'metal';
 
   // The floor: terrazzo in the reception, polished concrete everywhere else.
   let floor;
   if (lobby) {
     const tex = terrazzo();
     floor = lit(new THREE.MeshStandardMaterial({ map: tex, roughness: 0.34 }));
+    floor.userData.photo = 'terrazzo';
     extras.push(tex, floor);
-  } else floor = mat(storey.role === 'basement' ? '#5b5f66' : '#a9a398', { rough: 0.5 });
+  } else {
+    floor = mat(storey.role === 'basement' ? '#5b5f66' : '#a9a398', { rough: 0.5 });
+    floor.userData.photo = 'stone';
+  }
   still.add(flat(WEST, D, east - WEST, depth, floor), flat(WEST, LIFT.depth, -WEST, D - LIFT.depth, floor));
 
   // Ceilings: one over the rooms and the lift, and the hall's own, which in the reception is high.
@@ -123,7 +132,9 @@ export function buildHall(storey, { company = '', mission = '' } = {}) {
 
   // The front is glass from floor to ceiling between slim dark mullions. You can see through it,
   // but it stops you like a wall.
-  const pane = at(box(east - WEST, high, 0.02, mat('#a9c7ec', { rough: 0.06, metal: 0.2, opacity: 0.16 }), { r: 0 }), mid, 0, front);
+  const glass = mat('#a9c7ec', { rough: 0.06, metal: 0.2, opacity: 0.16 });
+  glass.userData.photo = 'metal';
+  const pane = at(box(east - WEST, high, 0.02, glass, { r: 0 }), mid, 0, front);
   pane.userData = { live: true, solid: true };
   g.add(pane);
   for (let x = WEST; x < east + 0.01; x += 1.55) still.add(at(box(0.05, high, 0.08, metal, { r: 0 }), Math.min(x, east - 0.03), 0, front));
@@ -145,6 +156,11 @@ export function buildHall(storey, { company = '', mission = '' } = {}) {
   const cabZ = 0.15 + cabD / 2;
   const wood = mat('#9a7756', { rough: 0.6 });
   const edge = glow('#ffcf96', 2);
+  const cabFloor = mat('#33302d', { rough: 0.35 });
+  const brass = mat('#c9a06a', { rough: 0.3, metal: 0.7 });
+  wood.userData.photo = 'oak';
+  cabFloor.userData.photo = 'stone';
+  brass.userData.photo = 'metal';
   still.add(
     at(box(inL - WEST, H, zf, metal, { r: 0 }), (WEST + inL) / 2, 0, zf / 2),
     at(box(-inR, H, zf, metal, { r: 0 }), inR / 2, 0, zf / 2),
@@ -157,14 +173,14 @@ export function buildHall(storey, { company = '', mission = '' } = {}) {
     at(box(0.03, LIFT.cab - 0.1, cabD, wood, { r: 0 }), inR - 0.015, 0.05, cabZ),
     at(box(inR - inL - 0.06, LIFT.cab - 0.1, 0.03, wood, { r: 0 }), LIFT.x, 0.05, 0.165),
     at(box(inR - inL - 0.3, 0.02, cabD - 0.3, glow('#fff3e0', 1.5), { r: 0 }), LIFT.x, LIFT.cab - 0.03, cabZ),
-    flat(inL, 0.15, inR - inL, cabD, mat('#33302d', { rough: 0.35 }), 0.004),
+    flat(inL, 0.15, inR - inL, cabD, cabFloor, 0.004),
     // a warm line round the doorway, and the call buttons
     at(box(0.025, LIFT.cab, 0.025, edge, { r: 0 }), doorL - 0.013, 0, zf + 0.013),
     at(box(0.025, LIFT.cab, 0.025, edge, { r: 0 }), doorR + 0.013, 0, zf + 0.013),
     at(box(doorR - doorL + 0.05, 0.025, 0.025, edge, { r: 0 }), LIFT.x, LIFT.cab, zf + 0.013),
     at(box(0.11, 0.24, 0.02, metal, { r: 0.004 }), (doorR + inR) / 2, 0.92, zf + 0.01),
   );
-  const rail = at(cyl(0.018, 0.018, inR - inL - 0.3, mat('#c9a06a', { rough: 0.3, metal: 0.7 }), 10), inR - 0.15, 0.95, 0.24);
+  const rail = at(cyl(0.018, 0.018, inR - inL - 0.3, brass, 10), inR - 0.15, 0.95, 0.24);
   rail.rotation.z = Math.PI / 2;
   still.add(rail);
   for (const y of [0.97, 1.07]) {
@@ -173,6 +189,7 @@ export function buildHall(storey, { company = '', mission = '' } = {}) {
     still.add(press);
   }
   const steel = mat('#bab3a7', { rough: 0.32, metal: 0.75 });
+  steel.userData.photo = 'metal';
   const doors = [0, 1].map(() => {
     const d = box(LIFT.half + 0.02, LIFT.cab - 0.02, 0.04, steel, { r: 0.005 });
     d.position.set(0, 0.01, zf - 0.12);
@@ -204,6 +221,10 @@ export function buildHall(storey, { company = '', mission = '' } = {}) {
     const oak = mat('#cfae84', { rough: 0.55 });
     const stone = mat('#2e2c2a', { rough: 0.3, metal: 0.1 });
     const fabric = mat(style.fabric, { rough: 0.9 });
+    const panel = mat('#d6c1a3', { rough: 0.85 });
+    oak.userData.photo = 'oak';
+    panel.userData.photo = 'oak';
+    stone.userData.photo = 'stone';
     // Poe's desk: a fluted arc of pale oak under a dark stone top, bowing out towards the door.
     const R = 3.2;
     const inner = 2.72;
@@ -232,7 +253,7 @@ export function buildHall(storey, { company = '', mission = '' } = {}) {
     // Behind Poe, a wall of oak slats with the company's name lit on a dark band.
     const fw = 4.6;
     const fz = D + 0.75;
-    still.add(at(box(fw, 3.5, 0.16, mat('#d6c1a3', { rough: 0.85 }), { r: 0 }), mid, 0, fz));
+    still.add(at(box(fw, 3.5, 0.16, panel, { r: 0 }), mid, 0, fz));
     for (let x = -fw / 2 + 0.1; x < fw / 2 - 0.05; x += 0.13) still.add(at(box(0.05, 3.3, 0.05, oak, { r: 0 }), mid + x, 0.1, fz + 0.1));
     still.add(at(box(fw - 0.2, 0.03, 0.05, glow('#ffd9a8', 2.2), { r: 0 }), mid, 0.05, fz + 0.14));
     if (company) {
@@ -296,6 +317,7 @@ export function buildHall(storey, { company = '', mission = '' } = {}) {
   } else {
     // A bench and a plant every few metres along the glass.
     const seat = mat('#b48d63', { rough: 0.55 });
+    seat.userData.photo = 'oak';
     for (let x = 3.2; x < east - 1.5; x += 7) {
       still.add(
         at(box(1.6, 0.07, 0.42, seat, { r: 0.02 }), x, 0.4, front - 0.42),

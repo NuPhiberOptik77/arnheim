@@ -12,7 +12,11 @@ from urllib.parse import unquote
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SHOWN = ("src", "sample", "vendor")
-TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8"}
+TYPES = {
+    ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".jpg": "image/jpeg", ".hdr": "image/vnd.radiance",  # the real materials walk mode loads (vendor/polyhaven)
+}
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
