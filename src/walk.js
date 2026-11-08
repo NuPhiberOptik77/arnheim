@@ -56,38 +56,24 @@ void main() {
 }`,
 };
 
-const CSS = `
-.arnheim-walking canvas { touch-action: none; }
-.aw-hud { position: absolute; z-index: 5; top: 10px; left: 10px; right: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; pointer-events: none; }
-.aw-hud > *, .aw-picker, .aw-card { pointer-events: auto; }
-.aw-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 40px; min-height: 40px; padding: 0 14px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(14, 16, 24, .68); color: #f7f2ea; font: 600 14px/1.1 -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif; cursor: pointer; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
-.aw-btn:hover { background: rgba(14, 16, 24, .86); }
-.aw-btn:disabled { cursor: default; }
-.aw-btn:focus-visible { outline: 2px solid #ffcf8f; outline-offset: 2px; }
-.aw-floor { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
-.aw-name { display: inline-block; min-width: 0; max-width: 42vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 40px; }
-.aw-picker { position: absolute; z-index: 6; top: 60px; left: 50%; transform: translateX(-50%); width: min(290px, calc(100% - 24px)); padding: 12px; border-radius: 16px; background: rgba(14, 16, 24, .86); border: 1px solid rgba(255, 214, 170, .32); color: #f7f2ea; box-shadow: 0 12px 34px rgba(0, 0, 0, .45); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
-.aw-picker p { margin: 0 0 8px; font: 600 13px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #e6d9c8; }
-.aw-picker ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.aw-picker .aw-btn { width: 100%; justify-content: flex-start; }
-.aw-picker .aw-btn[aria-current] { border-color: #ffcf8f; color: #ffd9a8; }
-.aw-card { position: absolute; z-index: 5; top: 60px; left: 50%; transform: translateX(-50%); width: min(380px, calc(100% - 24px)); display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 14px; border-radius: 14px; background: rgba(14, 16, 24, .84); border: 1px solid rgba(255, 255, 255, .2); color: #f7f2ea; box-shadow: 0 10px 30px rgba(0, 0, 0, .4); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); font: 14px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
-.aw-card > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.aw-card span { font-size: 13px; color: #d6dbe6; overflow-wrap: anywhere; }
-.aw-picker[hidden], .aw-card[hidden], .aw-card span[hidden] { display: none; }
-.aw-help { position: absolute; z-index: 4; right: 12px; bottom: 12px; max-width: min(420px, calc(100% - 24px)); margin: 0; font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #f6f0e8; text-shadow: 0 1px 3px rgba(0, 0, 0, .85); pointer-events: none; transition: opacity 1s; }
-.aw-help.aw-faded { opacity: 0; }
-.aw-stick { position: absolute; z-index: 5; left: 20px; bottom: 24px; width: 120px; height: 120px; border-radius: 50%; background: rgba(14, 16, 24, .36); border: 1px solid rgba(255, 255, 255, .3); touch-action: none; display: none; }
-.aw-stick span { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgba(255, 238, 220, .85); box-shadow: 0 2px 10px rgba(0, 0, 0, .35); pointer-events: none; }
-.aw-load { position: absolute; z-index: 4; top: 62px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-radius: 999px; background: rgba(14, 16, 24, .72); border: 1px solid rgba(255, 255, 255, .18); color: #f7f2ea; font: 600 13px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif; white-space: nowrap; pointer-events: none; transition: opacity .6s; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
-.aw-load i { position: relative; width: 84px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .2); overflow: hidden; }
-.aw-load b { position: absolute; top: 0; bottom: 0; left: 0; width: 0; background: #ffcf8f; transition: width .25s; }
-.aw-load.aw-faded { opacity: 0; }
-.aw-load[hidden] { display: none; }
-@media (pointer: coarse) { .aw-stick { display: block; } .aw-help { left: 156px; bottom: 28px; } }
-@media (max-width: 820px) { .arnheim-walking { position: fixed !important; inset: 0 !important; width: auto !important; height: auto !important; min-height: 0 !important; z-index: 50; } }
-@media (prefers-reduced-motion: reduce) { .aw-help, .aw-load, .aw-load b { transition: none; } }
-`;
+// The walk's look lives in walk.css, added as a stylesheet link rather than a <style> tag, so a page
+// whose content security policy allows only its own files (style-src 'self') takes it too. Resolves
+// once it has loaded, or failed (the walk still works, plainly), or after four seconds.
+let styled = null;
+export function loadStyle() {
+  if (styled) return styled;
+  const link = document.createElement('link');
+  link.id = 'arnheim-walk-style';
+  link.rel = 'stylesheet';
+  link.href = new URL('./walk.css', import.meta.url).href;
+  styled = new Promise((resolve) => {
+    link.addEventListener('load', resolve, { once: true });
+    link.addEventListener('error', resolve, { once: true });
+    setTimeout(resolve, 4000);
+  });
+  document.head.append(link);
+  return styled;
+}
 
 export function createWalk(ctx) {
   const { scene, camera, canvas, renderer, storeys, reduced } = ctx;
@@ -136,12 +122,7 @@ export function createWalk(ctx) {
 
   /* ---------- the controls on the page ---------- */
 
-  if (!document.getElementById('arnheim-walk-style')) {
-    const style = document.createElement('style');
-    style.id = 'arnheim-walk-style';
-    style.textContent = CSS;
-    document.head.append(style);
-  }
+  loadStyle(); // already loaded when the building started the walk; this only covers other callers
   const el = (tag, cls, text) => {
     const node = document.createElement(tag);
     if (cls) node.className = cls;

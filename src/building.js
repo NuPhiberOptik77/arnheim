@@ -1224,7 +1224,8 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, onWalk,
     if (!on) { endWalk(); return false; }
     if (walker || disposed) return !!walker;
     walkStart ??= import('./walk.js');
-    const { createWalk } = await walkStart;
+    const { createWalk, loadStyle } = await walkStart;
+    await loadStyle();
     if (walker || disposed || contextLost) return !!walker;
     selected = null;
     onHover?.(null);
