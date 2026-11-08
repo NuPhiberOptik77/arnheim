@@ -138,7 +138,7 @@ export function createWalkNotes({ stage, signal, coarse = false, notes: given = 
 
   function showHint() {
     hinted = true;
-    hint.textContent = `The newest notes hang here. ${coarse ? 'Tap' : 'Click'} one to read it, or stand in its light.`;
+    hint.textContent = `The newest notes hang ${hall?.notes?.where || 'here'}. ${coarse ? 'Tap' : 'Click'} one to read it, or stand in its light.`;
     hint.classList.remove('aw-faded');
     hint.hidden = false;
     clearTimeout(hintTimer);

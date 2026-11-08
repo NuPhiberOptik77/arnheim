@@ -41,11 +41,12 @@ on three sides and a dusk beyond. The lift opens onto a desk of pale oak that se
 two rings of light round a small sun behind it. A cloud of small lights hangs over the way in, with
 a library on one side and a lounge on the other. Tap the desk to see whose it is.
 
-The founder's newest notes hang there too, up to eight cards of lit paper on threads among the
-lights, in an arc in front of the lift. Each turns a little towards you as you come near. Tap one,
-or stand in the pool of light in front of it, to read it in full; walk on or press Esc to put it
-down. The page gives the notes and is asked for fresh ones whenever someone walks into the office,
-so an edited note shows the next time you come up. The sample's notes are made up.
+The founder's newest notes hang in the library there, up to eight cards of lit paper on threads in
+front of the shelves, to the right as you step out of the lift. Each turns a little towards you as
+you come near. Tap one, or stand in the pool of light in front of it, to read it in full; walk on or
+press Esc to put it down. The page gives the notes and is asked for fresh ones whenever someone
+walks into the office, so an edited note shows the next time you come up. The sample's notes are
+made up.
 
 Walking brings in real materials: photographed terrazzo, white oak and plaster, and the light of a
 real entrance hall reflected in the glass, stone and metal. They are about 6 MB of free CC0
