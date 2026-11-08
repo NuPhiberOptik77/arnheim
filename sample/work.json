@@ -1,0 +1,109 @@
+{
+  "sample": "Made up, like everything in the sample. The story at the end plays on a loop so the building has something to show.",
+  "tasks": [
+    { "id": "s1", "project": "Studio", "title": "Write the plan for next year", "status": "open" },
+    { "id": "s2", "project": "Studio", "title": "Renew the Lantern domain", "status": "needs_you", "note": "It runs out at the end of the month." },
+    { "id": "s3", "project": "Studio", "title": "Choose an accountant", "status": "waiting", "note": "Waiting on two replies." },
+    { "id": "l1", "project": "Lantern", "title": "Fix the bookmark that jumps back a page", "status": "working" },
+    { "id": "l2", "project": "Lantern", "title": "Decide on the reading streak badge", "status": "needs_you", "note": "Two designs are ready. Pick one." },
+    { "id": "l3", "project": "Lantern", "title": "Test the app on the spare laptop", "status": "open" },
+    { "id": "l4", "project": "Lantern", "title": "Write the notes for version 2", "status": "open" },
+    { "id": "t1", "project": "Tidepool", "title": "Order a hundred more rain gauges", "status": "needs_you", "note": "The supplier needs a yes by Friday." },
+    { "id": "t2", "project": "Tidepool", "title": "Calibrate the wind sensor", "status": "working" },
+    { "id": "t3", "project": "Tidepool", "title": "Translate the kit's instructions into Spanish", "status": "waiting" },
+    { "id": "k1", "project": "Kitefield", "title": "Add a stunt kite template", "status": "open" },
+    { "id": "k2", "project": "Kitefield", "title": "Check the tail physics against the field test", "status": "working" },
+    { "id": "k3", "project": "Kitefield", "title": "Pick a colour for the delta kite", "status": "open" }
+  ],
+  "goals": [
+    { "id": "gs1", "project": "Studio", "title": "Keep the studio small and steady", "status": "open" },
+    { "id": "gs2", "project": "Studio", "title": "Move into a real workshop", "status": "reached" },
+    { "id": "gl1", "project": "Lantern", "title": "Ten thousand happy readers", "status": "open" },
+    { "id": "gl2", "project": "Lantern", "title": "Sync between phone and tablet", "status": "reached" },
+    { "id": "gt1", "project": "Tidepool", "title": "A kit anyone can build in an afternoon", "status": "open" },
+    { "id": "gk1", "project": "Kitefield", "title": "A kite designed here flies first time", "status": "open" },
+    { "id": "gk2", "project": "Kitefield", "title": "Share a design with a link", "status": "open" }
+  ],
+  "conversations": [
+    { "id": "cs1", "project": "Studio", "title": "Planning next quarter" },
+    { "id": "cs2", "project": "Studio", "title": "Sorting the subscriptions", "check": true },
+    { "id": "cl1", "project": "Lantern", "title": "Why the bookmark jumps", "working": true },
+    { "id": "cl2", "project": "Lantern", "title": "Reading streak ideas" },
+    { "id": "cl3", "project": "Lantern", "title": "Pictures for the app store" },
+    { "id": "ct1", "project": "Tidepool", "title": "Rain gauge supplier" },
+    { "id": "ct2", "project": "Tidepool", "title": "Wind sensor drift" },
+    { "id": "ck1", "project": "Kitefield", "title": "Tail physics", "working": true },
+    { "id": "ck2", "project": "Kitefield", "title": "Template wish list" }
+  ],
+  "pullRequests": [
+    { "number": 39, "project": "Lantern", "title": "Open the app faster" },
+    { "number": 41, "project": "Lantern", "title": "Keep the bookmark when the screen turns" },
+    { "number": 42, "project": "Lantern", "title": "Dark mode for the library view", "draft": true },
+    { "number": 7, "project": "Tidepool", "title": "Read the wind sensor twice a second" },
+    { "number": 16, "project": "Kitefield", "title": "Save a design as a PDF" },
+    { "number": 18, "project": "Kitefield", "title": "Stunt kite template", "draft": true }
+  ],
+  "copies": [
+    { "id": "lantern-bookmark", "project": "Lantern", "name": "lantern-bookmark", "changes": 3 },
+    { "id": "kitefield-tails", "project": "Kitefield", "name": "kitefield-tails", "changes": 5 }
+  ],
+  "company": [
+    { "id": "m1", "section": "Money", "name": "Monthly costs", "note": "Kept as a list, in the studio's own words." },
+    { "id": "m2", "section": "Money", "name": "Kit sales by month" },
+    { "id": "lg1", "section": "Legal", "name": "Kit safety notes" },
+    { "id": "sb1", "section": "Subscriptions", "name": "Design app" },
+    { "id": "sb2", "section": "Subscriptions", "name": "Email service" },
+    { "id": "sb3", "section": "Subscriptions", "name": "Website hosting" },
+    { "id": "kd1", "section": "Key dates", "name": "Tidepool kit launch, in the spring" }
+  ],
+  "presence": [
+    { "id": "w1", "type": "website", "name": "Studio website", "link": "https://fernhollow.example", "status": "Live", "up": true, "project": "Studio" },
+    { "id": "w2", "type": "website", "name": "Lantern website", "link": "https://lantern.example", "status": "Live", "up": true, "project": "Lantern" },
+    { "id": "w3", "type": "website", "name": "Tidepool build guide", "link": "https://tidepool.example/guide", "status": "Live", "up": true, "project": "Tidepool" },
+    { "id": "w4", "type": "website", "name": "Kitefield website", "status": "Planned", "project": "Kitefield" },
+    { "id": "e1", "type": "email", "name": "Studio hello inbox", "status": "Live", "project": "Studio" },
+    { "id": "e2", "type": "email", "name": "Lantern support", "status": "Live", "project": "Lantern" },
+    { "id": "e3", "type": "email", "name": "Tidepool orders", "status": "Live", "project": "Tidepool" },
+    { "id": "so1", "type": "social", "name": "Studio photo account", "status": "Live", "project": "Studio" },
+    { "id": "so2", "type": "social", "name": "Lantern newsletter", "status": "Live", "project": "Lantern" },
+    { "id": "so3", "type": "social", "name": "Kitefield video channel", "status": "Planned", "project": "Kitefield" },
+    { "id": "d1", "type": "domain", "name": "fernhollow.example", "status": "Live", "project": "Studio" },
+    { "id": "d2", "type": "domain", "name": "lantern.example", "status": "Live", "project": "Lantern" },
+    { "id": "d3", "type": "domain", "name": "tidepool.example", "status": "Live", "project": "Tidepool" },
+    { "id": "d4", "type": "domain", "name": "kitefield.example", "status": "Planned", "project": "Kitefield" }
+  ],
+  "machines": [
+    { "id": "build", "online": true },
+    { "id": "bench", "online": true },
+    { "id": "spare", "online": false }
+  ],
+  "jobs": [
+    { "id": "j1", "name": "Lantern's nightly build", "machine": "build", "state": "queued" },
+    { "id": "j2", "name": "Kite flight tests", "machine": "bench", "state": "running" },
+    { "id": "j3", "name": "Tidepool's firmware build", "machine": "build", "state": "queued" }
+  ],
+  "library": [
+    { "id": "b1", "name": "A 3D drawing library", "status": "Using" },
+    { "id": "b2", "name": "An open icon set", "status": "Using" },
+    { "id": "b3", "name": "A rain sensor driver", "status": "Copied from" },
+    { "id": "b4", "name": "A map tiles kit", "status": "Considered" },
+    { "id": "b5", "name": "An old charting library", "status": "Dropped" },
+    { "id": "b6", "name": "A paper on kite tails", "status": "Not looked at" },
+    { "id": "b7", "name": "A weather data kit", "status": "Not looked at" }
+  ],
+  "every": 6,
+  "story": [
+    { "line": "Lantern's nightly build started on the Build server.", "change": [["jobs", "j1", { "state": "running" }]] },
+    { "line": "A conversation about the wind sensor on Tidepool started working.", "change": [["conversations", "ct2", { "working": true }]] },
+    { "line": "Kitefield needs you: pick a colour for the delta kite.", "change": [["tasks", "k3", { "status": "needs_you" }]] },
+    { "line": "Lantern's nightly build finished.", "change": [["jobs", "j1", { "state": "done" }]] },
+    { "line": "The bookmark conversation on Lantern went quiet.", "change": [["conversations", "cl1", { "working": false }]] },
+    { "line": "Lantern's bookmark fix is done.", "change": [["tasks", "l1", { "status": "done" }]] },
+    { "line": "Tidepool's firmware build started on the Build server.", "change": [["jobs", "j3", { "state": "running" }]] },
+    { "line": "The wind sensor conversation went quiet.", "change": [["conversations", "ct2", { "working": false }]] },
+    { "line": "The delta kite will be blue. Kitefield is quiet again.", "change": [["tasks", "k3", { "status": "open" }]] },
+    { "line": "Tidepool's firmware build finished.", "change": [["jobs", "j3", { "state": "done" }]] },
+    { "line": "Someone found another jump in the bookmark. Its conversation is working again.", "change": [["conversations", "cl1", { "working": true }], ["tasks", "l1", { "status": "working" }]] },
+    { "line": "Tonight's builds are queued again.", "change": [["jobs", "j1", { "state": "queued" }], ["jobs", "j3", { "state": "queued" }]] }
+  ]
+}

@@ -1,0 +1,130 @@
+{
+  "sample": "Fernhollow is made up, to show what Arnheim does. Its people, projects, websites, numbers and work are all invented.",
+  "company": "Fernhollow",
+  "mission": "Small, lasting things",
+  "about": "A made-up studio with four small projects, here to show what Arnheim does.",
+  "founder": {
+    "name": "Ellison",
+    "title": "made-up founder, named after the hero of Poe's story"
+  },
+  "rooms": [
+    {
+      "id": "goals",
+      "label": "Goals",
+      "about": "What a project is working toward. A red flag is open, a gold one is reached."
+    },
+    {
+      "id": "work",
+      "label": "Work",
+      "about": "The project's tasks, a desk each. A desk glows amber when it needs you and warm while someone is on it."
+    },
+    {
+      "id": "conversations",
+      "label": "Conversations",
+      "about": "Chats where the work gets talked through or done. A small figure sits in a seat while one is working."
+    },
+    {
+      "id": "code",
+      "label": "Code",
+      "about": "Open pull requests as books, and copies of the code with unsaved changes as crates."
+    }
+  ],
+  "floors": [
+    {
+      "id": "studio",
+      "label": "Studio",
+      "project": "Studio",
+      "palette": "terracotta",
+      "icon": "building-2",
+      "about": "The studio itself: its plans, its notes and how it runs.",
+      "extraRooms": [
+        {
+          "id": "company",
+          "label": "Company",
+          "about": "Money, legal, subscriptions and key dates, as the studio's own notes. A filing cabinet for each."
+        }
+      ]
+    },
+    {
+      "id": "lantern",
+      "label": "Lantern",
+      "project": "Lantern",
+      "palette": "harbour",
+      "icon": "library",
+      "about": "A reading app that remembers where you stopped, on every device."
+    },
+    {
+      "id": "tidepool",
+      "label": "Tidepool",
+      "project": "Tidepool",
+      "palette": "sage",
+      "icon": "gauge",
+      "about": "A weather station you build yourself, and the app that reads it."
+    },
+    {
+      "id": "kitefield",
+      "label": "Kitefield",
+      "project": "Kitefield",
+      "palette": "plum",
+      "icon": "shapes",
+      "about": "A tool for designing kites and testing them before they meet the wind."
+    }
+  ],
+  "lobby": {
+    "id": "front",
+    "label": "Front of house",
+    "about": "Websites, email, social media and domains. Nothing here signs in, reads an inbox or posts.",
+    "rooms": [
+      {
+        "id": "websites",
+        "label": "Websites",
+        "about": "The studio's websites, on a wall of screens. Poe sits at the desk here."
+      },
+      {
+        "id": "email",
+        "label": "Email",
+        "about": "The studio's email addresses, as pigeonholes. Nothing here reads an inbox."
+      },
+      {
+        "id": "social",
+        "label": "Social media",
+        "about": "The studio's social media accounts, a signboard each."
+      },
+      {
+        "id": "domains",
+        "label": "Domains",
+        "about": "The studio's domain names, as brass plaques."
+      }
+    ]
+  },
+  "basement": {
+    "id": "machines",
+    "label": "Shared machines",
+    "about": "The machines every project shares, and the Library of third-party code.",
+    "rooms": [
+      {
+        "id": "build",
+        "label": "Build server",
+        "about": "Builds every project's apps, mostly at night.",
+        "words": ["build server", "build machine"]
+      },
+      {
+        "id": "library",
+        "label": "Library",
+        "about": "Third-party code the studio uses or has looked at. It's a shelf: nothing here installs or runs it."
+      },
+      {
+        "id": "bench",
+        "label": "Test bench",
+        "about": "Runs the long tests, and flies Kitefield's kites in a simulator.",
+        "words": ["test bench", "bench"]
+      },
+      {
+        "id": "spare",
+        "label": "Spare laptop",
+        "about": "An old laptop kept for checking things on a small screen.",
+        "words": ["laptop", "spare"]
+      }
+    ]
+  }
+}

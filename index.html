@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Arnheim: a company as a 3D building you can turn and walk through, shown here with a made-up company.">
+<title>Arnheim</title>
+<link rel="stylesheet" href="src/demo.css">
+<script type="module" src="src/demo.js"></script>
+</head>
+<body>
+<header id="top">
+  <h1>Arnheim</h1>
+  <span id="made-up">Sample company: made up</span>
+  <button id="live" type="button" aria-pressed="true">Live</button>
+  <button id="theme" type="button">Dark</button>
+</header>
+<main id="layout">
+  <section id="stage" tabindex="0" aria-label="3D model of the company. Everything in it is also in the list. Arrow keys turn it, plus and minus zoom, 0 resets.">
+    <canvas id="scene" aria-hidden="true"></canvas>
+    <div id="labels" aria-hidden="true"></div>
+    <div id="scenes" role="group" aria-label="Scenes: relight the building"></div>
+    <div id="view-tools">
+      <button id="view-back" type="button" hidden>Back to the building</button>
+      <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+      <button id="zoom-out" type="button" aria-label="Zoom out">-</button>
+      <button id="view-reset" type="button">Reset view</button>
+    </div>
+    <div id="tip" hidden></div>
+    <div id="stage-fail" role="status" hidden>
+      <p id="stage-fail-text"></p>
+      <button id="stage-retry" type="button" hidden>Try again</button>
+    </div>
+    <div id="stage-foot">
+      <p id="stage-help">Tap a floor to bring it out. Drag to turn, scroll to zoom.</p>
+      <ul id="stage-key" aria-label="What the light means">
+        <li><span class="dot s-working"></span>Warm: working now</li>
+        <li><span class="dot s-needs"></span>Amber: needs you</li>
+        <li><span class="dot"></span>Dim: quiet</li>
+      </ul>
+    </div>
+  </section>
+  <aside id="panel" aria-label="The company, as a list">
+    <nav id="tabs" aria-label="Views">
+      <a id="tab-overview" href="#/">Overview</a>
+      <a id="tab-company" href="#/company">Company</a>
+      <a id="tab-poe" href="#/poe">Poe</a>
+    </nav>
+    <div id="panel-head" hidden>
+      <button id="back" type="button">Back</button>
+      <nav id="crumbs" aria-label="Where you are"></nav>
+    </div>
+    <div id="content"><p class="muted">Opening the building.</p></div>
+  </aside>
+</main>
+<noscript><p>Arnheim needs JavaScript to show the building.</p></noscript>
+</body>
+</html>
