@@ -699,8 +699,12 @@ export function buildPenthouse(storey, { founder = null } = {}) {
   return made(g, scope, extras, lift, {
     west, east, front, high, picks: [lift.call, hit],
     desk: { x: mid, z: dz + 0.85, name, title },
-    // Where the founder's notes hang (three/notes.js): an arc this far round the lift's doors, clear of
-    // the armchairs and the reading corner, the cards at eye height on threads from the ceiling.
-    notes: { x: mid, z: 1.05, r: 3.6, y: 1.52, high },
+    // Where the founder's notes hang (three/notes.js): in the library, a row at eye height in front of
+    // the shelves, the newest nearest the lift, parted round the ladder and turned a little towards the
+    // reading chairs, each on a thread from the ceiling.
+    notes: {
+      slots: [-3.25, -3.95, -4.65, -5.35, -6.85, -7.55, -8.25, -8.95].map((x) => ({ x, z: 0.98, turn: Math.atan2(-6.1 - x, 8) })),
+      y: 1.52, high, where: 'in the library: step out of the lift and turn right',
+    },
   });
 }

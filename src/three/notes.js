@@ -1,7 +1,8 @@
-// The founder's notes in their office. The newest few hang as cards of lit paper on threads among the
-// pearls, in an arc round the lift's doors, and turn a little towards whoever comes near. A soft pool
-// of light in front of each card is where to stand to read it. The page gives the notes
-// (building.setNotes); walk-notes.js opens them in full. Nothing here reads anything by itself.
+// The founder's notes in their office. The newest few hang as cards of lit paper on threads from the
+// ceiling, where the office puts them (halls.js: in its library, in front of the shelves), and turn a
+// little towards whoever comes near. A soft pool of light in front of each card is where to stand to
+// read it. The page gives the notes (building.setNotes); walk-notes.js opens them in full. Nothing here
+// reads anything by itself.
 import * as THREE from '../../vendor/three/three.module.js';
 import { decal, rng } from './kit.js';
 
@@ -15,10 +16,7 @@ const READ = 0.75; // where to stand to read a card: this far in front of it
 const NEAR = 0.45; // how close to that spot counts as standing there
 const TURN = 0.6; // how far a card turns towards someone, at most
 const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif';
-// Places round the arc, in degrees either side of straight out of the lift: the newest nearest the
-// middle, and each card at its own height.
-const SLOTS = [12, -12, 26, -26, 40, -40, 54, -54];
-const RISE = [0, 0.06, -0.03, 0.05, 0.07, -0.04, 0.02, 0.05];
+const RISE = [0, 0.06, -0.03, 0.05, 0.07, -0.04, 0.02, 0.05]; // each card hangs at its own height
 
 /* ---------- the notes as given, made safe to show ---------- */
 
@@ -187,10 +185,11 @@ function paint(canvas, note, now) {
 
 /* ---------- the cards, hung in the office ---------- */
 
-// `at` is where the arc is centred (the lift's doors), its radius r, the cards' height y and the
-// ceiling they hang from. Returns the group to add to the office and what the walk needs.
+// `at` says where they hang: `slots`, a place for each card with the newest first, as { x, z, turn }
+// (turn: which way the card faces, as a turn about the vertical; 0 faces +z), the cards' height y and
+// the ceiling they hang from (high). Returns the group to add to the office and what the walk needs.
 export function createNoteCards(at) {
-  const { x: cx, z: cz, r, y: cy, high } = at;
+  const { slots, y: cy, high } = at;
   const group = new THREE.Group();
   const backM = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffd8a8').multiplyScalar(1.7) });
   const box = new THREE.BoxGeometry(CW + 0.03, CH + 0.03, 0.01);
@@ -212,14 +211,14 @@ export function createNoteCards(at) {
   threads.frustumCulled = false;
   group.add(threads);
 
-  const cards = SLOTS.map((deg, i) => {
-    const a = THREE.MathUtils.degToRad(deg);
-    const x = cx + Math.sin(a) * r;
-    const z = cz + Math.cos(a) * r;
-    const y = cy + RISE[i];
-    const rest = Math.atan2(cx - x, cz - z); // facing the lift's doors
+  const cards = slots.slice(0, MOST).map((slot, i) => {
+    const { x, z } = slot;
+    const y = cy + RISE[i % RISE.length];
+    const rest = slot.turn || 0;
     const fx = Math.sin(rest);
     const fz = Math.cos(rest);
+    // Its pool of light is as wide as the room beside it allows.
+    const room = Math.min(1, ...slots.filter((o) => o !== slot).map((o) => Math.hypot(o.x - x, o.z - z)));
     const canvas = document.createElement('canvas');
     canvas.width = PX;
     canvas.height = PY;
@@ -239,7 +238,7 @@ export function createNoteCards(at) {
     holder.add(back, front, pick);
     const sx = x + fx * READ;
     const sz = z + fz * READ;
-    const pool = decal(0.95, 0.95, x + fx * 0.48, z + fz * 0.48, { color: '#ffcf96', opacity: 0.16, add: true, y: 0.016 });
+    const pool = decal(room * 0.92, 0.95, x + fx * 0.48, z + fz * 0.48, { color: '#ffcf96', opacity: 0.16, add: true, y: 0.016 });
     pool.material = poolIdle;
     threadPos.set([x, y + CH / 2 + 0.015, z, x, high, z], i * 6);
     const card = { i, holder, back, front, pick, pool, canvas, tex, faceM, x, z, rest, yaw: rest, spot: { x: sx, z: sz }, note: null, key: '' };
