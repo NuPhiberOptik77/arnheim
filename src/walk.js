@@ -423,6 +423,7 @@ export function createWalk(ctx) {
   const ringLit = new THREE.MeshBasicMaterial({ color: '#ffe4bd', transparent: true, opacity: 0.95, depthWrite: false });
   let spots = [];
   let talking = null;
+  let heldOff = false; // a re-seat ended a talk: no new one until the walker steps off the ring
 
   // Every square of this floor's plan the walker can reach from where they stand.
   function reach() {
@@ -450,8 +451,11 @@ export function createWalk(ctx) {
 
   // A ring for each agent at work on this floor, and for Poe: at the place the walker can reach
   // that is nearest a good spot to talk from, not too close to them and not on another ring.
+  // Placing them again (the page's work changed and people moved seats) never hands you to someone
+  // else while you stand still: the talk goes on if the same person's ring is still where you stand,
+  // and otherwise ends, with no new one until you step off the ring you are on.
   function placeSpots() {
-    setTalk(null);
+    const was = talking;
     for (const s of spots) s.ring.removeFromParent();
     spots = [];
     const open = reach();
@@ -485,6 +489,15 @@ export function createWalk(ctx) {
     if (hall.poe && person?.storey === here) {
       const P = person.spec.person;
       add({ title: P.name, sub: 'The receptionist', href: P.href, floorId: person.floorId, roomId: person.roomId }, hall.poe.x, hall.poe.z, hall.poe.x, hall.poe.z + 1.75);
+    }
+    if (!was) return;
+    const same = spots.find((s) => (s.who.href || s.who.title) === (was.who.href || was.who.title) && Math.hypot(me.x - s.x, me.z - s.z) < 0.42);
+    if (same) {
+      talking = same;
+      same.ring.material = ringLit;
+    } else {
+      setTalk(null);
+      heldOff = true;
     }
   }
 
@@ -810,7 +823,9 @@ export function createWalk(ctx) {
       if (inside && !inLift) openPicker();
       else if (!inside && inLift) closePicker();
       inLift = inside;
-      setTalk(spots.find((s) => Math.hypot(me.x - s.x, me.z - s.z) < 0.42) || null);
+      const ring = spots.find((s) => Math.hypot(me.x - s.x, me.z - s.z) < 0.42) || null;
+      if (!ring) heldOff = false;
+      if (!heldOff) setTalk(ring);
     }
     if (notes.update(dt, me, here === penthouse && !ride, still())) busy = true;
     if (burn.update(dt, camera, renderer)) busy = true;

@@ -19,6 +19,8 @@
 //   headers()                optional: headers for the page's own server, such as a page token
 //   base                     optional: where the voice server is (by default ../voice/ beside src)
 
+import { icon } from './icons.js';
+
 const BASE = new URL('../voice/', import.meta.url).href;
 const EAR = new URL('./voice-ear.js', import.meta.url).href;
 const SAVED = 'arnheim-voice';
@@ -134,7 +136,7 @@ export function createVoice({ hud, card, ctx, el, button, signal }) {
 
   /* ---------- on the page: a Voice button beside Leave, and the conversation in the card ---------- */
 
-  const toggle = button('', () => setOn(!on), 'Spoken answers');
+  const toggle = button('', () => setOn(!on), 'Voice');
   toggle.classList.add('aw-voice');
   toggle.hidden = !talk || !allowed;
   hud.firstElementChild?.after(toggle);
@@ -169,7 +171,8 @@ export function createVoice({ hud, card, ctx, el, button, signal }) {
   window.addEventListener('keydown', unlock, { signal, capture: true });
 
   function drawToggle() {
-    toggle.textContent = on ? 'Voice on' : 'Voice off';
+    // The words, or on a narrow screen a microphone (walk.css); aria-pressed says which.
+    toggle.replaceChildren(icon(on ? 'mic' : 'mic-off', 18), el('span', 'aw-voice-word', on ? 'Voice on' : 'Voice off'));
     toggle.setAttribute('aria-pressed', String(on));
   }
 

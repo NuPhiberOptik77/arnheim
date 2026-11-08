@@ -30,7 +30,9 @@
 .aw-load.aw-faded { opacity: 0; }
 .aw-load[hidden] { display: none; }
 /* Talking (voice.js): the Voice button beside Leave, and the conversation inside the talking card. */
-.aw-voice { margin-right: auto; }
+.aw-voice { margin-right: auto; white-space: nowrap; }
+.aw-voice .icon { display: none; }
+@media (max-width: 420px) { .aw-voice { padding: 0; } .aw-voice .icon { display: block; } .aw-voice-word { display: none; } .aw-name { padding: 0 11px; } }
 .aw-voice[aria-pressed="true"] { border-color: #ffcf8f; color: #ffd9a8; }
 .aw-voice[hidden], .aw-talk[hidden], .aw-said[hidden] { display: none; }
 .aw-card.aw-talking { flex-wrap: wrap; width: min(440px, calc(100% - 24px)); }
