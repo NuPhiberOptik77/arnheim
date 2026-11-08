@@ -1224,9 +1224,15 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, onWalk,
     if (!on) { endWalk(); return false; }
     if (walker || disposed) return !!walker;
     walkStart ??= import('./walk.js');
-    const { createWalk, loadStyle } = await walkStart;
-    await loadStyle();
-    if (walker || disposed || contextLost) return !!walker;
+    const { createWalk, loadStyle, preparePhoto } = await walkStart;
+    // The real materials load first (for up to a few seconds), so the walk opens on finished rooms.
+    const photo = preparePhoto(renderer);
+    const settle = (p) => Promise.race([p.catch(() => null), new Promise((r) => setTimeout(r, 2500))]);
+    await Promise.all([loadStyle(), photo ? settle(photo.promise) : null]);
+    if (walker || disposed || contextLost) {
+      photo?.promise.then((p) => p.dispose(), () => {});
+      return !!walker;
+    }
     selected = null;
     onHover?.(null);
     highlight(null);
@@ -1241,7 +1247,7 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, onWalk,
     camera.updateProjectionMatrix();
     try {
       walker = createWalk({
-        scene, camera, canvas, renderer, composer, storeys, org, reduced, personRoom, start: view.floor,
+        scene, camera, canvas, renderer, composer, photo, storeys, org, reduced, personRoom, start: view.floor,
         onPick, describe, infoText, roomWorld, wake, touched, version: () => version,
         poeAwake() { personWake = performance.now(); },
         shadows(near, reach) { aimLights(near, reach); shadowsDirty = true; wake(2); },

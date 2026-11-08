@@ -59,6 +59,19 @@ void main() {
 // The walk's look lives in walk.css, added as a stylesheet link rather than a <style> tag, so a page
 // whose content security policy allows only its own files (style-src 'self') takes it too. Resolves
 // once it has loaded, or failed (the walk still works, plainly), or after four seconds.
+// Starts the real materials loading before the walk shows, so it can open on the finished rooms.
+// Returns null when this device keeps the drawn ones (photo.js decides).
+export function preparePhoto(renderer) {
+  if (!photoWanted(renderer)) return null;
+  const job = { value: null, failed: false, k: 0, listen: null };
+  job.promise = loadPhoto(renderer, (k) => { job.k = k; job.listen?.(k); }).then(
+    (p) => { job.value = p; return p; },
+    (error) => { job.failed = true; throw error; },
+  );
+  job.promise.catch(() => {}); // the walk reports a failure itself
+  return job;
+}
+
 let styled = null;
 export function loadStyle() {
   if (styled) return styled;
@@ -91,8 +104,9 @@ export function createWalk(ctx) {
   let lastPitch = 0;
   // The real materials (photo.js): they start loading as the walk begins, unless this device
   // should keep it light; until they arrive, and if they never do, the drawn ones stand.
-  let photo = null;
-  let photoState = photoWanted(renderer) ? 'loading' : 'off';
+  const job = ctx.photo || null; // started by preparePhoto before the walk showed
+  let photo = job?.value || null;
+  let photoState = !job ? 'off' : photo ? 'on' : job.failed ? 'failed' : 'loading';
   let loadTimer = 0;
   let gone = false;
   const hitMaterial = new THREE.MeshBasicMaterial();
@@ -759,15 +773,13 @@ export function createWalk(ctx) {
   const first = storeys.find((s) => s.id === ctx.start) || storeys.find((s) => s.role === 'lobby') || order[0];
   for (const s of storeys) s.group.visible = false; // one floor at a time
   enter(first, first.role === 'lobby' ? 'entrance' : 'lift');
-  if (!still()) {
-    ride = { to: here, same: true, phase: 'in', t: 0 };
-    here.group.visible = false;
-    const eye = chest(new THREE.Vector3());
-    burn.start({ root: here.group, origin: eye, inward: true, eye });
-  }
+  // No effect on arrival: the walk simply opens on the finished rooms.
 
   if (photoState === 'loading') {
-    loadPhoto(renderer, (k) => { loadingBar.style.width = `${Math.round(k * 100)}%`; }).then((p) => {
+    const show = (k) => { loadingBar.style.width = `${Math.round(k * 100)}%`; };
+    show(job.k);
+    job.listen = show;
+    job.promise.then((p) => {
       if (gone) { p.dispose(); return; }
       photo = p;
       for (const entry of halls.values()) dressHall(entry, p);

@@ -33,8 +33,9 @@ With reduced motion on, the camera keeps still and floors change at once.
 
 Walking brings in real materials: photographed terrazzo, white oak and plaster, and the light of a
 real entrance hall reflected in the glass, stone and metal. They are about 6 MB of free CC0
-pictures from Poly Haven (see `THIRD_PARTY_NOTICES.md`), and they load only once you press Walk,
-with a small bar while they arrive, so the page itself never waits for them. A phone short of
+pictures from Poly Haven (see `THIRD_PARTY_NOTICES.md`). They load only once you press Walk, and
+the walk opens on the finished rooms; if they take more than a couple of seconds, it opens with the
+drawn look and a small bar until they arrive. The page itself never waits for them. A phone short of
 memory, or a browser with data saver on, keeps the drawn materials; add `?lite` to the address to
 see those anywhere. A server that shows Arnheim needs to send `.jpg` and `.hdr` files for them, as
 `serve.py` does. The camera moves like a phone held in the hand: a little bob and sway as you walk,
