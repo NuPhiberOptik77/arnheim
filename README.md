@@ -7,13 +7,19 @@ is a room, a receptionist called Poe answers questions at the front desk, and th
 as it happens: someone sits at a desk or in a chair while a thing is being worked on, and the rooms
 glow warm while something is working, amber when something needs you, and dim when all is quiet.
 
+It is for anyone who runs several projects, alone, with a team or with AI agents, and wants to see
+at a glance what needs them and what is being worked on, and then ask about it, instead of reading
+through lists. It shows the work and never does it: it reads plain files, or what your own page
+gives it, and changes none of them.
+
 It is named after Edgar Allan Poe's story "The Domain of Arnheim", about a man who shapes a
 landscape into a world of its own. Arnheim is free and open, and never sold.
 
 ## What you need
 
-- **Python 3.7 or newer.** macOS and most Linux systems have it already. The server is one file
-  that uses nothing beyond Python itself, so there is nothing to install.
+- **Python 3.7 or newer.** Most Linux systems have it already. On a Mac, the first `python3` may
+  offer to install Apple's command line tools, which bring it: say yes. The server is one file that
+  uses nothing beyond Python itself, so there is nothing more to install.
 - **A browser with WebGL 2**, which every current Chrome, Edge, Firefox and Safari has, on a
   computer, a tablet or a phone.
 
@@ -111,8 +117,8 @@ cp sample/*.json data/
 
 Then, in `data/company.json`, take out the `"sample"` line, which marks a company as made up, and
 put in your own: the company's name, a floor for each project, and their rooms. In
-`data/work.json`, put what is going on, and take out the `story` at the end, which only makes the
-sample move. Reload the page, and it shows your company. To start smaller,
+`data/work.json`, put what is going on, and empty the `story` at the end so that it reads
+`"story": []`: the story only makes the sample move. Reload the page, and it shows your company. To start smaller,
 [docs/data.md](docs/data.md) has a company with one floor that you can copy in whole.
 
 - `company.json` is the map: the company's name and mission, its floors, the rooms on each floor,
@@ -123,9 +129,9 @@ sample move. Reload the page, and it shows your company. To start smaller,
   and their jobs. Every part of it is optional.
 - `notes.json` is the founder's notes, which hang in their office on a walk. Also optional.
 
-[docs/data.md](docs/data.md) lists every field and the values each one takes. If a file has a
-mistake, the page says which file and what is wrong, and `serve.py` checks when it starts that
-each file in `data/` is valid JSON.
+[docs/data.md](docs/data.md) lists every field and the values each one takes. If `company.json`
+or `work.json` has a mistake, the page says which file and what is wrong, and `serve.py` checks
+when it starts that each file in `data/` is valid JSON.
 
 The page shows `data/` whenever `data/company.json` is there, and the sample otherwise; add
 `?sample` to the address to see the sample anyway. Git ignores `data/`, so your company's files
@@ -152,7 +158,9 @@ Arnheim's folder:
    .voice/bin/pip install kokoro openai-whisper
    ```
 
-   To have them speak but not listen, leave out `openai-whisper`; you then type your side.
+   To have them speak but not listen, leave out `openai-whisper`; you then type your side. On
+   Linux, pip brings PyTorch with its graphics-card libraries, several GB more; to keep it small,
+   run `.voice/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu` first.
 
 2. Download the models, once. It is about 470 MB, so it can take a while, and it ends with a line
    that says `"ready": true`:
@@ -171,8 +179,8 @@ On a walk, turn on Voice. The first answer takes a few seconds while the voice w
 it is quick. The seven voices are `af_heart` (Poe's), `af_bella`, `af_nicole`, `am_michael`,
 `am_fenrir`, `bf_emma` and `bm_george`. Each person at work gets one of the others, or an even mix
 of two with the same accent, and keeps it; the assistant can be given one in `company.json`.
-http://127.0.0.1:8740/voice/status says whether this computer can speak and listen, and the last
-error if it can't.
+http://127.0.0.1:8740/voice/status says whether this computer can speak and, once the voice has
+woken, whether it can listen, with the last error if something failed.
 
 `ARNHEIM_VOICE_PYTHON` points at another Python that already has the packages. On Windows the
 folder's Python is `.voice\Scripts\python.exe`, which `serve.py` looks for, but the voice has not
@@ -186,9 +194,10 @@ been tried on Windows yet.
 python3 serve.py --lan
 ```
 
-It prints a second address, such as `http://192.168.1.20:8740`: open that on the phone. While it
-runs like this, anyone on the same network can open Arnheim, your `data/` included, so use it on a
-network you trust and stop it when you are done.
+It prints a second address, such as `http://192.168.1.20:8740`: open that on the phone. The first
+time, the computer may ask whether Python may accept connections from the network: allow it. While
+it runs like this, anyone on the same network can open Arnheim, your `data/` included, so use it
+on a network you trust and stop it when you are done.
 
 On the phone the people speak, if the computer has the voice, and you type your side: browsers only
 let a page use the microphone over HTTPS, or on the computer it runs on, and `serve.py` doesn't do

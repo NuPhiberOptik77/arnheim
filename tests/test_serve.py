@@ -51,7 +51,8 @@ class ServeTest(unittest.TestCase):
     def test_nothing_else(self):
         for path in ("/serve.py", "/README.md", "/.git/config", "/.gitignore", "/voice/worker.py", "/src/", "/src",
                      "/src/../serve.py", "/src/%2e%2e/serve.py", "/sample/../serve.py", "/data/../serve.py",
-                     "/sample/.hidden.json", "/tests/test_serve.py", "/src/demo.js.map"):
+                     "/sample/.hidden.json", "/tests/test_serve.py", "/src/demo.js.map",
+                     "/data/x%5C..%5C..%5Cserve.py", "/src/demo.js%3A", "/src/demo%00.js"):
             self.assertEqual(self.ask(path)[0], 404, path)
 
     def test_other_names_are_refused(self):
@@ -81,6 +82,7 @@ class ServeTest(unittest.TestCase):
             headers = {"Origin": origin} if origin else {}
             self.assertEqual(self.ask("/voice/wake", method="POST", headers=headers, body=b"")[0], 403, origin)
         # Its own page may ask, but not for anything outside /voice/ (this asks nothing of the voice itself).
+        self.assertEqual(self.ask("/voice/wake", method="POST", headers={"Origin": own, "Content-Length": "many"})[0], 400)
         self.assertEqual(self.ask("/sample/company.json", method="POST", headers={"Origin": own}, body=b"")[0], 404)
 
 

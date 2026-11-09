@@ -10,8 +10,9 @@ shows the sample. Add `?sample` to the address to see the sample anyway.
   optional, and so is the file itself: without it the building stands quiet.
 - `notes.json` is the founder's notes, which hang in their office on a walk. Also optional.
 
-Change a file and reload the page. If a file has a mistake, the page says which file and why, and
-`serve.py` says when it starts if a file in `data/` is not valid JSON, with the line and column.
+Change a file and reload the page. If `company.json` or `work.json` has a mistake, the page says
+which file and why, and `serve.py` says when it starts if any file in `data/` is not valid JSON,
+with the line and column.
 
 ## A company with one floor
 
@@ -48,8 +49,8 @@ And this in `data/work.json`:
 ```
 
 Reload, and the Shop floor has a Goals room with a red flag in it and a Work room with two desks:
-someone sits at the first while the loaf is being baked, and the second glows amber because it
-needs you. Ask Poe "what needs me?" and Poe names the flour supplier.
+one glows amber because the flour supplier needs you, and someone sits at the other while the test
+loaf is baked. Ask Poe "what needs me?" and Poe names the flour supplier.
 
 From there, add floors, a lobby and a basement, more rooms and more lists, as below. The sample's
 own files show every one of them in use.
@@ -153,8 +154,8 @@ they need you.
 The sample also has a `story`, so that something always moves: a list of steps, played in a loop,
 one every `every` seconds (6 if left out, and at least 2). Each step is
 `{ "line": "What happened", "change": [["tasks", "t1", { "status": "done" }]] }`, where each change
-names a list, an `id` in it and the fields to change. A real company leaves it out, and the Live
-button, which pauses the story, only shows when there is one.
+names a list, an `id` in it and the fields to change. A real company leaves it out or empties it
+(`"story": []`), and the Live button, which pauses the story, only shows when there is one.
 
 ## notes.json
 

@@ -795,8 +795,8 @@ async function showNotes() {
     const { notes = [] } = await reply.json();
     notesFrom ||= Date.now();
     building?.setNotes(notes.map((n) => ({ ...n, when: n.when ?? notesFrom - (Number(n.hoursAgo) || 0) * 3600000 })));
-  } catch {
-    // no notes: the office is simply as it was
+  } catch (error) {
+    console.warn(`Arnheim: ${dir}/notes.json could not be read, so the office has no notes.`, error); // the office is simply as it was
   }
 }
 

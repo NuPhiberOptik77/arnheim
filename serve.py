@@ -8,8 +8,8 @@
 It serves the page and its files from this folder, and nothing else: no other folders, no
 listings, nothing cached, so a change shows on the next reload. Your own company goes in data/
 (README, "Make it yours"); without it, the page shows the made-up sample. It answers only to the
-names it was opened by (127.0.0.1 and localhost, and with --lan this computer's network address),
-so a web page elsewhere can't read it by pointing a name of its own here.
+names it was opened by (127.0.0.1 and localhost, and with --lan an IP address or a name ending
+.local), so a web page elsewhere can't read it by pointing a name of its own here.
 It also answers /voice/, the voice the walk's people speak with, if this computer has one
 (voice/bridge.py, and README, "Voice").
 """
@@ -26,7 +26,7 @@ from urllib.parse import unquote
 
 from voice.bridge import Voice
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.realpath(__file__))  # links resolved, as every file below is
 SHOWN = ("src", "sample", "vendor", "data")
 TYPES = {
     ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
@@ -93,9 +93,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = unquote(self.path.split("?", 1)[0])
-        size = int(self.headers.get("Content-Length") or 0)
         if not self.allowed():
             self.send_error(403)
+            return
+        try:
+            size = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            self.send_error(400)
             return
         if not path.startswith("/voice/") or not 0 <= size <= 2_000_000:
             self.send_error(404 if not path.startswith("/voice/") else 413)
@@ -114,7 +118,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             path = "/index.html"
         else:
             parts = path.split("/")[1:]
-            if len(parts) < 2 or parts[0] not in SHOWN or any(p in ("", ".", "..") or p.startswith(".") for p in parts):
+            if len(parts) < 2 or parts[0] not in SHOWN or any(p in ("", ".", "..") or p.startswith(".") or any(c in p for c in "\\:\0") for p in parts):
                 self.send_error(404)
                 return None
         full = os.path.realpath(os.path.join(ROOT, *path.split("/")[1:]))
@@ -151,18 +155,25 @@ def network_address():
 
 def company_note():
     """Which company the page will show, and why any of data/'s files can't be read."""
-    folder = os.path.join(ROOT, "data")
-    if not os.path.isfile(os.path.join(folder, "company.json")):
+    def shown(name):  # as the page will get it: a file inside this folder, links resolved
+        path = os.path.realpath(os.path.join(ROOT, "data", name))
+        return path if path.startswith(ROOT + os.sep) and os.path.isfile(path) else None
+
+    if not shown("company.json"):
+        if os.path.exists(os.path.join(ROOT, "data", "company.json")):
+            return ["data/company.json links to somewhere outside this folder, which serve.py doesn't show, "
+                    "so the page shows the made-up sample. Copy the files into data/ instead."]
         return ["Showing the sample company, which is made up. To show your own, see \"Make it yours\" in README.md."]
     lines = ["Showing your own company, from data/."]
+    then = {"notes.json": "The founder's office has no notes until it is fixed."}
     for name in ("company.json", "work.json", "notes.json"):
-        path = os.path.join(folder, name)
-        if os.path.isfile(path):
+        path = shown(name)
+        if path:
             try:
                 with open(path, encoding="utf-8-sig") as handle:  # as a browser reads it, a BOM or not
                     json.load(handle)
             except ValueError as error:  # not JSON, or not UTF-8
-                lines.append(f"data/{name} can't be read: {error}. The page will say so until it is fixed.")
+                lines.append(f"data/{name} can't be read: {error}. {then.get(name, 'The page will say so until it is fixed.')}")
     return lines
 
 
