@@ -277,12 +277,14 @@ export function createWalk(ctx) {
     if (last) last.walls.e.scale.y = on ? H : CURB;
   }
 
-  // The receptionist stands behind the reception desk while you walk, and goes back to their room after.
+  // The receptionist stands behind the hall's reception desk while you walk, and goes back to their room
+  // after. Their room's counter is put away meanwhile, so there is only ever one reception desk.
   function placeReceptionist(on) {
     const room = ctx.personRoom;
     if (!room?.person || room.storey !== here || !hall?.poe) return;
     const P = room.spec.person;
     const body = room.person.group;
+    if (room.counter) room.counter.visible = !on;
     if (on) {
       hall.group.add(body);
       body.position.set(hall.poe.x, 0, hall.poe.z);

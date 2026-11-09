@@ -234,14 +234,17 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, onWalk,
       at(new THREE.Mesh(new THREE.SphereGeometry(0.17, 24, 14), room.glow), lx, ly, lz),
     );
     room.glow2 = lampGlow();
+    // A counter the walk puts away while the receptionist stands at the hall's desk, so there is one
+    // reception desk at a time (rooms.js, websites; walk.js, placeReceptionist).
+    const counter = new THREE.Group();
     const [sx, sy, sz] = spec.lamps.side;
     if (kind === 'machine') {
       frozen.add(at(cyl(0.06, 0.1, 0.1, room.glow2, 18), sx, sy - 0.05, sz));
     } else if (spec.lamps.deskTop != null) {
-      // A desk lamp standing on a counter.
+      // A desk lamp standing on the counter.
       const top = spec.lamps.deskTop;
       const brass = mat('#c9a06a', { rough: 0.35, metal: 0.6 });
-      frozen.add(
+      counter.add(
         at(cyl(0.06, 0.07, 0.02, brass, 18), sx, top, sz),
         at(cyl(0.008, 0.008, sy - top - 0.12, brass, 6), sx, top + 0.02, sz),
         at(cyl(0.06, 0.1, 0.14, room.glow2, 24), sx, sy - 0.12, sz),
@@ -255,10 +258,18 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, onWalk,
       );
     }
 
-    const ctx = { signs: room.signs, upper: room.upper };
+    const ctx = { signs: room.signs, upper: room.upper, counter };
     spec.decor(frozen, storey.style, ctx, room);
-    for (const part of [...room.upper, ...room.signs]) { frozen.remove(part); g.add(part); }
+    for (const part of [...room.upper, ...room.signs]) if (part.parent === frozen) { frozen.remove(part); g.add(part); }
     freeze(frozen);
+    if (counter.children.length) {
+      const signs = room.signs.filter((part) => part.parent === counter);
+      for (const part of signs) counter.remove(part);
+      freeze(counter);
+      for (const part of signs) counter.add(part);
+      g.add(counter);
+      room.counter = counter;
+    }
     if (spec.person) {
       // The receptionist, named and dressed as the map says (org.receptionist).
       room.spec = { ...spec, person: receptionistSpec(org.receptionist || {}) };

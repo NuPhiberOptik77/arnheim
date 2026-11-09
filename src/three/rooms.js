@@ -310,12 +310,15 @@ export const ROOMS = {
     decor(g, s, ctx) {
       const front = mat('#8a5f3c', { rough: 0.55 });
       const top = mat('#e9e4d8', { rough: 0.3 });
-      g.add(decal(4.2, 1.8, W / 2, 3.25), at(box(3.3, 0.98, 0.5, front, { r: 0.03 }), W / 2, 0, 3.3), at(box(3.5, 0.05, 0.72, top, { r: 0.02 }), W / 2, 0.98, 3.25));
+      // The counter, with its sign and bell, is put away while you walk: the receptionist is at the
+      // hall's reception desk then (ctx.counter, see building.js).
+      const counter = ctx.counter || g;
+      counter.add(decal(4.2, 1.8, W / 2, 3.25), at(box(3.3, 0.98, 0.5, front, { r: 0.03 }), W / 2, 0, 3.3), at(box(3.5, 0.05, 0.72, top, { r: 0.02 }), W / 2, 0.98, 3.25));
       const sign = label('Reception', 2.2, 0.36);
       sign.position.set(W / 2, 0.62, 3.56);
-      g.add(sign);
+      counter.add(sign);
       ctx.signs.push(sign);
-      g.add(at(cyl(0.05, 0.04, 0.1, mat('#d7d0c4')), W / 2 + 1.25, 1.03, 3.2));
+      counter.add(at(cyl(0.05, 0.04, 0.1, mat('#d7d0c4')), W / 2 + 1.25, 1.03, 3.2));
       g.add(decal(0.9, 0.9, W - 0.42, 0.42), at(piece('plant', { height: 1.2 }), W - 0.42, 0, 0.42));
     },
     // A screen per website on a wall of screens: warm when it answered the last check.
