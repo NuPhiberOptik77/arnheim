@@ -1,7 +1,8 @@
-// The Arnheim demo page: a company that is made up (sample/company.json and sample/work.json)
-// shown as a building, with a panel to look around it and Poe at the front desk. The work moves
-// on a loop (the story at the end of work.json), so there is always something to see. Nothing is
-// saved anywhere: a reload starts the sample again.
+// The Arnheim page: a company shown as a building, with a panel to look around it and Poe at the
+// front desk. It shows your own company from data/ (company.json, work.json and notes.json) when
+// data/company.json is there, and otherwise the sample, a company that is made up (sample/). The
+// sample's work moves on a loop (the story at the end of its work.json), so there is always
+// something to see. Nothing is saved anywhere: a reload reads the files again.
 import { icon } from './icons.js';
 import { createPoe, has, insertAfter, norm, poeBadge } from './poe-desk.js';
 
@@ -25,6 +26,7 @@ const TAB_KEYS = { 1: '#/', 2: '#/company', 3: '#/poe' };
 
 let org = null; // the company map: floors and rooms
 let work = null; // what is going on in it
+let dir = 'sample'; // where they came from: data (your own company) or sample (made up)
 let poe = null;
 let building = null;
 let route = {};
@@ -72,8 +74,12 @@ function agoText(at) {
   return s < 120 ? 'a minute ago' : `${Math.round(s / 60)} minutes ago`;
 }
 
-/* ---------- reading the sample ---------- */
+/* ---------- reading the company ---------- */
 
+// A company map with "sample" in it is made up, and the page says so wherever it shows it.
+const madeUp = () => !!org.sample;
+const sampleLine = () => (typeof org.sample === 'string' ? org.sample : `${org.company} is made up.`);
+const hasStory = () => work.story.length > 0;
 const floors = () => [...org.floors, org.lobby, org.basement].filter(Boolean);
 const roomsOf = (floor) => [...(floor.rooms || org.rooms), ...(floor.extraRooms || [])];
 const floorOf = (project) => org.floors.find((f) => f.project === project);
@@ -239,13 +245,16 @@ function setupPoe() {
   const real = {
     id: 'sample',
     answer: (c) => has(c.q, ['real', 'made up', 'fake', 'sample', 'demo', 'invented', 'pretend']) && {
-      lines: [org.sample || `${org.company} is a sample.`, 'The work you see moving is a short story on a loop, so the building has something to show. The Live button at the top pauses it.'],
+      lines: !madeUp() ? [`This is ${org.company}'s own building, drawn from its own files. I only say what they hold.`]
+        : [sampleLine(), hasStory() && 'The work you see moving is a short story on a loop, so the building has something to show. The Live button at the top pauses it.'].filter(Boolean),
     },
   };
   const howTo = {
     id: 'how-to',
     answer: (c) => has(c.q, ['task', 'goal']) && has(c.q, ['add', 'new', 'set', 'write', 'make', 'create']) && {
-      lines: ['Tell me "remind me to ..." and I will add it as a task, in this tab only.', 'Goals and everything else come from the sample files, sample/company.json and sample/work.json. Change them and reload to make the building your own.'],
+      lines: ['Tell me "remind me to ..." and I will add it as a task, in this tab only.', dir === 'data'
+        ? 'Goals and everything else come from the company\'s own files, data/company.json and data/work.json. Change them and reload.'
+        : 'Goals and everything else come from the sample files, sample/company.json and sample/work.json. Copy them into a folder called data beside them, change them and reload to make the building your own.'],
     },
   };
   poe = createPoe({
@@ -255,10 +264,10 @@ function setupPoe() {
     focusModel: (floorId) => (floorId ? building?.focus({ floor: floorId }) : focusBuilding()),
     reduced: reducedMotion,
     words: {
-      place: `This is Arnheim, showing ${org.company}, a company that is made up. Each floor is a project and each room holds one kind of thing. The light shows what is happening.`,
+      place: `This is Arnheim, showing ${org.company}${madeUp() ? ', a company that is made up' : ''}. Each floor is a project and each room holds one kind of thing. The light shows what is happening.`,
       hints: ['What is Arnheim?', 'What needs me?', "What's running?", 'Who runs this company?', 'Where is the website?', 'Is this real?', 'What do the colours mean?'],
-      role: 'Receptionist. Every answer comes from the sample company.',
-      unknown: "I don't know that, and I won't guess. I only know what the sample company holds.",
+      role: madeUp() ? 'Receptionist. Every answer comes from the sample company.' : `Receptionist. Every answer comes from ${org.company}'s own files.`,
+      unknown: `I don't know that, and I won't guess. I only know what ${madeUp() ? 'the sample company holds' : `${org.company}'s files hold`}.`,
       note: 'Poe can add a task and undo it, in this tab only. Nothing is saved, and Poe never merges, publishes, runs jobs or signs in.',
       added: 'It is in the Work room now, in this tab only.',
       keys: '1 Overview, 2 Company, 3 Poe. Esc goes back. Arrow keys turn the building, plus and minus zoom. They do nothing while you are typing.',
@@ -269,9 +278,9 @@ function setupPoe() {
 
 /* ---------- talking in the walk (voice.js) ---------- */
 
-// Poe answers as at the desk. The sample's people answer from their own lines in sample/work.json
-// ("says"), with no AI: they are made up, and so is what they say. A page with real agents passes
-// its own answers, and there what you say reaches the agent doing the work.
+// Poe answers as at the desk. The people at work answer from their own lines in work.json ("says"),
+// with no AI; in the sample they are made up, and so is what they say. A page with real agents
+// passes its own answers, and there what you say reaches the agent doing the work.
 const talkItem = (who) => work.conversations.find((c) => convoHref(c) === who.href) || work.tasks.find((t) => taskHref(t) === who.href) || null;
 
 function poeSays(text) {
@@ -290,9 +299,12 @@ function sampleReply(item, text) {
   const on = (words) => has(q, words);
   if (on(['thank', 'cheers', 'great', 'nice one', 'well done', 'good job'])) return "Thanks. I'll keep going.";
   if (on(['bye', 'see you', 'talk later'])) return 'Bye for now.';
-  if (on(['who are you', 'your name', 'what are you'])) return `I'm the ${item.project} agent on "${item.title}". This company is a sample, so I am made up too.`;
+  if (on(['who are you', 'your name', 'what are you'])) return `I'm the ${item.project} agent on "${item.title}".${madeUp() ? ' This company is a sample, so I am made up too.' : ''}`;
   if (on(['next', 'after that', 'plan', 'left', 'remaining', 'then what'])) return says.next || "I'll know what's next when this step is done.";
-  if (on(['you should', 'instead', 'stop ', 'switch to', 'focus on', 'do this', 'can you', 'could you', 'i want you', 'please '])) return "I'm a made-up agent in a sample, so I can't take new work. With real agents, what you say here goes to the agent doing the work.";
+  if (on(['you should', 'instead', 'stop ', 'switch to', 'focus on', 'do this', 'can you', 'could you', 'i want you', 'please '])) {
+    return madeUp() ? "I'm a made-up agent in a sample, so I can't take new work. With real agents, what you say here goes to the agent doing the work."
+      : "I can only tell you what the company's files say, so I can't take new work from here. With real agents, what you say here goes to the agent doing the work.";
+  }
   if (on(['need me', 'need anything', 'need you', 'stuck', 'blocked', 'help', 'problem', 'decide', 'decision'])) return says.needs || 'Nothing from you right now. I will ask if I need you.';
   if (on(['how long', 'when will', 'when did', 'started', 'finish', 'done by'])) return says.when || "I can't say exactly. I'll say when it's done.";
   return [says.now, says.next].filter(Boolean).join(' ') || `I'm working on "${item.title}".`;
@@ -314,7 +326,10 @@ const talk = {
       const hello = hr >= 5 && hr < 12 ? 'Good morning' : hr >= 12 && hr < 18 ? 'Good afternoon' : hr >= 18 && hr < 23 ? 'Good evening' : 'Hello';
       return `${hello}. Ask me what's happening, or anything about the building.`;
     }
-    if (isAide(who)) return `Hello. I'm ${org.assistant.name}, ${org.founder?.name || 'the founder'}'s assistant. This company is made up, and so am I. Ask me anything about it.`;
+    if (isAide(who)) {
+      const hello = `Hello. I'm ${org.assistant.name}, ${org.founder?.name || 'the founder'}'s assistant.`;
+      return madeUp() ? `${hello} This company is made up, and so am I. Ask me anything about it.` : `${hello} Ask me anything about ${org.company}.`;
+    }
     const item = talkItem(who);
     return item ? `Hi. I'm on "${item.title}". Ask me how it's going.` : null;
   },
@@ -345,8 +360,8 @@ function viewOverview() {
     crumbs: [],
     body: [
       h('section.panel-card.intro',
-        title(`${org.company}, a company that is made up`),
-        h('p', org.sample),
+        title(madeUp() ? `${org.company}, a company that is made up` : org.company),
+        madeUp() ? h('p', sampleLine()) : org.about && h('p', org.about),
         h('p.small.muted', 'Arnheim shows a company as a building. Each floor is a project and each room holds one kind of thing. Tap a floor to bring it out, then a room to look inside. Poe, at the front desk, answers questions.')),
       h('div.stats', tile('bell-ring', 'needs', needs.length, 'Need you'), tile('messages-square', 'working', talking.length, 'Working now'), tile('server', 'working', jobs.length, 'Jobs running')),
       h('section.panel-card',
@@ -357,15 +372,17 @@ function viewOverview() {
         talking.length || jobs.length
           ? h('ul.list', [
             ...talking.map((c) => row(convoHref(c), c.title, `${c.project}. A conversation`, 'working')),
-            ...jobs.map((j) => row(`#/${org.basement.id}/${j.machine}`, j.name, `On the ${machineLabel(j.machine)}`, 'working')),
+            ...jobs.map((j) => row(`#/${org.basement?.id}/${j.machine}`, j.name, `On the ${machineLabel(j.machine)}`, 'working')),
           ])
           : empty('Nothing is working right now.')),
-      h('section.panel-card',
+      hasStory() && h('section.panel-card',
         sectHead('history', 'Just now'),
         happened.length
           ? h('ul.list.happened', happened.map((e) => h('li', h('div.row', dot('quiet'), h('span.row-main', h('span.row-title', e.line), h('span.row-sub', { 'data-at': e.at }, agoText(e.at)))))))
           : empty(playing ? 'The work starts moving in a few seconds.' : 'Paused. Press Live at the top to let the work move.')),
-      h('p.small.muted.foot-note', 'Everything here comes from two files: sample/company.json (the building) and sample/work.json (what is going on in it). Change them and reload to make it your own.'),
+      h('p.small.muted.foot-note', dir === 'data'
+        ? 'Everything here comes from data/company.json (the building) and data/work.json (what is going on in it). Change them and reload.'
+        : 'Everything here comes from two files: sample/company.json (the building) and sample/work.json (what is going on in it). To show your own company, copy them into a folder called data beside them, change them and reload.'),
     ],
   };
 }
@@ -455,7 +472,8 @@ function viewItem(floor, room, id) {
   if (floor === org.lobby) {
     const e = work.presence.find((x) => x.id === id);
     if (!e) return gone();
-    return show(e.name, [['Kind', room.label], ['Status', e.status], ['Address', e.link ? `${e.link} (made up: the .example ending is kept for examples)` : 'None written down'], ['Project', e.project], ['Last check', e.link ? (e.up ? 'Answered' : 'No answer') : null]]);
+    const address = e.link && madeUp() ? `${e.link} (made up: the .example ending is kept for examples)` : e.link;
+    return show(e.name, [['Kind', room.label], ['Status', e.status], ['Address', address || 'None written down'], ['Project', e.project], ['Last check', e.link ? (e.up ? 'Answered' : 'No answer') : null]]);
   }
   if (kind === 'library') {
     const b = work.library.find((x) => x.id === id);
@@ -763,12 +781,16 @@ async function startBuilding() {
 
 /* ---------- walking through the building ---------- */
 
-// The founder's notes, hung in their office on a walk: made-up ones from sample/notes.json, read
-// again whenever someone walks into the office, as a page with real notes would read them afresh.
+// The founder's notes, hung in their office on a walk, from notes.json beside the company's other
+// files (made up in the sample). They are read again whenever someone walks into the office, so an
+// edited note shows the next time. A company with no notes.json simply has none.
 let notesFrom = 0;
+let noNotes = false;
 async function showNotes() {
+  if (noNotes) return;
   try {
-    const reply = await fetch('sample/notes.json', { cache: 'no-store' });
+    const reply = await fetch(`${dir}/notes.json`, { cache: 'no-store' });
+    if (reply.status === 404) noNotes = true; // not asked for again until the page is reloaded
     if (!reply.ok) return;
     const { notes = [] } = await reply.json();
     notesFrom ||= Date.now();
@@ -829,20 +851,83 @@ function setupIcons() {
   $('view-reset').prepend(icon('rotate-ccw', 14));
 }
 
+/* ---------- reading the company's files ---------- */
+
+const LISTS = ['tasks', 'goals', 'conversations', 'pullRequests', 'copies', 'company', 'presence', 'machines', 'jobs', 'library', 'story'];
+const problem = (text, status) => Object.assign(new Error(text), { own: true, status });
+
+// One of the company's files, or an error that says which one and why.
+async function readJson(path) {
+  const reply = await fetch(path, { cache: 'no-store' });
+  if (!reply.ok) throw problem(`${path} could not be read: the server answered ${reply.status}.`, reply.status);
+  const text = await reply.text();
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw problem(`${path} is not valid JSON (${error.message}).`);
+  }
+}
+
+// Plain words for the mistakes in a company map that would otherwise leave the building blank.
+function checkMap(map, path) {
+  const fail = (why) => { throw problem(`${path}: ${why}`); };
+  const named = (x) => typeof x?.id === 'string' && /^[A-Za-z0-9_-]+$/.test(x.id) && !!x.label;
+  if (!map || typeof map !== 'object' || Array.isArray(map)) fail('it should be one object, between { and }.');
+  if (!map.company) fail('it needs "company", the company\'s name.');
+  if (!Array.isArray(map.floors) || !map.floors.length) fail('it needs "floors", a list of at least one floor.');
+  const ids = new Set();
+  for (const floor of [...map.floors, map.lobby, map.basement].filter(Boolean)) {
+    if (!named(floor)) fail('every floor needs a "label" and an "id" made of letters, numbers, dashes or underscores.');
+    if (ids.has(floor.id)) fail(`two floors have the id "${floor.id}".`);
+    ids.add(floor.id);
+    const rooms = floor.rooms || map.rooms;
+    if (!Array.isArray(rooms)) fail(`the floor "${floor.id}" has no rooms. Give it "rooms", or give the company a "rooms" list that every floor shares.`);
+    const all = [...rooms, ...(Array.isArray(floor.extraRooms) ? floor.extraRooms : [])];
+    if (all.length > 5) fail(`the floor "${floor.id}" has ${all.length} rooms, and a floor holds at most five.`);
+    if (!all.every(named)) fail(`on the floor "${floor.id}", every room needs a "label" and an "id" made of letters, numbers, dashes or underscores.`);
+  }
+  for (const floor of map.floors) floor.project ||= floor.label; // what work.json calls its project
+  return map;
+}
+
+// Your own company from data/ when data/company.json is there, or else the made-up sample. ?sample
+// in the address shows the sample anyway. Every list in work.json is optional, and so is
+// data/work.json itself: without it the building stands quiet.
+async function readCompany() {
+  let map = null;
+  if (!params.has('sample')) {
+    try {
+      map = await readJson('data/company.json');
+      dir = 'data';
+    } catch (error) {
+      if (error.status !== 404) throw error;
+    }
+  }
+  const [mapRead, now] = await Promise.all([
+    map || readJson(`${dir}/company.json`),
+    readJson(`${dir}/work.json`).catch((error) => {
+      if (dir === 'data' && error.status === 404) return {};
+      throw error;
+    }),
+  ]);
+  if (!now || typeof now !== 'object' || Array.isArray(now)) throw problem(`${dir}/work.json: it should be one object, between { and }.`);
+  for (const key of LISTS) if (!Array.isArray(now[key])) now[key] = [];
+  return [checkMap(mapRead, `${dir}/company.json`), now];
+}
+
 async function boot() {
   try {
-    const [map, now] = await Promise.all(['sample/company.json', 'sample/work.json'].map(async (path) => {
-      const reply = await fetch(path, { cache: 'no-store' });
-      if (!reply.ok) throw new Error(path);
-      return reply.json();
-    }));
-    org = map;
-    work = now;
-  } catch {
-    $('content').replaceChildren(h('p.banner.fail', 'The sample company could not be read. Serve this folder (python3 serve.py) and open the address it prints.'));
+    [org, work] = await readCompany();
+  } catch (error) {
+    console.error(error);
+    $('content').replaceChildren(h('p.banner.fail', error.own
+      ? `The company could not be shown. ${error.message}`
+      : 'The company could not be read. Serve this folder (python3 serve.py) and open the address it prints.'));
     return;
   }
-  document.title = `Arnheim: ${org.company}, a made-up company`;
+  document.title = madeUp() ? `Arnheim: ${org.company}, a made-up company` : `Arnheim: ${org.company}`;
+  $('made-up').hidden = !madeUp();
+  $('live').hidden = !hasStory();
   setupPoe();
   readRoute();
   setupTheme();

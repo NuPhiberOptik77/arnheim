@@ -8,6 +8,7 @@ came.
 `src/three/kit.js` and `src/three/furniture.js` are House Control's modelling kit and furniture
 library, changed lightly (a per-room lamp, decals, merging). `src/building.js` and
 `src/three/rooms.js` adapt its lighting, cut-away walls, camera rig and render-on-demand loop.
+House Control is at https://github.com/0xProbabillity/house-control.
 
 MIT License
 

@@ -8,7 +8,8 @@ Python that has Kokoro installed, keeps it running, and passes the sound back as
   POST /voice/say      {"text", "voice"} -> audio/wav
   POST /voice/hear     audio/wav -> {"text"}, once a speech model is set up
 
-That Python is ARNHEIM_VOICE_PYTHON, or else .voice/bin/python in this folder (README, "Voice").
+That Python is ARNHEIM_VOICE_PYTHON, or else the one in .voice in this folder: .voice/bin/python,
+or .voice/Scripts/python.exe on Windows (README, "Voice").
 The worker's command is fixed; what a page sends only ever reaches it as data.
 """
 import collections
@@ -68,7 +69,8 @@ def clean(text):
 
 class Voice:
     def __init__(self, python=None):
-        default = os.path.join(os.path.dirname(HERE), ".voice", "bin", "python")
+        folder = os.path.join(os.path.dirname(HERE), ".voice")
+        default = os.path.join(folder, "Scripts", "python.exe") if os.name == "nt" else os.path.join(folder, "bin", "python")
         self.python = python or os.environ.get("ARNHEIM_VOICE_PYTHON") or default
         self.proc = None
         self.lock = threading.Lock()  # one request at a time through the worker
@@ -115,7 +117,8 @@ class Voice:
                 self.state, self.error = "failed", f"The voice could not start: {error.strerror}"
                 return False
             threading.Thread(target=self._drain, args=(self.proc,), daemon=True).start()
-            head, _ = self._read(self.proc, 180)
+            # Fetching the models the first time (ARNHEIM_VOICE_FETCH=1, about 470 MB) can take many minutes.
+            head, _ = self._read(self.proc, 1800 if env.get("ARNHEIM_VOICE_FETCH") == "1" else 180)
             if head.get("ready"):
                 self.voices, self.can_hear, self.state = head.get("voices", []), bool(head.get("hear")), "ready"
                 return True
