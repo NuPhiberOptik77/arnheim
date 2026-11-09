@@ -12,6 +12,11 @@ Brain, below, answers the page's /brain/ requests for serve.py, or for a server 
 person you can talk to has a claude of their own, started when you step up to them or first ask,
 kept for follow-ups, and stopped after ten quiet minutes. Nothing is written to disk: no
 transcripts, no logs of what was said. It never works over --lan. Standard library only.
+
+With control on too (serve.py --control), your assistant can pass a clear instruction of yours on
+to an agent at work: her answer ends with a line "PASS ON <conversation>: <instruction>", which is
+never said aloud. The brain sends it through control's own message path, as a message from the
+building, and only to an agent working now, and never anything the receptionist would refuse.
 """
 import collections
 import hmac
@@ -38,6 +43,11 @@ MAX_SECTIONS = 80
 MAX_FACTS = 120_000  # characters, all the sections together
 MODEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:\[\]-]{0,79}$")
 READY = "Reply with just: Ready."
+MARK = "PASS ON"
+PASS = re.compile(r"^PASS ON\s+(cc-[A-Za-z0-9]{1,12})\s*:\s*(\S.*)$")
+# What the receptionist refuses (src/poe-desk.js, REFUSE), for what the assistant passes on: never a
+# way round a refusal.
+REFUSE = re.compile(r" (merge|merging|publish|deploy|tweet|sign in|sign me in|signin|log in|log me in|login|password|run (a |the |my )?(job|command|script|tests?|build)|start (a |the )?(job|build)|post (it|this|that|on|to)|send (an |the |a )?(email|message|post)|buy|pay|transfer) ")
 
 
 def one_line(text, most):
@@ -45,10 +55,25 @@ def one_line(text, most):
     return text if len(text) <= most else text[: most - 1].rstrip() + "…"
 
 
-def persona(who, name, company):
+def norm(text):
+    """Words as src/poe-desk.js matches them: lower case, letters and digits, spaced at both ends."""
+    return " " + re.sub(r"[^a-z0-9]+", " ", re.sub(r"['\u2019]", "", str(text).lower())).strip() + " "
+
+
+def persona(who, name, company, passes=False):
     """Who they are, as their claude is told when it starts: the same for every company, with its
-    names in it. The building's facts come later, in the conversation."""
+    names in it. The building's facts come later, in the conversation. `passes`: they can pass an
+    instruction on to an agent at work (the assistant, with control on)."""
     me = f"You are {name}, the {who} of {company}" if name else f"You are the {who} of {company}"
+    pass_on = (
+        "\n\nYou can also pass an instruction on to one of the company's agents, but only when the "
+        "person clearly asks you to tell an agent that the facts say is working now to do something. "
+        "Then say in your words that you are passing it on, and end your answer with one more line, "
+        "exactly: PASS ON <conversation>: <instruction>. The conversation is that agent's, as the facts "
+        "give it (it starts cc-), and the instruction is what the person asked for, in their words. "
+        "Never pass on anything you couldn't do yourself, and if you aren't sure which agent they mean "
+        "or what they want, ask them instead."
+    ) if passes else ""
     return (
         f"{me}, shown as a building in Arnheim: one floor per project, with rooms for goals, work, "
         "conversations and code. The person is talking to you out loud while walking through it, or "
@@ -65,6 +90,7 @@ def persona(who, name, company):
         "email, buy or pay. When asked to, say so, and offer to note it as a task instead: they can "
         "say \"remind me to\" and what it is.\n\n"
         "If the facts say the company is a made-up sample, say so when asked whether it's real."
+        f"{pass_on}"
     )
 
 
@@ -88,6 +114,35 @@ def environment():
 
 def line(data):
     return (json.dumps(data, ensure_ascii=False) + "\n").encode("utf-8")
+
+
+class Hold:
+    """Keeps a "PASS ON" line out of what is said, as the pieces come: everything from the mark on is
+    held back, and so is the end of a piece that may be its start, until the next shows it isn't."""
+
+    def __init__(self):
+        self.text = ""
+        self.given = 0
+
+    def feed(self, piece):
+        """What can be said of the answer so far, that hasn't been."""
+        self.text += piece
+        at = self.text.find(MARK)
+        if at < 0:
+            at = len(self.text)
+            for k in range(min(len(MARK) - 1, len(self.text)), 0, -1):
+                if MARK.startswith(self.text[-k:]):
+                    at -= k
+                    break
+        out = self.text[self.given:at] if at > self.given else ""
+        self.given = max(self.given, at)
+        return out
+
+    def end(self):
+        """At the end of the answer: what is left to say, and the held line, if there is one."""
+        rest = self.text[self.given:]
+        self.given = len(self.text)
+        return ("", rest) if rest.startswith(MARK) else (rest, "")
 
 
 class Refused(Exception):
@@ -241,9 +296,11 @@ class Mind:
 
 class Brain:
     """The page's side: answers /brain/ requests (handle), and looks after a claude for each person
-    you can talk to. `tell(why)`, if given, hears of each new kind of trouble, for the terminal."""
+    you can talk to. `tell(why)`, if given, hears of each new kind of trouble, for the terminal, and
+    `control`, if given, lets the assistant pass instructions on to agents at work."""
 
-    def __init__(self, claude=None, model=None, idle=IDLE, wait=WAIT, tell=None):
+    def __init__(self, claude=None, model=None, idle=IDLE, wait=WAIT, tell=None, control=None):
+        self.control = control  # connect/control.py's Control, with --control: the assistant can pass things on
         self.claude = list(claude) if claude else shlex.split(os.environ.get("ARNHEIM_CLAUDE") or "claude")
         self.model = model or os.environ.get("ARNHEIM_BRAIN_MODEL") or "sonnet"
         if not MODEL.match(self.model):
@@ -330,8 +387,16 @@ class Brain:
                     news = told(facts, mind.facts)
                     mind.facts = facts
                     parts = mind.exchange(f"{news}\n\nThe person says: {words}" if news else f"The person says: {words}", self.wait)
+                    hold = Hold()
                     for piece in parts:
-                        yield line({"text": piece})
+                        said = hold.feed(piece)
+                        if said:
+                            yield line({"text": said})
+                    rest, held = hold.end()
+                    if held:
+                        rest += self.pass_on(who, held)
+                    if rest:
+                        yield line({"text": rest})
                 except Trouble as why:
                     self.trouble(who, why, mind)
                     yield line({"error": str(why)})
@@ -342,8 +407,28 @@ class Brain:
             yield line({"done": True})
         return lines()
 
-    @staticmethod
-    def request(given, words=True):
+    def pass_on(self, who, held):
+        """An answer's "PASS ON <conversation>: <instruction>" line, sent to that conversation through
+        control's own message path, as a message from the building (connect/control.py, say). Gives
+        what she adds to her answer: nothing once it has gone, or why it didn't."""
+        found = PASS.match(held.strip().splitlines()[0]) if held.strip() else None
+        if not found:
+            return held  # not an instruction after all: words to say
+        if who != "assistant" or self.control is None:
+            return ""  # nobody here passes things on
+        key, words = found.group(1), found.group(2).strip()
+        if REFUSE.search(norm(words)):
+            return " I can't pass that on, though. I never ask an agent to merge, publish, deploy, run jobs, sign in, send messages, buy or pay."
+        try:
+            if not self.control.working(key):
+                return " I couldn't pass it on, though: that agent isn't working right now."
+            self.control.say(key, words)
+        except Exception as why:  # control's own Refused, in words for you, or a message it couldn't write
+            reason = str(why) or "it didn't go"
+            return f" I couldn't pass it on, though: {reason[:1].lower()}{reason[1:]}"
+        return ""
+
+    def request(self, given, words=True):
         """Who is asked, who they are (their persona), and the facts and words: refused if any of it
         doesn't make sense."""
         who = given.get("who")
@@ -371,7 +456,7 @@ class Brain:
                 raise Refused("Say something first.")
             if len(text) > MAX_TEXT:
                 raise Refused(f"That's too long: keep it under {MAX_TEXT} characters.")
-        return who, persona(who, name, company), sections, text
+        return who, persona(who, name, company, passes=who == "assistant" and self.control is not None), sections, text
 
     # ---------- their claudes ----------
 

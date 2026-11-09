@@ -22,6 +22,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "connect"))
 
 import brain  # noqa: E402  (after the path is set)
+import control  # noqa: E402
 import serve  # noqa: E402
 
 # Stands in for `claude -p --input-format stream-json --output-format stream-json
@@ -53,6 +54,9 @@ for raw in sys.stdin:
         print(json.dumps({"type": "result", "subtype": "success", "is_error": True, "result": "Not logged in · Please run /login"}), flush=True)
         continue
     answer = "Ready." if text.endswith("Reply with just: Ready.") else f"Turn {turn}: you said {words}"
+    if words.startswith("please tell "):  # as the assistant does with control on: "please tell <key> to <words>"
+        key, _, instruction = words[len("please tell "):].partition(" to ")
+        answer = f"I'll pass that on.\nPASS ON {key}: {instruction}"
     for i, piece in enumerate(answer.split(" ")):
         delta = {"type": "text_delta", "text": piece if i == 0 else " " + piece}
         print(json.dumps({"type": "stream_event", "event": {"type": "content_block_delta", "index": 0, "delta": delta}}), flush=True)
@@ -308,6 +312,74 @@ class BrainTest(unittest.TestCase):
         self.assertEqual(plain.model, "sonnet")
         with self.assertRaises(ValueError):
             brain.Brain(model="--dangerously-skip-permissions")
+
+
+class PassOnTest(unittest.TestCase):
+    """With control on, the assistant passes a clear instruction on to an agent at work: her answer's
+    last line, which is never said, goes through control's own message path."""
+
+    WORKING, RESTING = "cc-abc123def456", "cc-0f9e8d7c6b5a"
+
+    def setUp(self):
+        self.fake = Fake()
+        self.addCleanup(self.fake.remove)
+        self.data = os.path.join(self.fake.base, "data")
+        os.makedirs(os.path.join(self.data, "feeds"))
+        feed = {"conversations": [
+            {"id": self.WORKING, "project": "Lantern", "title": "Fix the login page", "working": True},
+            {"id": self.RESTING, "project": "Lantern", "title": "Plan the week", "working": False, "check": True},
+        ]}
+        with open(os.path.join(self.data, "feeds", "claude-code.json"), "w", encoding="utf-8") as handle:
+            json.dump(feed, handle)
+        self.control = control.Control(self.data, claude=[sys.executable, "-c", "pass"])
+        self.brain = self.make(control=self.control)
+
+    def make(self, **given):
+        made = brain.Brain(claude=[sys.executable, self.fake.path], model="haiku", wait=20, **given)
+        self.addCleanup(made.close)
+        return made
+
+    def say(self, text, who="assistant", to=None):
+        to = to or self.brain
+        body = {"who": who, "name": "Wren" if who == "assistant" else "Iris", "company": "Example Studio", "facts": FACTS, "text": text}
+        code, _, data, _ = to.handle("POST", "ask", json.dumps(body).encode(), to.token)
+        lines = [json.loads(raw) for raw in data]
+        self.assertEqual((code, lines[-1]), (200, {"done": True}), lines)
+        return "".join(x["text"] for x in lines[:-1])
+
+    def persona(self):
+        args = self.fake.starts()[-1]["args"]
+        return args[args.index("--system-prompt") + 1]
+
+    def test_a_clear_instruction_reaches_an_agent_at_work(self):
+        said = self.say(f"please tell {self.WORKING} to use the blue button")
+        self.assertEqual(said, "I'll pass that on.\n")  # her words, and never the line itself
+        self.assertEqual([row["text"] for row in self.control.box.take(self.WORKING)], ["use the blue button"])
+        self.assertIn("end your answer with one more line, exactly: PASS ON <conversation>: <instruction>", self.persona())
+
+    def test_only_to_an_agent_at_work_and_never_around_a_refusal(self):
+        self.assertEqual(self.say(f"please tell {self.RESTING} to tidy the notes"),
+                         "I'll pass that on.\n I couldn't pass it on, though: that agent isn't working right now.")
+        self.assertIn("I can't pass that on, though. I never ask an agent to merge, publish, deploy",
+                      self.say(f"please tell {self.WORKING} to deploy the shop"))
+        self.assertIn("I couldn't pass it on, though", self.say("please tell cc-nobody0000 to tidy up"))
+        for key in (self.WORKING, self.RESTING, "cc-nobody0000"):
+            self.assertEqual(self.control.box.take(key), [], key)
+
+    def test_only_the_assistant_and_only_with_control(self):
+        self.assertEqual(self.say(f"please tell {self.WORKING} to use the blue button", who="receptionist"), "I'll pass that on.\n")
+        self.assertNotIn("PASS ON", self.persona())
+        alone = self.make()
+        self.assertEqual(self.say(f"please tell {self.WORKING} to use the blue button", to=alone), "I'll pass that on.\n")
+        self.assertNotIn("PASS ON", self.persona())
+        self.assertEqual(self.control.box.take(self.WORKING), [])
+
+    def test_a_line_that_only_looks_like_one_is_said(self):
+        hold = brain.Hold()
+        said = [hold.feed(p) for p in ("Pa", "ris is ", "nice. P", "lease come.\nPASS", " ON cc-abc: use", " blue")]
+        self.assertEqual(said, ["Pa", "ris is ", "nice. ", "Please come.\n", "", ""])
+        self.assertEqual(hold.end(), ("", "PASS ON cc-abc: use blue"))
+        self.assertEqual(self.brain.pass_on("assistant", "PASS ONWARD, she said"), "PASS ONWARD, she said")
 
 
 class ServeBrainTest(unittest.TestCase):

@@ -47,13 +47,28 @@ ARNHEIM_BRAIN_MODEL=haiku python3 serve.py --brain
 `ARNHEIM_CLAUDE` names another `claude` command, if yours isn't on the path. The brain works with
 `--control` too, but never with `--lan`.
 
+## Pass something on to an agent
+
+With control on too (`python3 serve.py --brain --control`, with the hooks from
+[connect.md](connect.md), step 4), your assistant can pass an instruction of yours on to an agent at
+work. Ask them plainly, such as "Please tell the Lantern agent to check the login page on tablets
+too". They say they are passing it on, and it reaches that agent's Claude Code conversation at its
+next step, as a message sent from the building does.
+
+They only do it when you clearly ask, only to an agent that is working now, and never with
+anything the receptionist would refuse: asked to have an agent deploy, publish or merge, they say
+no, as the rules do. If it can't go, they say why. The receptionist doesn't pass things on; with
+control on, they can start a new agent instead.
+
 ## What is sent, and what is kept
 
 What goes to Claude, through your Claude Code: the building's facts and what you say to the
 receptionist or the assistant. The facts are what the building shows: the company's name and
 whether it is made up, its floors, tasks, goals and pull requests, each conversation's agent and
 what it last said, the websites and email written down in the lobby, the machines and jobs, and
-the company's notes. They go whole with the first question, and after that only what changed.
+the company's notes. With control on, the facts also give each conversation's id, so your
+assistant can pass things on. They go whole with the first question, and after that only what
+changed.
 
 When you step up to the receptionist or the assistant on a walk, or open the receptionist's tab,
 the page reads them the facts straight away, so their first answer comes sooner. That is a short
@@ -74,6 +89,12 @@ hooks or permissions apply, and their conversations never show in the building a
 conversations of yours. It starts without Claude Code's own `CLAUDECODE` and `CLAUDE_*` variables
 (`CLAUDE_CONFIG_DIR` stays), so a server started inside a Claude Code session still starts a plain,
 separate `claude`.
+
+With control on, the assistant's Claude may end an answer with a line that names a conversation
+and an instruction ("PASS ON", then the conversation's id and the words). That line is never said or
+shown. The server checks that the agent is working now and that the instruction is nothing the
+receptionist would refuse, then sends it through control's own message path
+(`connect/control.py`), and otherwise the assistant says why it didn't go.
 
 The brain answers only the page on the computer that runs `serve.py`, with the token that page is
 given, as control does. `connect/brain.py` is standard-library Python with one call

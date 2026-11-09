@@ -128,6 +128,9 @@ Optional, and off unless you switch it on. Then the person at this computer can:
 - **Start one.** In a floor's Conversations room, or by asking the receptionist ("start an agent on
   Lantern to fix the login page", then "start it"). It runs in the floor's folder with your own
   Claude Code settings, as if you had started it there, and stays in the building to talk to.
+- **Pass something on through your assistant.** With the brain on too ([brain.md](brain.md)), ask
+  your assistant to tell an agent at work something, and it reaches that agent as a message from the
+  building does.
 
 To switch it on, connect Claude Code (step 2) and add one more hook beside those, for permission
 requests. It waits for your answer, so it gets a longer time limit:

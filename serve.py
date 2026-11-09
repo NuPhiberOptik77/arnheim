@@ -268,8 +268,9 @@ def main():
         sys.exit("Control works only on this computer, so it can't go with --lan. Leave out one of them.")
     if args.brain and args.lan:
         sys.exit("The brain works only on this computer, so it can't go with --lan. Leave out one of them.")
+    control = Control() if args.control else None
     try:
-        brain = Brain(tell=lambda why: print(f"The brain had no answer: {why}", file=sys.stderr, flush=True)) if args.brain else None
+        brain = Brain(tell=lambda why: print(f"The brain had no answer: {why}", file=sys.stderr, flush=True), control=control) if args.brain else None
     except ValueError as error:
         sys.exit(str(error))
     try:
@@ -282,7 +283,7 @@ def main():
             sys.exit(f"This computer won't let Arnheim use port {args.port}. Give one above 1024: python3 serve.py 8740")
         raise
     server.lan = args.lan
-    server.control = Control() if args.control else None
+    server.control = control
     server.brain = brain
     print(f"Arnheim is at http://127.0.0.1:{args.port}", flush=True)
     if args.control:

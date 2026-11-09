@@ -480,6 +480,16 @@ class Control:
                     break
         return out
 
+    def working(self, key):
+        """Whether a conversation the building knows is at work now: one started here that is still
+        running, or one the Claude Code feed says is working."""
+        with self.lock:
+            run = self.runs.get(key)
+            if run and self.alive(run):
+                return True
+        feed = read(os.path.join(self.data, "feeds", "claude-code.json")) or {}
+        return any(isinstance(c, dict) and c.get("id") == key and c.get("working") for c in feed.get("conversations") or [])
+
     def conversation(self, key):
         """A conversation the building knows: in the Claude Code feed, or started here."""
         if not isinstance(key, str) or not KEY.match(key):
