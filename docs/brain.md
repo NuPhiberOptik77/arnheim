@@ -47,6 +47,22 @@ ARNHEIM_BRAIN_MODEL=haiku python3 serve.py --brain
 `ARNHEIM_CLAUDE` names another `claude` command, if yours isn't on the path. The brain works with
 `--control` too, but never with `--lan`.
 
+When it is on, Arnheim says so in its terminal ("The brain is on"), the receptionist's tab says
+they answer with Claude, and the receptionist greets you with "Ask me what's happening, or
+anything at all."
+
+## Switch it off
+
+Stop Arnheim (Ctrl-C in its terminal) and start it again without `--brain`:
+
+```bash
+python3 serve.py
+```
+
+That's all: the brain changes no settings, adds nothing to your Claude Code and keeps nothing on
+disk, and its Claude stops when Arnheim does. With the brain off, the receptionist and your
+assistant answer from the building's files alone, as before.
+
 ## Pass something on to an agent
 
 With control on too (`python3 serve.py --brain --control`, with the hooks from

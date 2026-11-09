@@ -160,8 +160,9 @@ own Claude plan: Sonnet, unless `ARNHEIM_BRAIN_MODEL` names another, such as `ha
 facts and what you say to them go to Claude, through your Claude Code, and nothing is kept on disk.
 Greetings, refusals and "remind me to ..." stay with the building's own rules, and they still never
 merge, publish, run jobs or sign in. With `--control` too, your assistant can pass a clear
-instruction of yours on to an agent at work. It is off unless you switch it on, and never works with
-`--lan` ([docs/brain.md](docs/brain.md)).
+instruction of yours on to an agent at work. It is off unless you switch it on: start Arnheim again
+without `--brain` and it is off, with nothing to undo. It never works with `--lan`
+([docs/brain.md](docs/brain.md)).
 
 ## Voice
 
