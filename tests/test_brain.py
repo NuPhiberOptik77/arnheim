@@ -179,7 +179,7 @@ class BrainTest(unittest.TestCase):
             self.assertIn(f"## {section}\n{text}", first)
         self.assertTrue(first.endswith("The person says: What needs me?"))
         self.assertEqual(second, "The person says: And after that?")  # nothing new to tell
-        self.assertTrue(third.startswith("Changed since you last looked:"))
+        self.assertTrue(third.startswith("Changed since you last looked, for you to know and not to tell unless asked:"))
         self.assertIn("## Floor: Lantern\nLantern: a reading app. No open tasks.", third)
         self.assertIn("## Working now\nThe Lantern agent is working.", third)
         self.assertIn("## Needs you\n(No longer there.)", third)

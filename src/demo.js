@@ -519,6 +519,7 @@ const talk = {
     return item ? `${item.project} agent` : null;
   },
   greet(who) {
+    if (who.href === DESK || isAide(who)) primeBrain(who.href === DESK ? 'receptionist' : 'assistant'); // walked up to: read Claude the facts now
     if (who.href === DESK) {
       const hr = new Date().getHours();
       const hello = hr >= 5 && hr < 12 ? 'Good morning' : hr >= 12 && hr < 18 ? 'Good afternoon' : hr >= 18 && hr < 23 ? 'Good evening' : 'Hello';
