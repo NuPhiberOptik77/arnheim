@@ -375,6 +375,7 @@ export function createVoice({ hud, card, ctx, el, button, signal }) {
     const words = speakable(text);
     if (!words || !voice || !audio) return;
     owed += 1;
+    if (mode === 'listening' || mode === 'hearing') { mode = 'speaking'; drawLine(); }
     const fetching = request('say', { text: words, voice }).catch((error) => {
       console.warn('Arnheim: the voice could not say that.', error);
       return null;
@@ -487,7 +488,7 @@ export function createVoice({ hud, card, ctx, el, button, signal }) {
       node.connect(sink);
       sink.connect(audio.destination);
       node.port.onmessage = (event) => hearBlock(event.data);
-      Object.assign(mine, { stage: 'on', stream, source, node, sink, rate: audio.sampleRate });
+      Object.assign(mine, { stage: 'on', stream, source, node, sink, rate: audio.sampleRate, since: performance.now() });
       Object.assign(vad, { on: false, voiced: 0, quiet: 0, len: 0, pre: [], parts: [] });
       micTrouble = '';
     } catch (error) {
@@ -518,9 +519,11 @@ export function createVoice({ hud, card, ctx, el, button, signal }) {
     let sum = 0;
     for (let i = 0; i < block.length; i++) sum += block[i] * block[i];
     const db = 10 * Math.log10(sum / block.length + 1e-12);
+    // For a moment after the microphone opens, it settles and the room's level is learned: no one is heard yet.
+    const learning = performance.now() - ear.since < 800;
     if (!vad.on) {
-      vad.floor += (db - vad.floor) * (db < vad.floor ? 0.3 : 0.02);
-      if (mode === 'speaking' || mode === 'thinking' || performance.now() < deafUntil) { vad.voiced = 0; vad.pre = []; return; }
+      vad.floor += (db - vad.floor) * (db < vad.floor ? 0.3 : learning ? 0.25 : 0.02);
+      if (learning || mode === 'speaking' || mode === 'thinking' || performance.now() < deafUntil) { vad.voiced = 0; vad.pre = []; return; }
       vad.pre.push(block);
       while (vad.pre.length * dur > 0.35) vad.pre.shift();
       if (db > Math.max(vad.floor + 12, -52)) {
@@ -533,6 +536,7 @@ export function createVoice({ hud, card, ctx, el, button, signal }) {
       } else vad.voiced = 0;
       return;
     }
+    if (mode === 'speaking' || mode === 'thinking') { Object.assign(vad, { on: false, parts: [], pre: [], voiced: 0 }); return; }
     vad.parts.push(block);
     vad.len += dur;
     vad.quiet = db > Math.max(vad.floor + 7, -57) ? 0 : vad.quiet + dur;
@@ -555,9 +559,12 @@ export function createVoice({ hud, card, ctx, el, button, signal }) {
     const text = await heardWords(wavFile(pcm, 16000));
     if (keyOf(asked) !== keyOf(who) || g !== gen) return;
     times.hearMs = Math.round(performance.now() - ended);
-    if (!text) { mode = 'listening'; drawLine(); return; }
+    if (!text || FILLER.test(text)) { mode = 'listening'; drawLine(); return; }
     ask(text, ended);
   }
+
+  // A sound heard as only "oh", "um" and the like: nothing to answer.
+  const FILLER = /^(?:oh|ah|uh|um|umm|er|erm|hmm|mm|mhm|huh)[\s.,!?\u2026-]*$/i;
 
   function canHear() {
     return ownEar || !!server?.hear;
