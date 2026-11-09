@@ -13,4 +13,6 @@ questions, and the live work lit up as it happens. Named after Edgar Allan Poe's
 - The name is just Arnheim. Never put a company name in front of it.
 - Third-party code keeps its licence and notices: three.js (MIT), Lucide icons (ISC), and
   House Control (MIT), whose design this builds on. They go in THIRD_PARTY_NOTICES.md.
-- Scan for secrets before anything is pushed. Commit and push only when the owner asks.
+- Scan for secrets before anything is pushed. Commit only when the owner asks.
+- Arnheim is on GitHub and stays up to date, as the owner asked: when a change goes live, move
+  main up to it, scan the new commits for anything above, and push main.
