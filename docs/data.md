@@ -10,9 +10,10 @@ shows the sample. Add `?sample` to the address to see the sample anyway.
   optional, and so is the file itself: without it the building stands quiet.
 - `notes.json` is the founder's notes, which hang in their office on a walk. Also optional.
 
-Change a file and reload the page. If `company.json` or `work.json` has a mistake, the page says
-which file and why, and `serve.py` says when it starts if any file in `data/` is not valid JSON,
-with the line and column.
+Change a file and the page follows: for your own company it reads `work.json` again every few
+seconds, so the building changes without a reload; after changing `company.json`, reload. If
+`company.json` or `work.json` has a mistake, the page says which file and why, and `serve.py` says
+when it starts if any file in `data/` is not valid JSON, with the line and column.
 
 ## A company with one floor
 
@@ -68,6 +69,7 @@ own files show every one of them in use.
 | `floors` | needed | One floor for each project, the top floor first. |
 | `lobby` | | The ground floor, Front of house: websites, email, social media and domains, with Poe at the front desk. Without it, Poe has no desk in the building, though the Poe tab still answers. |
 | `basement` | | The machines every project shares, and the Library. |
+| `feeds` | | Files in `data/` that tools keep up to date, such as `["feeds/claude-code.json"]`. The page adds their lists to `work.json`'s and reads them every few seconds ([docs/connect.md](connect.md)). |
 | `sample` | only for a made-up company | A sentence saying the company is made up. While it is there, the page says "made up" wherever it shows the company. Leave it out for a real one. |
 
 ### A floor (and the lobby, and the basement)
@@ -83,6 +85,7 @@ own files show every one of them in use.
 | `icon` | | The panel's picture for it: one of the names in `src/icons.js`, such as `building-2`, `library`, `gauge`, `shapes`, `globe`, `server` or `heart-pulse`. |
 | `rooms` | | This floor's own rooms, in place of the company's `rooms`. |
 | `extraRooms` | | More rooms, after the company's `rooms`, on this floor only. |
+| `folder` | | The folder this project is in on your computer, such as `"~/code/lantern"`, or `folders` for several. The connectors use it to know which floor work belongs to ([docs/connect.md](connect.md)). |
 
 A floor holds up to five rooms. The fifth carries the back row on to the right, so no other room
 gets smaller.

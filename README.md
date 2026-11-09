@@ -137,6 +137,25 @@ The page shows `data/` whenever `data/company.json` is there, and the sample oth
 `?sample` to the address to see the sample anyway. Git ignores `data/`, so your company's files
 stay on your computer and never go into a commit.
 
+## Connect it to Claude Code
+
+Arnheim can follow your real work as it happens. Connect it to Claude Code, and each conversation
+you have with Claude in one of your projects shows on that project's floor: someone sits in its
+seat while Claude works, the floor turns amber when Claude needs your permission or an answer, and
+a blue light shows when it has finished and it is your turn. Claude's task list, when it keeps
+one, becomes desks, and on a walk you can stand at the conversation and ask how it's going: it
+tells you the last thing Claude said. git and GitHub add each project's unsaved changes and open pull requests, and any
+other tool that can write a small file can add its own.
+
+It takes three steps, all in [docs/connect.md](docs/connect.md):
+
+1. In `data/company.json`, give each floor its project's folder, and name the connectors' files
+   as `feeds`.
+2. Add Arnheim's hooks to Claude Code's settings, so Claude Code tells it what is happening.
+3. For git and GitHub, run `python3 connect/projects.py --every 60` beside `serve.py`.
+
+Everything stays on your computer, in `data/`, which git ignores.
+
 ## Voice
 
 The people in the walk can speak and listen, with models that run on the computer that runs

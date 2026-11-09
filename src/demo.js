@@ -27,6 +27,12 @@ const TAB_KEYS = { 1: '#/', 2: '#/company', 3: '#/poe' };
 let org = null; // the company map: floors and rooms
 let work = null; // what is going on in it
 let dir = 'sample'; // where they came from: data (your own company) or sample (made up)
+let feeds = []; // files in data/ that tools keep up to date (docs/connect.md)
+const lastFeed = new Map();
+let workSig = ''; // the work as last read, to tell when it has changed
+const mine = []; // tasks Poe took down in this tab, kept through each fresh read
+const dropped = new Set(); // and the ones dropped in it
+const FOLLOW_MS = 4000;
 let poe = null;
 let building = null;
 let route = {};
@@ -228,6 +234,7 @@ function poeFacts() {
 async function addTask({ project, title: text }) {
   added += 1;
   const task = { id: `new${added}`, project, title: text, status: 'needs_you', note: 'Taken down by Poe when you asked. It lives in this tab only: nothing is saved.' };
+  mine.push(task);
   work.tasks.push(task);
   refresh();
   return { ok: true, task };
@@ -237,6 +244,7 @@ async function dropTask(id) {
   const task = work.tasks.find((t) => t.id === id);
   if (!task) return { ok: false, error: 'that task is not here any more' };
   task.status = 'dropped';
+  dropped.add(id);
   refresh();
   return { ok: true };
 }
@@ -253,7 +261,7 @@ function setupPoe() {
     id: 'how-to',
     answer: (c) => has(c.q, ['task', 'goal']) && has(c.q, ['add', 'new', 'set', 'write', 'make', 'create']) && {
       lines: ['Tell me "remind me to ..." and I will add it as a task, in this tab only.', dir === 'data'
-        ? 'Goals and everything else come from the company\'s own files, data/company.json and data/work.json. Change them and reload.'
+        ? 'Goals and everything else come from the company\'s own files, data/company.json and data/work.json, and from any tools connected to it. A change to the work shows within a few seconds.'
         : 'Goals and everything else come from the sample files, sample/company.json and sample/work.json. Copy them into a folder called data beside them, change them and reload to make the building your own.'],
     },
   };
@@ -381,7 +389,7 @@ function viewOverview() {
           ? h('ul.list.happened', happened.map((e) => h('li', h('div.row', dot('quiet'), h('span.row-main', h('span.row-title', e.line), h('span.row-sub', { 'data-at': e.at }, agoText(e.at)))))))
           : empty(playing ? 'The work starts moving in a few seconds.' : 'Paused. Press Live at the top to let the work move.')),
       h('p.small.muted.foot-note', dir === 'data'
-        ? 'Everything here comes from data/company.json (the building) and data/work.json (what is going on in it). Change them and reload.'
+        ? 'Everything here comes from data/company.json (the building), and from data/work.json and any tools connected to it (what is going on in it). A change to the work shows within a few seconds; reload after changing the building.'
         : 'Everything here comes from two files: sample/company.json (the building) and sample/work.json (what is going on in it). To show your own company, copy them into a folder called data beside them, change them and reload.'),
     ],
   };
@@ -899,25 +907,67 @@ async function readCompany() {
     try {
       map = await readJson('data/company.json');
       dir = 'data';
+      feeds = feedList(map);
     } catch (error) {
       if (error.status !== 404) throw error;
     }
   }
-  const [mapRead, now] = await Promise.all([
-    map || readJson(`${dir}/company.json`),
-    readJson(`${dir}/work.json`).catch((error) => {
-      if (dir === 'data' && error.status === 404) return {};
-      throw error;
-    }),
-  ]);
+  const [mapRead, now] = await Promise.all([map || readJson(`${dir}/company.json`), readWork()]);
+  return [checkMap(mapRead, `${dir}/company.json`), now];
+}
+
+// The files that tools keep up to date for your own company, such as connect/claude_code.py's
+// (docs/connect.md): "feeds" in company.json, each a path inside data/.
+function feedList(map) {
+  const list = Array.isArray(map?.feeds) ? map.feeds : [];
+  return list.filter((path) => typeof path === 'string' && /^[\w-]+(\/[\w.-]+)*\.json$/.test(path) && !path.includes('..'));
+}
+
+// What is going on: work.json, with every list in each feed added to it. A feed that isn't written
+// yet counts as empty; one caught mid-change keeps what it said last time.
+async function readWork() {
+  const now = await readJson(`${dir}/work.json`).catch((error) => {
+    if (dir === 'data' && error.status === 404) return {};
+    throw error;
+  });
   if (!now || typeof now !== 'object' || Array.isArray(now)) throw problem(`${dir}/work.json: it should be one object, between { and }.`);
   for (const key of LISTS) if (!Array.isArray(now[key])) now[key] = [];
-  return [checkMap(mapRead, `${dir}/company.json`), now];
+  for (const path of feeds) {
+    let feed = lastFeed.get(path) || null;
+    try {
+      feed = await readJson(`data/${path}`);
+    } catch (error) {
+      if (error.status === 404) feed = null;
+    }
+    if (!feed || typeof feed !== 'object') continue;
+    lastFeed.set(path, feed);
+    for (const key of LISTS) if (Array.isArray(feed[key])) now[key].push(...feed[key].filter((x) => x && typeof x === 'object'));
+  }
+  return now;
+}
+
+// Your own company's work is read again every few seconds, so the building follows it as it
+// changes: an edit to work.json, or a tool writing its feed.
+async function followWork() {
+  if (document.hidden) return;
+  try {
+    const now = await readWork();
+    const sig = JSON.stringify(now);
+    if (sig === workSig) return;
+    workSig = sig;
+    now.tasks.push(...mine);
+    for (const task of now.tasks) if (dropped.has(task.id)) task.status = 'dropped';
+    work = now;
+    refresh();
+  } catch {
+    // a file mid-edit: the building stays as it was until the next look
+  }
 }
 
 async function boot() {
   try {
     [org, work] = await readCompany();
+    workSig = JSON.stringify(work);
   } catch (error) {
     console.error(error);
     $('content').replaceChildren(h('p.banner.fail', error.own
@@ -956,6 +1006,7 @@ async function boot() {
   });
   setInterval(step, Math.max(2, Number(work.every) || 6) * 1000);
   setInterval(tick, 1000);
+  if (dir === 'data') setInterval(followWork, FOLLOW_MS);
 }
 
 boot();
