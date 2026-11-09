@@ -207,7 +207,7 @@ a.floor-card:hover, a.room-tile:hover { transform: translateY(-1px); }
 .floor-name, .room-name { font-weight: 700; }
 .floor-states { display: flex; flex-direction: column; align-items: flex-end; }
 
-/* ---------- Poe, the receptionist ---------- */
+/* ---------- the receptionist ---------- */
 .poe-badge { display: inline-flex; flex: none; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 1px var(--card-edge); }
 .poe-badge svg { display: block; width: 100%; height: 100%; }
 .poe-hello { display: flex; gap: 14px; align-items: flex-start; }

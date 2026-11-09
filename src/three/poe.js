@@ -1,5 +1,6 @@
-// Poe, the receptionist: one person standing behind the front desk, in the building's warm,
-// smooth style. Plain data in (POE below), a figure out, made only from Three.js shapes: no
+// The receptionist: one person standing behind the front desk, in the building's warm, smooth
+// style. Plain data in (POE below, which a page renames and dresses with receptionistSpec), a
+// figure out, made only from Three.js shapes: no
 // textures, no downloads. Three parts can move (the body, the chest and the head), and each is
 // merged by material, so the whole person costs about a dozen draw calls. The people at work
 // (buildSeated, at the end) are made the same way, seated and plainer.
@@ -7,8 +8,9 @@ import * as THREE from '../../vendor/three/three.module.js';
 import { freeze, mat } from './kit.js';
 
 export const POE = {
-  name: 'Poe',
-  href: '#/poe',
+  name: 'Receptionist', // the company map gives them a name (org.receptionist, receptionistSpec)
+  title: 'Receptionist',
+  href: '#/front-desk',
   // Where they stand in their room, behind the desk, and which way they face (towards the camera).
   at: [2.5, 0, 2.72],
   turn: 0.26,
@@ -236,7 +238,7 @@ export function buildPerson(P = POE) {
   /* ---------- head and hair ---------- */
   head.add(new THREE.Mesh(shaped(40, 28, (x, y, z) => S.unit(x, y, z)), M.skin));
   const line = (x, z) => { const a = Math.atan2(x, z); return table(a >= 0 ? P.hairline.long : P.hairline.short, Math.abs(a)); };
-  // How far the hair stands out from the head, once past the hairline: Poe's sweeps to one side.
+  // How far the hair stands out from the head, once past the hairline: the default sweeps to one side.
   const volume = P.volume || ((x, y) => 0.025 + 0.05 * smooth(-0.3, 0.7, x) + 0.03 * smooth(0.3, 1, y));
   const ramp = P.ramp || 0.28; // how soon past the hairline the hair reaches its full volume
   // Points just below the hairline are pulled up onto it, so its edge is a clean line, not steps.
@@ -293,7 +295,7 @@ export function buildPerson(P = POE) {
     ball(S.face(0, -0.5, -0.002), 1, M.lips, [0.02, 0.0052, 0.008]),
     ball(S.face(0, -0.565, -0.002), 1, M.lips, [0.018, 0.0062, 0.0085]),
   );
-  // The ears: Poe's long side covers one, so only the short side shows unless the spec says both.
+  // The ears: the default cut's long side covers one, so only the short side shows unless the spec says both.
   const ears = P.ears === 'both' ? [-1, 1] : [-1];
   for (const side of ears) {
     head.add(ball(S.point((side * Math.PI) / 2, 0, 0.99), 1, M.skin, [0.011, 0.026, 0.017]));
@@ -406,18 +408,18 @@ export function buildPerson(P = POE) {
   };
 }
 
-/* ---------- someone else built like Poe ---------- */
+/* ---------- someone else in the same style ---------- */
 
 // A neat hairline round the face, over the ears and down to the nape, for hair drawn back: a bun,
 // or braids from a centre parting.
 const NEAT_LINE = [[0, 0.55], [0.5, 0.5], [0.95, 0.3], [1.35, 0.12], [1.7, -0.14], [2.3, -0.42], [3.15, -0.56]];
 const shade = (hex, k) => `#${new THREE.Color(hex).multiplyScalar(k).getHexString()}`;
 
-// A person in Poe's style from a page's plain description, such as the founder's assistant
-// (org.assistant.look). Colours are hex strings; anything left out is Poe's.
+// A person in the same style from a page's plain description, such as the receptionist's or the
+// founder's assistant's look. Colours are hex strings; anything left out is the default's.
 //   skin, hair, lips, coat, shirt, trousers
 //   style: 'braids' (a centre parting and a braid each side, with `ties` and `clips` colours),
-//     'bun', or Poe's swept cut if left out
+//     'bun', or the default swept cut if left out
 //   accent: buttons and pocket square; pocket: false for none
 //   collar: 'round' for a cardigan buttoned to the neck with a rounded collar
 //   brooch: a flower on the chest, one colour or [petals, centre]
@@ -490,7 +492,15 @@ const CUTS = [
   [[0, 0.62], [0.7, 0.55], [1.3, 0.3], [1.8, 0.05], [2.4, -0.3], [3.15, -0.42]], // cropped close
 ];
 
-// Someone seated, in Poe's smooth style but plainer: a sweater, no coat or locks. They face +z
+// The receptionist a page describes (org.receptionist): `name` and `title` for labels and cards,
+// `look` as for lookSpec, a Kokoro `voice`, and the `href` a tap opens. Anything left out keeps
+// the default receptionist, so a map with no receptionist still has someone at the desk.
+export function receptionistSpec(r = {}) {
+  const base = r.look ? lookSpec(r.look) : POE;
+  return { ...base, name: r.name || POE.name, title: r.title || POE.title, href: r.href || POE.href, voice: r.voice || null };
+}
+
+// Someone seated, in the same smooth style but plainer: a sweater, no coat or locks. They face +z
 // from the middle of a seat whose top is `seat` metres up; 'desk' puts their hands on a desk in
 // front of them, 'chat' rests them on their knees. Plain meshes, so a room merges them with the
 // rest of its things. `n` is a number from their id (rooms.js identity()).
@@ -505,11 +515,11 @@ export function buildSeated(n, { seat = 0.46, pose = 'chat' } = {}) {
     lips: mat(`#${new THREE.Color(skin).multiplyScalar(0.72).getHexString()}`, { rough: 0.5 }),
   };
   const cut = CUTS[(n >>> 11) % CUTS.length];
-  const drop = POE.coat[0][1] - seat; // a seated body is this much lower than Poe standing
+  const drop = POE.coat[0][1] - seat; // a seated body is this much lower than the receptionist standing
   const S = headShape({ head: { ...POE.head, y: POE.head.y - drop } });
   const g = new THREE.Group();
 
-  // The head, hair, and a face like Poe's.
+  // The head, hair, and a face like the receptionist's.
   g.add(new THREE.Mesh(shaped(28, 20, (x, y, z) => S.unit(x, y, z)), M.skin));
   const line = (x, z) => table(cut, Math.abs(Math.atan2(x, z)));
   const hairAt = (x, y, z) => S.unit(x, y, z, 1.012 + (0.03 + 0.03 * smooth(0.3, 1, y)) * smooth(0, 0.28, y - line(x, z)));
@@ -530,7 +540,7 @@ export function buildSeated(n, { seat = 0.46, pose = 'chat' } = {}) {
     ...limb([0, 1.47 - drop, 0], [0, 1.6 - drop, 0.008], 0.05, 0.045, M.skin),
   );
 
-  // The body, the shape of Poe's coat as a sweater, and the arms: at the keyboard or at rest.
+  // The body, the shape of the receptionist's coat as a sweater, and the arms: at the keyboard or at rest.
   const profile = new THREE.SplineCurve(POE.coat.map(([r, y]) => new THREE.Vector2(r, y - drop))).getPoints(30);
   const body = new THREE.LatheGeometry(profile, 24, Math.PI);
   body.scale(1, 1, POE.depth);

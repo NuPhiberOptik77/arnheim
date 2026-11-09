@@ -7,7 +7,7 @@ keeps data/feeds/claude-code.json up to date for the page, which reads it every 
 
 - a seat in that floor's Conversations room for each conversation, with someone in it while
   Claude works, and a blue light once Claude has finished and it is your turn;
-- an amber desk while Claude waits for your permission or an answer, which Poe lists under
+- an amber desk while Claude waits for your permission or an answer, which the receptionist lists under
   "Needs you";
 - a desk for each task on Claude's task list, someone at it while it is being done;
 - what the conversation says if you stand at its seat on a walk: the last thing Claude said.

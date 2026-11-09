@@ -284,7 +284,7 @@ export function buildHall(storey, { company = '', mission = '' } = {}) {
     oak.userData.photo = 'oak';
     panel.userData.photo = 'oak';
     stone.userData.photo = 'stone';
-    // Poe's desk: a fluted arc of pale oak under a dark stone top, bowing out towards the door.
+    // The reception desk: a fluted arc of pale oak under a dark stone top, bowing out towards the door.
     const R = 3.2;
     const inner = 2.72;
     const spread = 0.52;
@@ -309,7 +309,7 @@ export function buildHall(storey, { company = '', mission = '' } = {}) {
     still.add(at(new THREE.Mesh(base, glow('#ffcf96', 2.6)), mid, 0.03, cz));
     poe = { x: mid, z: cz + inner - 0.42, turn: 0 };
 
-    // Behind Poe, a wall of oak slats with the company's name lit on a dark band.
+    // Behind the receptionist, a wall of oak slats with the company's name lit on a dark band.
     const fw = 4.6;
     const fz = D + 0.75;
     still.add(at(box(fw, 3.5, 0.16, panel, { r: 0 }), mid, 0, fz));
@@ -739,7 +739,7 @@ export function buildPenthouse(storey, { founder = null, assistant = null } = {}
   return made(g, scope, extras, lift, {
     west, east, front, high, picks: [lift.call, hit, ...(aide ? [aide.hit] : [])],
     desk: { x: mid, z: dz + 0.85, name, title },
-    assistant: aide, // where the founder's assistant stands and where to talk to her (walk.js)
+    assistant: aide, // where the founder's assistant stands and where to talk to them (walk.js)
     // Where the founder's notes hang (three/notes.js): in the library, a row at eye height in front of
     // the shelves, the newest nearest the lift, parted round the ladder and turned a little towards the
     // reading chairs, each on a thread from the ceiling.

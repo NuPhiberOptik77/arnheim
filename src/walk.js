@@ -262,7 +262,7 @@ export function createWalk(ctx) {
       const hit = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.1, 0.6), hitMaterial);
       hit.position.set(entry.poe.x, 1.05, entry.poe.z);
       hit.visible = false;
-      hit.userData = { hit: true, talk: true, floorId: person.floorId, roomId: person.roomId, href: P.href, title: P.name, sub: 'The receptionist. Tap to talk.' };
+      hit.userData = { hit: true, talk: true, floorId: person.floorId, roomId: person.roomId, href: P.href, title: P.name, sub: `${P.title || 'Receptionist'}. Tap to talk.` };
       entry.group.add(hit);
       entry.picks.push(hit);
     }
@@ -277,8 +277,8 @@ export function createWalk(ctx) {
     if (last) last.walls.e.scale.y = on ? H : CURB;
   }
 
-  // Poe stands behind the reception desk while you walk, and goes back to their room after.
-  function placePoe(on) {
+  // The receptionist stands behind the reception desk while you walk, and goes back to their room after.
+  function placeReceptionist(on) {
     const room = ctx.personRoom;
     if (!room?.person || room.storey !== here || !hall?.poe) return;
     const P = room.spec.person;
@@ -308,7 +308,7 @@ export function createWalk(ctx) {
     if (!hall.group.parent) s.group.add(hall.group);
     hall.group.visible = true;
     setWalls(s, true);
-    placePoe(true);
+    placeReceptionist(true);
     s.group.visible = true;
     look();
     const at = spawn === 'entrance' && hall.entrance ? hall.entrance : hall.spot;
@@ -331,7 +331,7 @@ export function createWalk(ctx) {
   function leave(s) {
     setTalk(null);
     setWalls(s, false);
-    placePoe(false);
+    placeReceptionist(false);
     const entry = halls.get(s.id);
     if (entry) entry.group.visible = false;
     s.group.visible = false;
@@ -414,7 +414,7 @@ export function createWalk(ctx) {
     seen = ctx.version();
   }
 
-  /* ---------- talking: a ring on the floor by each agent at work, and by Poe ---------- */
+  /* ---------- talking: a ring on the floor by each agent at work, and by the receptionist ---------- */
 
   // Stand in a ring and the walk knows who you mean: the ring lights, a card names them, and the
   // page hears of them as if they had been tapped.
@@ -449,7 +449,7 @@ export function createWalk(ctx) {
     return open;
   }
 
-  // A ring for each agent at work on this floor, and for Poe: at the place the walker can reach
+  // A ring for each agent at work on this floor, and for the receptionist: at the place the walker can reach
   // that is nearest a good spot to talk from, not too close to them and not on another ring.
   // Placing them again (the page's work changed and people moved seats) never hands you to someone
   // else while you stand still: the talk goes on if the same person's ring is still where you stand,
@@ -488,7 +488,7 @@ export function createWalk(ctx) {
     const person = ctx.personRoom;
     if (hall.poe && person?.storey === here) {
       const P = person.spec.person;
-      add({ title: P.name, sub: 'The receptionist', href: P.href, floorId: person.floorId, roomId: person.roomId }, hall.poe.x, hall.poe.z, hall.poe.x, hall.poe.z + 1.75);
+      add({ title: P.name, sub: P.title || 'Receptionist', href: P.href, voice: P.voice || null, floorId: person.floorId, roomId: person.roomId }, hall.poe.x, hall.poe.z, hall.poe.x, hall.poe.z + 1.75);
     }
     const A = hall.assistant; // the founder's assistant, in their office
     if (A) add({ ...A.who, floorId: here.id, roomId: 'office' }, A.x, A.z, A.stand[0], A.stand[1]);
@@ -651,7 +651,7 @@ export function createWalk(ctx) {
   canvas.addEventListener('pointerup', release, { signal });
   canvas.addEventListener('pointercancel', release, { signal });
 
-  // Tap to talk: tapping someone who has a ring (Poe, the founder's assistant) walks you onto it,
+  // Tap to talk: tapping someone who has a ring (the receptionist, the founder's assistant) walks you onto it,
   // round whatever is in the way, and turns you to face them as you arrive. The talk itself starts
   // as you step in (setTalk), just as if you had walked there.
   function walkToTalk(hit) {
@@ -930,7 +930,7 @@ export function createWalk(ctx) {
     return busy;
   }
 
-  // Names over the nearest open rooms, and Poe's, for the building's label layer.
+  // Names over the nearest open rooms, and the receptionist's, for the building's label layer.
   function labels() {
     if (!here || ride) return [];
     const out = [];
@@ -945,7 +945,7 @@ export function createWalk(ctx) {
     if (hall.poe && person?.storey === here) {
       const p = here.group.position;
       v.set(p.x + hall.poe.x, p.y + 2.05, p.z + hall.poe.z);
-      if (v.distanceTo(camera.position) < 12 && inView(hall.poe.x, hall.poe.z)) out.push({ key: 'w:poe', title: person.spec.person.name, sub: 'Receptionist', kind: 'quiet', align: 'center', at: v.toArray(), rank: 0 });
+      if (v.distanceTo(camera.position) < 12 && inView(hall.poe.x, hall.poe.z)) out.push({ key: 'w:poe', title: person.spec.person.name, sub: person.spec.person.title || 'Receptionist', kind: 'quiet', align: 'center', at: v.toArray(), rank: 0 });
     }
     if (hall.desk?.name) {
       const p = here.group.position;
@@ -980,7 +980,7 @@ export function createWalk(ctx) {
     clearTimeout(helpTimer);
     clearTimeout(loadTimer);
     voice.dispose();
-    if (here) { placePoe(false); setWalls(here, false); }
+    if (here) { placeReceptionist(false); setWalls(here, false); }
     for (const entry of halls.values()) {
       entry.group.removeFromParent();
       entry.dispose();

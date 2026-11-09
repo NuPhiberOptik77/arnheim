@@ -7,6 +7,12 @@
     "name": "Ellison",
     "title": "made-up founder, named after the hero of Poe's story"
   },
+  "receptionist": {
+    "name": "Iris",
+    "title": "Receptionist, made up",
+    "voice": "af_heart",
+    "look": { "skin": "#a26b48", "hair": "#2b1d18", "coat": "#5b3b5e", "shirt": "#f2ead8", "accent": "#d9b26a", "earrings": "studs" }
+  },
   "assistant": {
     "name": "Wren",
     "title": "Ellison's assistant, made up",
@@ -84,7 +90,7 @@
       {
         "id": "websites",
         "label": "Websites",
-        "about": "The studio's websites, on a wall of screens. Poe sits at the desk here."
+        "about": "The studio's websites, on a wall of screens. Iris, the receptionist, sits at the desk here."
       },
       {
         "id": "email",

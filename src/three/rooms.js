@@ -304,9 +304,9 @@ export const ROOMS = {
   /* ---------- Front of house: a lobby ---------- */
 
   websites: {
-    // The side lamp is a desk lamp on the counter, so Poe behind it is lit warmly.
+    // The side lamp is a desk lamp on the counter, so the receptionist behind it is lit warmly.
     lamps: { main: [W / 2, 2.05, 2.4], side: [W / 2 + 0.72, 1.5, 3.14], deskTop: 1.03 },
-    person: POE, // Poe, the receptionist, stands behind the desk (three/poe.js)
+    person: POE, // the receptionist stands behind the desk; the map names and dresses them (three/poe.js)
     decor(g, s, ctx) {
       const front = mat('#8a5f3c', { rough: 0.55 });
       const top = mat('#e9e4d8', { rough: 0.3 });
@@ -337,8 +337,9 @@ export const ROOMS = {
         ctx.object({ x, y, z: 0.42, w: 0.9, h: 0.6, d: 0.2, title: site.title, sub: site.sub, href: site.href, mood: site.mood });
       });
       if (list.length > shown.length) ctx.more(list.length - shown.length, W / 2 + 1, 0.9, 0.45);
-      const [px, , pz] = POE.at;
-      ctx.object({ x: px, y: 0.95, z: pz, w: 0.7, h: 1.0, d: 0.5, title: POE.name, sub: 'The receptionist. Tap to talk.', href: POE.href, person: true });
+      const P = ctx.person || POE;
+      const [px, , pz] = P.at;
+      ctx.object({ x: px, y: 0.95, z: pz, w: 0.7, h: 1.0, d: 0.5, title: P.name, sub: `${P.title || 'Receptionist'}. Tap to talk.`, href: P.href, person: true });
     },
   },
 

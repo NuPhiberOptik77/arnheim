@@ -15,7 +15,7 @@ follows along without a reload.
   the conversation, or after the first line of your first message.
 - **Someone in the seat while Claude works**, and the room lit warm.
 - **An amber desk when Claude needs you**: when it asks for your permission or asks you something,
-  a desk in the Work room says what it is waiting for, the floor says "Needs you", and Poe lists it
+  a desk in the Work room says what it is waiting for, the floor says "Needs you", and the receptionist lists it
   when you ask what needs you. It goes as soon as you answer.
 - **A blue light when Claude has finished** and it is your turn, until you reply.
 - **Claude's task list as desks**: one for each task, someone at it while it is being done. Finished

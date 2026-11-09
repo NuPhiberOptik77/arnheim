@@ -24,7 +24,7 @@ import { icon } from './icons.js';
 const BASE = new URL('../voice/', import.meta.url).href;
 const EAR = new URL('./voice-ear.js', import.meta.url).href;
 const SAVED = 'arnheim-voice';
-const POE_VOICE = 'af_heart';
+const DESK_VOICE = 'af_heart'; // the receptionist's, unless the map gives them another
 const END = /[.!?]["')\]]*\s+/g; // where a sentence ends, mid-stream
 
 // The same short number from an id that rooms.js uses for how someone looks.
@@ -112,7 +112,7 @@ export function createVoice({ hud, card, ctx, el, button, signal }) {
   const allowed = voiceWanted();
   const ownEar = typeof talk?.hear === 'function';
   const base = talk?.base || BASE;
-  const poeHref = ctx.personRoom?.spec?.person?.href;
+  const deskHref = ctx.personRoom?.spec?.person?.href;
   let on = allowed && recalled() === 'on';
   let audio = null; // made on a touch, as browsers ask
   let worklet = null;
@@ -287,11 +287,11 @@ export function createVoice({ hud, card, ctx, el, button, signal }) {
     if (own) return own;
     const list = server?.voices || [];
     if (!list.length) return null;
-    // A voice the page's own data gives them (such as org.assistant.voice), if this computer has it.
+    // A voice the page's own data gives them (such as org.receptionist.voice or org.assistant.voice), if this computer has it.
     if (person.voice && String(person.voice).split(',').every((n) => list.includes(n.trim()))) return person.voice;
-    if (person.href && person.href === poeHref) return list.includes(POE_VOICE) ? POE_VOICE : list[0];
+    if (person.href && person.href === deskHref) return list.includes(DESK_VOICE) ? DESK_VOICE : list[0];
     // Everyone else: one of the voices, or an even mix of two with the same accent.
-    const singles = list.filter((v) => v !== POE_VOICE);
+    const singles = list.filter((v) => v !== DESK_VOICE);
     const mixes = [];
     for (let i = 0; i < singles.length; i++) for (let j = i + 1; j < singles.length; j++) if (singles[i][0] === singles[j][0]) mixes.push(`${singles[i]},${singles[j]}`);
     const all = [...singles, ...mixes];

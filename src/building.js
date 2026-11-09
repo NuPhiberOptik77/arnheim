@@ -11,7 +11,7 @@ import { OutputPass } from '../vendor/three/addons/postprocessing/OutputPass.js'
 import { at, box, cyl, decal, disposeTree, floorMesh, freeze, lampGlow, mat, newScope, useScope } from './three/kit.js';
 import { piece } from './three/furniture.js';
 import { D, H, ROOMS, W, paletteFor } from './three/rooms.js';
-import { buildPerson } from './three/poe.js';
+import { buildPerson, receptionistSpec } from './three/poe.js';
 
 const rad = THREE.MathUtils.degToRad;
 const clamp = THREE.MathUtils.clamp;
@@ -33,7 +33,7 @@ const VIEWS = {
   building: { az: 5, el: 19, azSpan: [4, 58], elSpan: [9, 50] }, // nearly straight on
   floor: { az: 32, el: 49, azSpan: [4, 62], elSpan: [26, 72] },
   room: { az: 28, el: 44, azSpan: [2, 62], elSpan: [24, 72] },
-  person: { az: 24, el: 17, azSpan: [2, 62], elSpan: [4, 60] }, // close enough to see Poe's face
+  person: { az: 24, el: 17, azSpan: [2, 62], elSpan: [4, 60] }, // close enough to see the receptionist's face
 };
 
 const LAMP = {
@@ -98,7 +98,7 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, onWalk,
   let liveSig = '';
   let view = {};
   let scenePick = { mode: 'all' };
-  let personRoom = null; // the room Poe stands in
+  let personRoom = null; // the room the receptionist stands in
   let personWake = -Infinity;
   const storeys = [];
   const rooms = new Map();
@@ -260,7 +260,9 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, onWalk,
     for (const part of [...room.upper, ...room.signs]) { frozen.remove(part); g.add(part); }
     freeze(frozen);
     if (spec.person) {
-      room.person = buildPerson(spec.person);
+      // The receptionist, named and dressed as the map says (org.receptionist).
+      room.spec = { ...spec, person: receptionistSpec(org.receptionist || {}) };
+      room.person = buildPerson(room.spec.person);
       g.add(room.person.group);
       personRoom = room;
     }
@@ -467,6 +469,7 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, onWalk,
     room.moreChips = [];
     const content = new THREE.Group();
     const ctx = {
+      person: room.spec.person, // the receptionist, in the room they stand in
       object(o) {
         const hit = new THREE.Mesh(new THREE.BoxGeometry(o.w, o.h, o.d), hitMaterial);
         hit.position.set(o.x, o.y + o.h / 2, o.z);
@@ -828,7 +831,7 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, onWalk,
   const infoText = (info) => info.sub ?? [info.big, info.detail].filter((x) => x != null && x !== '').join(' ');
 
   const personLabel = (room) => ({
-    key: 'person', title: room.spec.person.name, sub: 'Receptionist', kind: 'quiet', align: 'center', room,
+    key: 'person', title: room.spec.person.name, sub: room.spec.person.title || 'Receptionist', kind: 'quiet', align: 'center', room,
     local: [room.spec.person.at[0], 2.02, room.spec.person.at[2]], rank: 0,
   });
 
@@ -1027,7 +1030,7 @@ export function createBuilding(canvas, org, { onPick, onHover, onStatus, onWalk,
         if (room.live?.busy && room.gain > 0.5) { room.live.tick(dt); any = true; }
       }
     }
-    // Poe breathes and looks around a little, only for a few seconds after a touch or a visit.
+    // The receptionist breathes and looks around a little, only for a few seconds after a touch or a visit.
     if (personRoom?.storey.group.visible && personRoom.gain > 0.5 && now - Math.max(lastActive, personWake) < PULSE_MS * 2) {
       personRoom.person.tick(now / 1000);
       any = true;

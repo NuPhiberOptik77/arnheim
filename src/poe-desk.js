@@ -1,11 +1,12 @@
-// Poe, the receptionist, at the desk: a greeting, answers to plain questions, a message taken
-// down as a task, a short tour of the building and an optional voice.
+// The receptionist at the desk: a greeting, answers to plain questions, a message taken down as a
+// task, a short tour of the building and an optional voice. Their name is the company map's
+// (org.receptionist.name) or kit.name; with neither, they are just the receptionist.
 // No AI and nothing invented: every answer is built from the company map and the plain facts the
-// page passes in, by simple keyword matching. When Poe doesn't know, Poe says so.
-// A page can teach Poe more without changing this file: its own words (kit.words) and its own
-// topics (kit.topics), each a function that answers a question or passes. Poe only changes
-// anything if the page hands over addTask and dropTask, and then only adds the task it was asked
-// to add, or drops it again on Undo. Poe never merges, publishes, runs jobs or signs in.
+// page passes in, by simple keyword matching. When they don't know, they say so.
+// A page can teach them more without changing this file: its own words (kit.words) and its own
+// topics (kit.topics), each a function that answers a question or passes. They only change
+// anything if the page hands over addTask and dropTask, and then only add the task they were
+// asked to add, or drop it again on Undo. They never merge, publish, run jobs or sign in.
 
 const WORDS = {
   // What this place is, and more ways people ask about it.
@@ -16,9 +17,9 @@ const WORDS = {
     'Arnheim is a 3D company world: the company is a building, each project a floor, each kind of work a room, and the live work lights up as it happens.',
     'It is named after Edgar Allan Poe\'s story "The Domain of Arnheim", about a man who shapes a landscape into a world of its own. It is free and open, and never sold.',
   ],
-  me: null, // what Poe says about Poe; built below unless a page gives its own
+  me: null, // what they say about themselves; built below unless a page gives its own
   role: 'Receptionist. Every answer comes from what this building holds.',
-  note: 'Poe never merges, publishes, runs jobs or signs in.',
+  note: null, // built below with their name, unless a page gives its own
   hints: ['What needs me?', "What's running?", 'What is this place?', 'Where is the website?', 'What do the colours mean?'],
   refuse: null, // built below unless a page gives its own
   unknown: "I don't know that, and I won't guess. I only know what this building holds.",
@@ -43,7 +44,17 @@ const ROOM_WORDS = {
   conversations: ['conversation', 'chats'], code: ['code', 'working cop'], company: ['company room', 'money', 'legal', 'subscription', 'key date', 'decisions'],
   library: ['library'], work: ['work room'], goals: ['goals room'],
 };
-const BADGE = '<svg viewBox="0 0 40 40" aria-hidden="true" focusable="false"><circle cx="20" cy="20" r="20" fill="#f3d9b4"/><path d="M6 40c1-8 6-12 14-12s13 4 14 12z" fill="#2f4a5c"/><path d="M16.5 28l3.5 6 3.5-6z" fill="#efe6d6"/><rect x="17" y="22" width="6" height="7" rx="3" fill="#c8926e"/><ellipse cx="20" cy="17.5" rx="7" ry="8.8" fill="#c8926e"/><path d="M12.7 15.6c-.4-6 3.1-9.4 7.9-9.4 5.3 0 8.7 3.7 8.5 9.5.3 4 .6 7.8-.6 10.6-1.2-3.6-1.6-6.7-1.8-9.7-2.6-.6-5.8-2.4-7.6-5-1.8 2-3.7 3.4-5.6 4.1-.3.1-.5.1-.8-.1z" fill="#3a261f"/><circle cx="17.3" cy="18" r=".95" fill="#241815"/><circle cx="22.7" cy="18" r=".95" fill="#241815"/><path d="M18.4 22.4c1 .6 2.2.6 3.2 0" stroke="#a65f57" stroke-width=".9" fill="none" stroke-linecap="round"/></svg>';
+const HEX = /^#[0-9a-f]{3}([0-9a-f]{3})?$/i;
+// A small drawing of the receptionist in the colours of their look (org.receptionist.look). Only
+// hex colours get into it, so it stays a fixed drawing.
+function badgeSvg(look = {}) {
+  const c = (v, d) => (typeof v === 'string' && HEX.test(v) ? v : d);
+  const skin = c(look.skin, '#c8926e');
+  const hair = c(look.hair, '#3a261f');
+  const coat = c(look.coat, '#2f4a5c');
+  const shirt = c(look.shirt, '#efe6d6');
+  return `<svg viewBox="0 0 40 40" aria-hidden="true" focusable="false"><circle cx="20" cy="20" r="20" fill="#f3d9b4"/><path d="M6 40c1-8 6-12 14-12s13 4 14 12z" fill="${coat}"/><path d="M16.5 28l3.5 6 3.5-6z" fill="${shirt}"/><rect x="17" y="22" width="6" height="7" rx="3" fill="${skin}"/><ellipse cx="20" cy="17.5" rx="7" ry="8.8" fill="${skin}"/><path d="M12.7 15.6c-.4-6 3.1-9.4 7.9-9.4 5.3 0 8.7 3.7 8.5 9.5.3 4 .6 7.8-.6 10.6-1.2-3.6-1.6-6.7-1.8-9.7-2.6-.6-5.8-2.4-7.6-5-1.8 2-3.7 3.4-5.6 4.1-.3.1-.5.1-.8-.1z" fill="${hair}"/><circle cx="17.3" cy="18" r=".95" fill="#241815"/><circle cx="22.7" cy="18" r=".95" fill="#241815"/><path d="M18.4 22.4c1 .6 2.2.6 3.2 0" stroke="#a65f57" stroke-width=".9" fill="none" stroke-linecap="round"/></svg>`;
+}
 
 export const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 export const needWord = (n) => (n === 1 ? '1 thing needs you' : `${n} things need you`);
@@ -54,12 +65,12 @@ export const exact = (q, phrase) => phrase && q.includes(` ${norm(phrase).trim()
 const roomHas = (q, words) => words.some((w) => (w.length <= 3 ? q.includes(` ${w} `) : q.includes(` ${w}`)));
 const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-export function poeBadge(size = 18) {
+export function poeBadge(size = 18, look = null) {
   const span = document.createElement('span');
   span.className = 'poe-badge';
   span.style.width = `${size}px`;
   span.style.height = `${size}px`;
-  span.innerHTML = BADGE; // a fixed drawing, never data
+  span.innerHTML = badgeSvg(look || {}); // a fixed drawing: only checked hex colours come from data
   return span;
 }
 
@@ -75,12 +86,30 @@ export function createPoe(kit) {
   const facts = kit.facts;
   const canAdd = typeof kit.addTask === 'function';
   const W = { ...WORDS, ...(kit.words || {}) };
+  // Their name, read each time: a page may load its company map after making the desk.
+  const deskName = () => String(kit.name || org?.()?.receptionist?.name || '').trim();
   const helper = W.helper || null;
   const helperRe = helper ? new RegExp(escape(helper.toLowerCase()), 'i') : null;
   const H = helper ? escape(helper.toLowerCase()) : null;
-  const MESSAGE = new RegExp(`^\\s*(?:(?:please|poe|hey poe|ok poe|can you|could you|would you)[\\s,]+)*(remind me (?:to |about |that )?|${H ? `tell ${H} (?:to |that )?|ask ${H} (?:to )?|get ${H} to |have ${H} |` : ''}take a message:?\\s*|take a note:?\\s*|make a note (?:to |that )?|note down |add (?:a )?task:?\\s*(?:to )?|don'?t let me forget (?:to )?)(.*)$`, 'i');
-  const me = W.me || [
-    "I'm Poe, the receptionist. I can tell you what this place is, what each floor and room is for, what needs you, what's running, where the websites and email are written down, and who runs the company.",
+  // "remind me to ..." and the like, with or without their name first. Rebuilt when the name
+  // changes, since a page may load its company map after making the desk.
+  let messageFor = null;
+  let messageRe = null;
+  const message = () => {
+    const n = deskName().toLowerCase();
+    if (messageRe && messageFor === n) return messageRe;
+    const N = n ? escape(n) : '';
+    messageFor = n;
+    messageRe = new RegExp(`^\\s*(?:(?:please|${N ? `${N}|hey ${N}|ok ${N}|` : ''}can you|could you|would you)[\\s,]+)*(remind me (?:to |about |that )?|${H ? `tell ${H} (?:to |that )?|ask ${H} (?:to )?|get ${H} to |have ${H} |` : ''}take a message:?\\s*|take a note:?\\s*|make a note (?:to |that )?|note down |add (?:a )?task:?\\s*(?:to )?|don'?t let me forget (?:to )?)(.*)$`, 'i');
+    return messageRe;
+  };
+  // "hi" or "good morning", with or without their name.
+  const greetRe = () => {
+    const n = norm(deskName()).trim();
+    return new RegExp(`^ (hi|hello|hey|morning|evening|good (morning|afternoon|evening))${n ? `( ${escape(n)})?` : ''} $`);
+  };
+  const me = () => W.me || [
+    `I'm ${deskName() ? `${deskName()}, the receptionist` : 'the receptionist'}. I can tell you what this place is, what each floor and room is for, what needs you, what's running, where the websites and email are written down, and who runs the company.`,
     `${canAdd ? 'I can also take a message: say "remind me to ..." and I will add it as a task. ' : ''}I don't use AI. I only read what this building holds, so when I don't know, I say so.`,
   ];
   const refuse = W.refuse || ["I can't do that. I never merge, publish, run jobs or sign in.", ...(canAdd ? ['I can take it down as a task instead.'] : [])];
@@ -266,13 +295,13 @@ export function createPoe(kit) {
     };
   }
 
-  // The questions Poe knows, in the order they are tried. Each answers or passes (null).
+  // The questions they know, in the order they are tried. Each answers or passes (null).
   const TOPICS = [
     { id: 'refuse', answer: (c) => REFUSE.test(c.q) && { lines: refuse, task: canAdd, taskText: c.text } },
-    { id: 'greeting', answer: (c) => /^ (hi|hello|hey|morning|evening|good (morning|afternoon|evening))( poe)? $/.test(c.q) && (() => { const g = greeting(); return { lines: [g.text], go: go(g.first?.href) }; })() },
+    { id: 'greeting', answer: (c) => greetRe().test(c.q) && (() => { const g = greeting(); return { lines: [g.text], go: go(g.first?.href) }; })() },
     { id: 'thanks', answer: (c) => has(c.q, ['thank', 'cheers']) && { lines: ["You're welcome."] } },
     { id: 'founder', answer: (c) => has(c.q, ['ceo', 'founder', 'who runs', 'in charge', 'boss']) && { lines: [c.o.founder ? `${c.o.founder.name} is ${c.o.company}'s ${c.o.founder.title}.` : "I don't know that, and I won't guess."] } },
-    { id: 'poe', answer: (c) => has(c.q, ['who are you', 'what are you', 'your name', 'what can you', 'what do you do', 'help']) && { lines: me } },
+    { id: 'poe', answer: (c) => has(c.q, ['who are you', 'what are you', 'your name', 'what can you', 'what do you do', 'help']) && { lines: me() } },
     { id: 'tour', answer: (c) => has(c.q, ['tour', 'show me round', 'show me around', 'look around']) && (setTimeout(startTour, 0), { lines: ['Follow me. Press Back or Esc to stop.'] }) },
     { id: 'keys', answer: (c) => W.keys && has(c.q, ['shortcut', 'keyboard', 'keys']) && { lines: [W.keys] } },
     { id: 'scenes', answer: (c) => has(c.q, ['scene', 'filter']) && { lines: [W.scenes] } },
@@ -311,7 +340,7 @@ export function createPoe(kit) {
 
   function answer(text) {
     const q = norm(text);
-    const m = MESSAGE.exec(text);
+    const m = message().exec(text);
     if (m) return messageOffer(m[2], helperRe?.test(m[1]) ? helper : 'You');
     const c = { text, q, f: facts(), o: org(), floor: null, go, has, exact, norm, count, needWord };
     c.floor = floorIn(q);
@@ -432,7 +461,7 @@ export function createPoe(kit) {
     if (a.undo && !a.undone) buttons.push(btn('Undo', () => undo(a)));
     if (openSearch && a.search != null && a.search !== '') buttons.push(btn(`${W.searchLabel} "${a.search.slice(0, 40)}"`, () => openSearch(a.search), '', 'search'));
     return h('li.poe-reply',
-      h('span.offscreen', 'Poe: '),
+      h('span.offscreen', `${deskName() || 'Receptionist'}: `),
       a.lines.map((line) => h('p', line)),
       a.links?.length > 0 && h('ul.list', a.links.map((x) => row(x.href, x.title, x.sub, x.mood))),
       buttons.length > 0 && h('div.poe-row', buttons));
@@ -464,15 +493,16 @@ export function createPoe(kit) {
 
   function view() {
     const g = greeting();
-    const input = h('input', { id: 'poe-ask', type: 'text', maxlength: 300, autocomplete: 'off', placeholder: canAdd ? 'Ask Poe, or say "remind me to ..."' : 'Ask Poe a question', 'aria-label': 'Ask Poe' });
+    const called = deskName() || 'the receptionist';
+    const input = h('input', { id: 'poe-ask', type: 'text', maxlength: 300, autocomplete: 'off', placeholder: canAdd ? `Ask ${called}, or say "remind me to ..."` : `Ask ${called} a question`, 'aria-label': `Ask ${called}` });
     return {
       top: true,
       crumbs: [],
       body: [
         h('section.panel-card.poe-hello',
-          poeBadge(52),
+          poeBadge(52, org?.()?.receptionist?.look),
           h('div.poe-hello-text',
-            title('Poe'),
+            title(deskName() || 'Reception'),
             h('p.small.muted.poe-role', W.role),
             h('p.poe-say', g.text),
             g.first && h('a.btn', { href: g.first.href }, 'Take me there'))),
@@ -499,7 +529,7 @@ export function createPoe(kit) {
             },
           }, voice ? 'Read aloud: on' : 'Read aloud: off')),
         h('div', { id: 'poe-live' }, live()),
-        h('p.small.muted.poe-note', W.note),
+        h('p.small.muted.poe-note', W.note || `${deskName() || 'The receptionist'} never merges, publishes, runs jobs or signs in.`),
       ],
     };
   }

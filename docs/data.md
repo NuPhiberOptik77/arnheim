@@ -51,7 +51,7 @@ And this in `data/work.json`:
 
 Reload, and the Shop floor has a Goals room with a red flag in it and a Work room with two desks:
 one glows amber because the flour supplier needs you, and someone sits at the other while the test
-loaf is baked. Ask Poe "what needs me?" and Poe names the flour supplier.
+loaf is baked. Ask the receptionist "what needs me?" and they name the flour supplier.
 
 From there, add floors, a lobby and a basement, more rooms and more lists, as below. The sample's
 own files show every one of them in use.
@@ -60,14 +60,15 @@ own files show every one of them in use.
 
 | Field | | What it is |
 | --- | --- | --- |
-| `company` | needed | The company's name: on the building's sign, in the panel and in Poe's answers. |
-| `mission` | | A few words, on the sign under the name. Poe quotes it. |
-| `about` | | A sentence about the company, for the panel and Poe. |
-| `founder` | | `{ "name": "...", "title": "..." }`. Poe says "*name* is *company*'s *title*", so a title reads like `founder`. The top of the lift, on a walk, is their office, named with their first name (or `firstName`, if the first word of `name` isn't it). |
-| `assistant` | | Someone who works in the founder's office and talks as Poe does (below). |
+| `company` | needed | The company's name: on the building's sign, in the panel and in the receptionist's answers. |
+| `mission` | | A few words, on the sign under the name. The receptionist quotes it. |
+| `about` | | A sentence about the company, for the panel and the receptionist. |
+| `founder` | | `{ "name": "...", "title": "..." }`. The receptionist says "*name* is *company*'s *title*", so a title reads like `founder`. The top of the lift, on a walk, is their office, named with their first name (or `firstName`, if the first word of `name` isn't it). |
+| `receptionist` | | Who stands at the front desk: their name, look and voice (below). |
+| `assistant` | | Someone who works in the founder's office and talks as the receptionist does (below). |
 | `rooms` | needed, unless every floor lists its own | The rooms each floor has, in order. |
 | `floors` | needed | One floor for each project, the top floor first. |
-| `lobby` | | The ground floor, Front of house: websites, email, social media and domains, with Poe at the front desk. Without it, Poe has no desk in the building, though the Poe tab still answers. |
+| `lobby` | | The ground floor, Front of house: websites, email, social media and domains, with the receptionist at the front desk. Without it, the receptionist has no desk in the building, though their tab still answers. |
 | `basement` | | The machines every project shares, and the Library. |
 | `feeds` | | Files in `data/` that tools keep up to date, such as `["feeds/claude-code.json"]`. The page adds their lists to `work.json`'s and reads them every few seconds ([docs/connect.md](connect.md)). |
 | `sample` | only for a made-up company | A sentence saying the company is made up. While it is there, the page says "made up" wherever it shows the company. Leave it out for a real one. |
@@ -79,8 +80,8 @@ own files show every one of them in use.
 | `id` | needed | Letters, numbers, dashes or underscores. Links use it, as in `#/shop/work`. |
 | `label` | needed | Its name. |
 | `project` | | The name `work.json` gives this floor's things in their `project`. Its `label` if left out. |
-| `about` | | A sentence about it. Poe says it when asked about the floor. |
-| `story` | | A longer line about it, in the panel and in Poe's answer. |
+| `about` | | A sentence about it. The receptionist says it when asked about the floor. |
+| `story` | | A longer line about it, in the panel and in the receptionist's answer. |
 | `palette` | | Its colours: `terracotta`, `harbour`, `sage`, `indigo`, `plum`, `teal`, `sand` or `slate`. If left out, floors take the first six in turn, the lobby is `sand` and the basement `slate`. |
 | `icon` | | The panel's picture for it: one of the names in `src/icons.js`, such as `building-2`, `library`, `gauge`, `shapes`, `globe`, `server` or `heart-pulse`. |
 | `rooms` | | This floor's own rooms, in place of the company's `rooms`. |
@@ -96,10 +97,10 @@ gets smaller.
 | --- | --- | --- |
 | `id` | needed | Letters, numbers, dashes or underscores. It also says what kind of room it is, unless `kind` does. |
 | `label` | needed | Its name. |
-| `about` | | A sentence about it, for Poe. |
+| `about` | | A sentence about it, for the receptionist. |
 | `kind` | | What stands in it, if not what its `id` says: one of the kinds below. A room of no kind Arnheim knows is a lounge. |
 | `order` | | A number for where it goes on the floor plan, lowest first. Goals, Code, Conversations and Work go in that order otherwise. |
-| `words` | | Other names Poe knows it by, such as `["build server", "build machine"]`. |
+| `words` | | Other names the receptionist knows it by, such as `["build server", "build machine"]`. |
 
 | Kind | On | What stands in it, from work.json |
 | --- | --- | --- |
@@ -113,19 +114,28 @@ gets smaller.
 | `library` | the basement | Shelves of the `library` list. |
 | `lounge` | anywhere | Somewhere to sit. |
 
-### The assistant
+### The receptionist and the assistant
+
+The receptionist stands at the front desk, and the assistant at their own desk in the founder's
+office. Name them, choose how they look and give them a voice. Without `receptionist`, the desk
+still has a receptionist, with no name; without `assistant`, the office has no assistant.
+
+```json
+"receptionist": { "name": "Iris", "voice": "af_heart", "look": { "skin": "#a26b48", "hair": "#2b1d18", "coat": "#5b3b5e" } },
+"assistant": { "name": "Wren", "title": "Your assistant", "voice": "bf_emma", "look": { "style": "bun", "hair": "#5a3926" } }
+```
 
 | Field | | What it is |
 | --- | --- | --- |
-| `name` | needed | Their name, on the card when you step up. |
-| `title` | | A few words under the name, such as "Founder's assistant". |
-| `voice` | | A Kokoro voice for them (README, "Voice"), used if the computer has it. |
-| `href` | | What a page's own `talk` knows them by. `#/assistant` if left out. |
-| `look` | | How they look. Anything left out is as Poe is. |
+| `name` | needed for the assistant | Their name, on their label and on the card when you step up. |
+| `title` | | A few words under the name. `Receptionist` or `Assistant` if left out. |
+| `look` | | How they look (below). Anything left out is as the default receptionist. |
+| `voice` | | A Kokoro voice (README, "Voice"), used if the computer has it. |
+| `href` | | Only for a page with its own routes: what tapping them opens. Arnheim's own page uses `#/front-desk` and `#/assistant`, so leave it out there. |
 
 In `look`, colours are hex, like `"#a8752b"`: `skin`, `hair`, `lips`, `coat`, `shirt`,
 `trousers`, and `accent` for the buttons and pocket square. `style` is `braids` (a centre parting
-and a braid each side, with `ties` and `clips` colours) or `bun`, or Poe's swept cut if left out.
+and a braid each side, with `ties` and `clips` colours) or `bun`, or the default swept cut if left out.
 `collar: "round"` makes the coat a cardigan buttoned to the neck with a rounded collar, and
 `brooch` pins a flower on it: one colour, or `[petals, centre]`. `earrings` is `studs` or `hoops`,
 in the colour `gold` (the accent if left out). `pocket: false` leaves out the pocket square, and

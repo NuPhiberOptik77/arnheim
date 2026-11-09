@@ -1,5 +1,5 @@
-// The Arnheim page: a company shown as a building, with a panel to look around it and Poe at the
-// front desk. It shows your own company from data/ (company.json, work.json and notes.json) when
+// The Arnheim page: a company shown as a building, with a panel to look around it and the
+// receptionist at the front desk. It shows your own company from data/ (company.json, work.json and notes.json) when
 // data/company.json is there, and otherwise the sample, a company that is made up (sample/). The
 // sample's work moves on a loop (the story at the end of its work.json), so there is always
 // something to see. Nothing is saved anywhere: a reload reads the files again.
@@ -21,8 +21,13 @@ const ROOM_ICON = {
   goals: 'target', work: 'list-checks', conversations: 'messages-square', code: 'git-pull-request', company: 'briefcase',
   library: 'library', machine: 'server', websites: 'globe', email: 'mail', social: 'at-sign', domains: 'link', lounge: 'shapes',
 };
-const TOP_ROUTES = new Set([undefined, 'company', 'poe']);
-const TAB_KEYS = { 1: '#/', 2: '#/company', 3: '#/poe' };
+const DESK = '#/front-desk'; // the receptionist's tab, and what a tap on them opens
+const TOP_ROUTES = new Set([undefined, 'company', 'front-desk']);
+const TAB_KEYS = { 1: '#/', 2: '#/company', 3: DESK };
+// The receptionist's name, from the company map (receptionist in company.json). With none, they
+// are just the receptionist, and their tab says Reception.
+const deskName = () => org?.receptionist?.name?.trim() || '';
+const deskTab = () => deskName() || 'Reception';
 
 let org = null; // the company map: floors and rooms
 let work = null; // what is going on in it
@@ -30,7 +35,7 @@ let dir = 'sample'; // where they came from: data (your own company) or sample (
 let feeds = []; // files in data/ that tools keep up to date (docs/connect.md)
 const lastFeed = new Map();
 let workSig = ''; // the work as last read, to tell when it has changed
-const mine = []; // tasks Poe took down in this tab, kept through each fresh read
+const mine = []; // tasks the receptionist took down in this tab, kept through each fresh read
 const dropped = new Set(); // and the ones dropped in it
 const FOLLOW_MS = 4000;
 let poe = null;
@@ -200,7 +205,7 @@ function liveModel() {
   return model;
 }
 
-/* ---------- Poe: plain facts from the sample, no AI ---------- */
+/* ---------- the receptionist: plain facts from the company's files, no AI ---------- */
 
 function poeFacts() {
   const open = openTasks();
@@ -230,10 +235,10 @@ function poeFacts() {
   };
 }
 
-// Poe can add a task and drop it again, in this tab only.
+// The receptionist can add a task and drop it again, in this tab only.
 async function addTask({ project, title: text }) {
   added += 1;
-  const task = { id: `new${added}`, project, title: text, status: 'needs_you', note: 'Taken down by Poe when you asked. It lives in this tab only: nothing is saved.' };
+  const task = { id: `new${added}`, project, title: text, status: 'needs_you', note: `Taken down by ${deskName() || 'the receptionist'} when you asked. It lives in this tab only: nothing is saved.` };
   mine.push(task);
   work.tasks.push(task);
   refresh();
@@ -249,7 +254,7 @@ async function dropTask(id) {
   return { ok: true };
 }
 
-function setupPoe() {
+function setupDesk() {
   const real = {
     id: 'sample',
     answer: (c) => has(c.q, ['real', 'made up', 'fake', 'sample', 'demo', 'invented', 'pretend']) && {
@@ -276,9 +281,9 @@ function setupPoe() {
       hints: ['What is Arnheim?', 'What needs me?', "What's running?", 'Who runs this company?', 'Where is the website?', 'Is this real?', 'What do the colours mean?'],
       role: madeUp() ? 'Receptionist. Every answer comes from the sample company.' : `Receptionist. Every answer comes from ${org.company}'s own files.`,
       unknown: `I don't know that, and I won't guess. I only know what ${madeUp() ? 'the sample company holds' : `${org.company}'s files hold`}.`,
-      note: 'Poe can add a task and undo it, in this tab only. Nothing is saved, and Poe never merges, publishes, runs jobs or signs in.',
+      note: `${deskName() || 'The receptionist'} can add a task and undo it, in this tab only. Nothing is saved. ${deskName() || 'The receptionist'} never merges, publishes, runs jobs or signs in.`,
       added: 'It is in the Work room now, in this tab only.',
-      keys: '1 Overview, 2 Company, 3 Poe. Esc goes back. Arrow keys turn the building, plus and minus zoom. They do nothing while you are typing.',
+      keys: `1 Overview, 2 Company, 3 ${deskTab()}. Esc goes back. Arrow keys turn the building, plus and minus zoom. They do nothing while you are typing.`,
     },
     topics: (list) => insertAfter(insertAfter(list, 'thanks', [real]), 'tour', [howTo]),
   });
@@ -286,15 +291,15 @@ function setupPoe() {
 
 /* ---------- talking in the walk (voice.js) ---------- */
 
-// Poe answers as at the desk. The people at work answer from their own lines in work.json ("says"),
+// The receptionist answers as at the desk. The people at work answer from their own lines in work.json ("says"),
 // with no AI; in the sample they are made up, and so is what they say. A page with real agents
 // passes its own answers, and there what you say reaches the agent doing the work.
 const talkItem = (who) => work.conversations.find((c) => convoHref(c) === who.href) || work.tasks.find((t) => taskHref(t) === who.href) || null;
 
 function poeSays(text) {
-  if (has(norm(text), ['tour', 'show me round', 'show me around', 'look around'])) return 'I can show you round from the Poe tab, once you leave the walk.';
+  if (has(norm(text), ['tour', 'show me round', 'show me around', 'look around'])) return `I can show you round from the ${deskTab()} tab, once you leave the walk.`;
   const a = poe.answer(text);
-  if (a.offer) return `I can add "${a.offer.title}" as a task from the Poe tab, where you pick its project.`;
+  if (a.offer) return `I can add "${a.offer.title}" as a task from the ${deskTab()} tab, where you pick its project.`;
   const lines = [...a.lines];
   // The things an answer links to belong to its first line, so they are said right after it.
   if (a.links?.length && a.links.length <= 4) lines.splice(1, 0, `${a.links.map((x) => (x.sub ? `${x.title}, on ${x.sub}` : x.title)).join('. ')}.`);
@@ -318,18 +323,18 @@ function sampleReply(item, text) {
   return [says.now, says.next].filter(Boolean).join(' ') || `I'm working on "${item.title}".`;
 }
 
-// The founder's assistant (org.assistant), in their office: in the sample she answers as Poe does.
+// The founder's assistant (org.assistant), in their office: in the sample they answer as the receptionist does.
 const isAide = (who) => !!org.assistant && who.href === (org.assistant.href || '#/assistant');
 
 const talk = {
   name(who) {
-    if (who.href === '#/poe') return 'Poe';
+    if (who.href === DESK) return deskName() || 'Receptionist';
     if (isAide(who)) return org.assistant.name;
     const item = talkItem(who);
     return item ? `${item.project} agent` : null;
   },
   greet(who) {
-    if (who.href === '#/poe') {
+    if (who.href === DESK) {
       const hr = new Date().getHours();
       const hello = hr >= 5 && hr < 12 ? 'Good morning' : hr >= 12 && hr < 18 ? 'Good afternoon' : hr >= 18 && hr < 23 ? 'Good evening' : 'Hello';
       return `${hello}. Ask me what's happening, or anything about the building.`;
@@ -342,7 +347,7 @@ const talk = {
     return item ? `Hi. I'm on "${item.title}". Ask me how it's going.` : null;
   },
   answer(who, text) {
-    if (who.href === '#/poe' || isAide(who)) return poeSays(text);
+    if (who.href === DESK || isAide(who)) return poeSays(text);
     const item = talkItem(who);
     return item ? sampleReply(item, text) : "I've finished here, so there's nothing new to tell.";
   },
@@ -370,7 +375,7 @@ function viewOverview() {
       h('section.panel-card.intro',
         title(madeUp() ? `${org.company}, a company that is made up` : org.company),
         madeUp() ? h('p', sampleLine()) : org.about && h('p', org.about),
-        h('p.small.muted', 'Arnheim shows a company as a building. Each floor is a project and each room holds one kind of thing. Tap a floor to bring it out, then a room to look inside. Poe, at the front desk, answers questions.')),
+        h('p.small.muted', `Arnheim shows a company as a building. Each floor is a project and each room holds one kind of thing. Tap a floor to bring it out, then a room to look inside. Press Walk to go in and talk to the people at work, and to ${deskName() || 'the receptionist'} at the front desk.`)),
       h('div.stats', tile('bell-ring', 'needs', needs.length, 'Need you'), tile('messages-square', 'working', talking.length, 'Working now'), tile('server', 'working', jobs.length, 'Jobs running')),
       h('section.panel-card',
         sectHead('bell', 'Needs you'),
@@ -523,7 +528,7 @@ function viewItem(floor, room, id) {
 function viewFor(r) {
   if (!r.floor) return viewOverview();
   if (r.floor === 'company') return viewCompany();
-  if (r.floor === 'poe') return poe.view();
+  if (r.floor === 'front-desk') return poe.view();
   const floor = floors().find((f) => f.id === r.floor);
   if (!floor) return viewOverview();
   const room = r.room && roomsOf(floor).find((x) => x.id === r.room);
@@ -539,7 +544,7 @@ function renderCrumbs(crumbs) {
 }
 
 function renderTabs() {
-  const tab = !route.floor ? 'overview' : route.floor === 'poe' ? 'poe' : 'company';
+  const tab = !route.floor ? 'overview' : route.floor === 'front-desk' ? 'poe' : 'company';
   for (const name of ['overview', 'company', 'poe']) {
     const el = $(`tab-${name}`);
     if (name === tab) el.setAttribute('aria-current', 'page');
@@ -671,9 +676,9 @@ function parentHash() {
 }
 
 function focusBuilding() {
-  if (route.floor === 'poe' && org.lobby) {
+  if (route.floor === 'front-desk' && org.lobby) {
     const desk = org.lobby.rooms.find((r) => kindOf(org.lobby, r) === 'websites') || org.lobby.rooms[0];
-    if (!poe.touring()) building?.focus({ floor: org.lobby.id, room: desk?.id, item: '#/poe', close: true });
+    if (!poe.touring()) building?.focus({ floor: org.lobby.id, room: desk?.id, item: DESK, close: true });
     return false;
   }
   const isFloor = floors().some((f) => f.id === route.floor);
@@ -683,11 +688,11 @@ function focusBuilding() {
 
 function onRoute() {
   readRoute();
-  if (route.floor !== 'poe') poe.stopTour(false);
+  if (route.floor !== 'front-desk') poe.stopTour(false);
   render({ nav: true });
   const isFloor = focusBuilding();
   $('view-back').hidden = !isFloor;
-  $('stage-help').textContent = route.floor === 'poe' ? 'Poe is at the front desk. Drag to turn, scroll to zoom.'
+  $('stage-help').textContent = route.floor === 'front-desk' ? `${deskName() || 'The receptionist'} is at the front desk. Drag to turn, scroll to zoom.`
     : !isFloor ? 'Tap a floor to bring it out. Drag to turn, scroll to zoom.'
       : !route.room ? 'Tap a room or anything in it. Drag to turn.' : 'Tap anything to open it. Drag to turn.';
 }
@@ -760,7 +765,7 @@ async function startBuilding() {
       onPick(hit) {
         tip.hidden = true;
         if (hit.company) { location.hash = '#/company'; return; }
-        if (hit.href === '#/poe') { location.hash = '#/poe'; return; }
+        if (hit.href === DESK) { location.hash = DESK; return; }
         if (isAide(hit)) return; // she has no page of her own: the talk opens in the walk
         if (hit.walk) { location.hash = hit.href || `#/${hit.floorId}/${hit.roomId}`; return; }
         if (route.floor !== hit.floorId) { location.hash = `#/${hit.floorId}`; return; }
@@ -853,7 +858,9 @@ function setupIcons() {
   $('top').querySelector('h1').prepend(icon('building-2', 18));
   $('tab-overview').prepend(icon('layers', 15));
   $('tab-company').prepend(icon('building-2', 15));
-  $('tab-poe').prepend(poeBadge(18));
+  const desk = $('tab-poe');
+  desk.textContent = deskTab();
+  desk.prepend(poeBadge(18, org.receptionist?.look));
   $('back').prepend(icon('arrow-left', 15));
   $('view-back').prepend(icon('arrow-left', 15));
   $('view-reset').prepend(icon('rotate-ccw', 14));
@@ -978,7 +985,7 @@ async function boot() {
   document.title = madeUp() ? `Arnheim: ${org.company}, a made-up company` : `Arnheim: ${org.company}`;
   $('made-up').hidden = !madeUp();
   $('live').hidden = !hasStory();
-  setupPoe();
+  setupDesk();
   readRoute();
   setupTheme();
   setupIcons();
