@@ -58,7 +58,8 @@ answer aloud ("Voice", below).
   them in `sample/work.json`. Connected to Claude Code, they tell you what Claude last said. A page
   of your own can pass your words on to the agent doing the work ([docs/embed.md](docs/embed.md)).
 - **The receptionist**, at the front desk on a walk and in the panel under their name, knows the
-  whole company (below).
+  whole company (below). On a walk, talk to them out loud like anyone else: turn on Voice, step
+  into their ring and ask.
 - **Your assistant**, at their own desk in your office, if you have one. In the sample they answer
   as the receptionist does; your own page can give them their own answers.
 
@@ -79,7 +80,8 @@ they don't know.
 - **Show me round**: in the panel, they take you round the building, floor by floor.
 - **"Remind me to ..."** adds a task. The page Arnheim comes with keeps it in that browser tab
   only.
-- **Read aloud**, in the panel, has them speak their answers. On a walk, turn on Voice instead.
+- **Talk out loud** on a walk: with Voice on, just speak in their ring, and they answer aloud. In
+  the panel, **Read aloud** has them speak their answers.
 
 They never merge, publish, run jobs or sign in. A page of your own can teach them more words and
 topics, or give them answers of its own ([docs/embed.md](docs/embed.md)).
