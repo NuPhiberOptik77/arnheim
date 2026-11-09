@@ -232,13 +232,14 @@ class ControlTest(unittest.TestCase):
         return next((r for r in self.call("GET", "state")[1]["runs"] if r["key"] == key), None)
 
     def test_start_then_talk_to_it(self):
-        code, started = self.call("POST", "start", {"project": "Lantern", "text": "Fix the login page"})
+        code, started = self.call("POST", "start", {"project": "Lantern", "text": "fix the login page"})
         self.assertEqual(code, 200)
         key = started["key"]
         run = self.until(lambda: (self.run_of(key) or {}).get("state") == "done" and self.run_of(key))
         sid = self.control.runs[key]["sid"]
         self.assertEqual(key, "cc-" + sid.replace("-", "")[:12])  # the key the hook gives the same conversation
-        self.assertEqual(run["said"], f"started {sid} in {self.lantern}: Fix the login page")
+        self.assertEqual(run["title"], "Fix the login page")  # as a title; Claude Code is given the words as said
+        self.assertEqual(run["said"], f"started {sid} in {self.lantern}: fix the login page")
         code, sent = self.call("POST", "say", {"key": key, "text": "And the logout page"})
         self.assertEqual((code, sent["sent"]), (200, "resumed"))
         run = self.until(lambda: (self.run_of(key) or {}).get("answered") == sent["id"] and self.run_of(key))

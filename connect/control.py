@@ -346,7 +346,7 @@ class Control:
             raise Refused("That project has no folder on this computer. Give its floor a folder in data/company.json.")
         sid = str(uuid.uuid4())
         key = "cc-" + sid.replace("-", "")[:12]
-        run = {"key": key, "sid": sid, "project": floor["project"], "folder": floor["folder"], "title": one_line(text, 70), "said": "", "at": time.time()}
+        run = {"key": key, "sid": sid, "project": floor["project"], "folder": floor["folder"], "title": one_line(text[:1].upper() + text[1:], 70), "said": "", "at": time.time()}
         with self.lock:
             self.spawn(run, ["--session-id", sid], text)
         return {"key": key, "project": floor["project"]}
