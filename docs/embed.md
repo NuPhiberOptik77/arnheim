@@ -68,8 +68,10 @@ own: `voice/bridge.py` is standard-library Python, with one call (`Voice.handle`
 ## Controlling agents
 
 `src/control.js` is the page's side of controlling Claude Code agents ([connect.md](connect.md),
-step 4). `createControl({ base, headers })` talks to the server, by default `../control/` beside
-`src`. `agentReply` and `agentControls` give an agent's answers and card buttons for `talk`, and
+step 4). `createControl({ base, headers, busy })` talks to the server, by default `../control/`
+beside `src`. A permission request waits for an answer only while someone uses the page: while
+`busy()` says so (walking, say), and for two minutes after a touch. `agentReply` and `agentControls`
+give an agent's answers and card buttons for `talk` (`agentQuick` only allow, deny and stop), and
 `deskStart` and `deskControls` let the receptionist start agents; `src/demo.js` shows how. On the
 server, `connect/control.py` is standard-library Python with one call (`Control.handle`) for every
 request, as the voice has. Answer it only for the page on this computer.

@@ -12,8 +12,8 @@ Then, on a walk and in the panel:
 The page and Claude Code meet in data/control/, on this computer. Control, below, answers the
 page's /control/ requests for serve.py, or for a server of your own. Box is the mail between them.
 On Claude Code's side the hook (connect/claude_code.py) reads it: it hands your messages to the
-conversation, waits a while for your answer to a permission while the building is open, and stops
-the conversation when you ask.
+conversation, waits a while for your answer to a permission while someone is using the building,
+and stops the conversation when you ask.
 
 Nothing here allows anything by itself. An answer is for the one request it was shown with, and
 with no answer Claude Code asks as it always does. It never works over --lan. Standard library only.
@@ -33,7 +33,7 @@ import uuid
 HERE = os.path.dirname(os.path.realpath(__file__))
 DATA = os.environ.get("ARNHEIM_DATA") or os.path.join(os.path.dirname(HERE), "data")
 JSON = "application/json; charset=utf-8"
-WATCHED = 20  # seconds: an open page asks every few, so older than this, nobody is watching
+WATCHED = 20  # seconds: a page in use says so every few, so older than this, nobody is there to answer
 MAX_TEXT = 2000
 KEY = re.compile(r"^cc-[A-Za-z0-9]{1,12}$")  # a conversation, as the feed names it (claude_code.key_of)
 ASK_ID = re.compile(r"^[A-Za-z0-9_-]{8,40}$")
@@ -108,7 +108,8 @@ class Box:
     def path(self, *parts):
         return os.path.join(self.root, *parts)
 
-    # The building is open: the page asks for the state every few seconds.
+    # Someone is using the building: its page says so every few seconds while they walk, or have
+    # touched it in the last two minutes (src/control.js). A page left open on its own doesn't count.
     def watch(self):
         os.makedirs(self.root, exist_ok=True)
         with open(self.path("watched"), "w") as handle:
@@ -226,8 +227,8 @@ class Box:
 
 
 def await_answer(box, key, tool, what):
-    """For the hook: shows a permission request in the building, if it is open, and waits for your
-    answer there. Gives "allow", "deny", "stop" (deny and stop the conversation), or None: no
+    """For the hook: shows a permission request in the building, if someone is using it, and waits
+    for your answer there. Gives "allow", "deny", "stop" (deny and stop the conversation), or None: no
     answer, so Claude Code asks as it always does."""
     if not box.watched():
         return None
@@ -240,7 +241,7 @@ def await_answer(box, key, tool, what):
                 return got
             if box.stopping(key):
                 return "stop"
-            if not box.watched():  # the building was closed
+            if not box.watched():  # nobody is using the building now
                 return None
             time.sleep(0.25)
         return None
@@ -271,7 +272,8 @@ class Control:
 
     def handle(self, method, name, body=b"", token=""):
         """One request under /control/: (status, content type, bytes, extra headers). Every request
-        but `token` needs the token, in the X-Arnheim-Control header."""
+        but `token` needs the token, in the X-Arnheim-Control header. `state` is what waits; `here` is
+        the same, from a page someone is using, so permission requests wait for them."""
         def answer(code, data):
             return code, JSON, json.dumps(data, ensure_ascii=False).encode("utf-8"), {}
 
@@ -279,10 +281,11 @@ class Control:
             return answer(200, {"on": True, "token": self.token}) if method == "GET" else answer(405, {"error": "Use GET."})
         if not isinstance(token, str) or not hmac.compare_digest(token.encode(), self.token.encode()):
             return answer(403, {"error": "This page can't control anything. Reload it."})
-        if name == "state":
+        if name in ("state", "here"):
             if method != "GET":
                 return answer(405, {"error": "Use GET."})
-            self.box.watch()
+            if name == "here":
+                self.box.watch()
             return answer(200, self.state())
         if method != "POST":
             return answer(405, {"error": "Use POST."})

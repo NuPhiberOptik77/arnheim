@@ -35,7 +35,7 @@ let work = null; // what is going on in it
 let dir = 'sample'; // where they came from: data (your own company) or sample (made up)
 let feeds = []; // files in data/ that tools keep up to date (docs/connect.md)
 // Control of your Claude Code agents, with serve.py --control and your own company (control.js).
-const control = createControl();
+const control = createControl({ busy: () => !!building?.walking?.() });
 let starting = null; // an agent the receptionist was asked to start, waiting for your word
 let controlNote = ''; // what came of the last thing done from the panel
 const lastFeed = new Map();

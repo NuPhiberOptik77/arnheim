@@ -7,6 +7,7 @@ import http.client
 import json
 import os
 import sys
+import tempfile
 import threading
 import unittest
 
@@ -99,7 +100,13 @@ class ControlServeTest(ServeTest):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.server.control = serve.Control()
+        cls.data = tempfile.TemporaryDirectory()  # never the data/ of the copy being tested
+        cls.server.control = serve.Control(data=cls.data.name)
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls.data.cleanup()
 
     def test_control_is_off_unless_asked(self):
         status, body = self.ask("/control/token")

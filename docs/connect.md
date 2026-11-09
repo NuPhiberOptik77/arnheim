@@ -121,8 +121,9 @@ Optional, and off unless you switch it on. Then the person at this computer can:
   An agent waiting for you in Claude Code sees it the next time you send it something there.
 - **Answer its permission requests.** When it asks to run a command or change a file, the request
   shows on its card in the walk and on its page in the panel, with Allow and Deny. In its ring you
-  can also say "allow" or "deny". An answer is for that one request only. If nobody answers within
-  two minutes, or the building is closed, Claude Code asks as it always does.
+  can also say "allow" or "deny". An answer is for that one request only. A request waits in the
+  building only while you are using it (walking, or you touched it in the last two minutes), and for
+  two minutes at most. Otherwise Claude Code asks as it always does.
 - **Stop it.** Stop on its card, or say "stop": it stops at its next step.
 - **Start one.** In a floor's Conversations room, or by asking the receptionist ("start an agent on
   Lantern to fix the login page", then "start it"). It runs in the floor's folder with your own

@@ -3,17 +3,25 @@
 // page on that computer. While it is on and the page is in view, the page asks every few seconds for
 // what is waiting (permission requests), what was started here, and which projects have a folder.
 //
-// createControl({ base, headers }) talks to the server: `base` is where /control/ is (by default
-// ../control/ beside src), and `headers()` adds a page token for a server of its own. The rest are
-// the words for the walk: agentReply and agentControls for an agent in its ring, deskStart for the
-// receptionist, who can start an agent on a project.
+// createControl({ base, headers, busy }) talks to the server: `base` is where /control/ is (by
+// default ../control/ beside src), `headers()` adds a page token for a server of its own, and
+// `busy()` says the person is using the page. The rest are the words for the walk: agentReply (or
+// agentQuick) and agentControls for an agent in its ring, deskStart for the receptionist, who can
+// start an agent on a project.
 
 const BASE = new URL('../control/', import.meta.url).href;
 const OFF = { on: false, asks: [], runs: [], projects: [] };
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
-export function createControl({ base = BASE, headers = () => ({}), every = 3000 } = {}) {
+// Someone is using the page while `busy()` says so (walking, say) and for two minutes after they
+// last touched it. Only then does a permission request wait for an answer here.
+export function createControl({ base = BASE, headers = () => ({}), every = 3000, busy = () => false } = {}) {
   let token = null;
+  let touched = 0;
+  for (const kind of ['pointerdown', 'keydown', 'wheel', 'touchstart']) {
+    window.addEventListener(kind, () => { touched = Date.now(); }, { passive: true, capture: true });
+  }
+  const using = () => { try { return !!busy() || Date.now() - touched < 120000; } catch { return false; } };
   let state = OFF;
   let timer = 0;
   let running = false;
@@ -38,8 +46,8 @@ export function createControl({ base = BASE, headers = () => ({}), every = 3000 
     }
   }
 
-  // Only while the page is in view: a permission request waits for an answer here only while
-  // someone could give one (connect/control.py, WATCHED).
+  // Only while the page is in view. It says `here` while someone is using it: only then does a
+  // permission request wait for an answer here (connect/control.py, WATCHED).
   async function poll() {
     clearTimeout(timer);
     if (!running) return;
@@ -50,7 +58,7 @@ export function createControl({ base = BASE, headers = () => ({}), every = 3000 
           if (!t.on) { running = false; set(OFF); return; } // switched off: ask no more
           token = t.token;
         }
-        set(await call('state'));
+        set(await call(using() ? 'here' : 'state'));
       } catch {
         // the server is restarting, or away: look again shortly
       }
@@ -85,11 +93,10 @@ const DENY = /^(?:no[,.!]?\s+)?(?:no|nope|deny|refuse|reject|don'?t|do not)(?: a
 const NEARLY = /^(?:yes|yeah|yep|ok|okay|sure|go ahead|do it)\b/i;
 const STOP = /^(?:please\s+)?stop(?: now| working| it| that| there| please)*[.!]?$/i;
 
-// An agent's answer to what you said in its ring, with control on: the words go to its Claude Code
-// conversation, and its reply comes back when it has one. An open permission request is answered
-// with "allow" or "deny" (the whole of what you say), and "stop" stops it. `latest()` gives the
-// conversation as the page last read it.
-export function agentReply(control, item, text, latest = () => item) {
+// What you said in an agent's ring, if it was "allow" or "deny" for an open permission request
+// (the whole of what you said), or "stop": its answer. Null for anything else, for a page whose
+// agents answer the rest in their own way. `latest()` gives the conversation as the page last read it.
+export function agentQuick(control, item, text, latest = () => item) {
   const key = item.id;
   const words = String(text || '').trim();
   const ask = control.askFor(key);
@@ -102,6 +109,16 @@ export function agentReply(control, item, text, latest = () => item) {
     if (!latest()?.working && run?.state !== 'working') return "I'm not working on anything right now.";
     return control.halt(key).then(() => 'Stopping now.', fail);
   }
+  return null;
+}
+
+// An agent's answer to what you said in its ring, with control on: agentQuick's, or else the words
+// go to its Claude Code conversation, and its reply comes back when it has one.
+export function agentReply(control, item, text, latest = () => item) {
+  const key = item.id;
+  const words = String(text || '').trim();
+  const quick = agentQuick(control, item, words, latest);
+  if (quick != null) return quick;
   return (async function* reply() {
     let sent;
     try {

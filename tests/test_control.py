@@ -91,7 +91,7 @@ class ControlTest(unittest.TestCase):
         self.fail("it never happened")
 
     def keep_watching(self):
-        """The building stays open, as a page asking for the state every few seconds."""
+        """Someone is using the building: its page says `here` every few seconds."""
         stop = threading.Event()
 
         def watch():
@@ -120,6 +120,10 @@ class ControlTest(unittest.TestCase):
         self.assertEqual(self.call("POST", "stop", {"key": KEY}, token="a guess")[0], 403)
         code, state = self.call("GET", "state")
         self.assertEqual((code, state["asks"], state["runs"]), (200, [], []))
+        self.assertFalse(self.box.watched())  # a page left open on its own isn't someone to answer
+        self.assertEqual(self.call("GET", "here", token="a guess")[0], 403)
+        self.assertEqual(self.call("GET", "here")[0], 200)
+        self.assertTrue(self.box.watched())
         self.assertEqual(state["projects"], [{"project": "Lantern", "label": "Lantern", "floor": "lantern"}])
         self.assertNotIn(self.lantern, json.dumps(state))  # no folders in what the page is given
 
