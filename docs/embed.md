@@ -40,6 +40,11 @@ by keyword matching over the facts you pass in, with no AI, and a page can teach
 (`kit.words`) and topics (`kit.topics`). Their name is the map's `receptionist.name`, or
 `kit.name`. `poeBadge(size, look)` draws a small picture of them in their look's colours.
 
+`kit.think(text, answer)`, if given, answers a typed question in the page's own way: given the
+question and the rules' answer, it gives the words as they come (an async iterable), or null to keep
+the rules' answer. If it gives nothing, the rules' answer shows instead. `src/demo.js` passes
+Claude's answer this way when the brain is on (below).
+
 ## Talking in the walk
 
 `talk`, in `createBuilding`'s options, turns the rings into conversations (`src/voice.js` says
@@ -75,6 +80,16 @@ give an agent's answers and card buttons for `talk` (`agentQuick` only allow, de
 `deskStart` and `deskControls` let the receptionist start agents; `src/demo.js` shows how. On the
 server, `connect/control.py` is standard-library Python with one call (`Control.handle`) for every
 request, as the voice has. Answer it only for the page on this computer.
+
+## The brain
+
+`src/brain.js` is the page's side of the brain ([brain.md](brain.md)), which has the receptionist
+and the assistant answer with Claude. `createBrain({ base, headers })` talks to the server, by
+default `../brain/` beside `src`: `check()` asks once whether it is on, `prime(who, facts)` reads
+them the facts before they are asked anything, and `ask(who, text, facts)` gives the answer as an
+async iterable of pieces, for `talk.answer` or `kit.think`. `who` is `{ role, name, company }`, and
+`facts` a list of `[section, text]`. On the server, `connect/brain.py` is standard-library Python
+with one call (`Brain.handle`) for every request. Answer it only for the page on this computer.
 
 ## Serving it
 

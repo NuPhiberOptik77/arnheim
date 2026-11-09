@@ -3,9 +3,10 @@
 // data/company.json is there, and otherwise the sample, a company that is made up (sample/). The
 // sample's work moves on a loop (the story at the end of its work.json), so there is always
 // something to see. Nothing is saved anywhere: a reload reads the files again.
+import { createBrain } from './brain.js';
 import { agentControls, agentReply, createControl, deskControls, deskStart } from './control.js';
 import { icon } from './icons.js';
-import { createPoe, has, insertAfter, norm, poeBadge } from './poe-desk.js';
+import { createPoe, has, insertAfter, needWord, norm, poeBadge } from './poe-desk.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -36,6 +37,9 @@ let dir = 'sample'; // where they came from: data (your own company) or sample (
 let feeds = []; // files in data/ that tools keep up to date (docs/connect.md)
 // Control of your Claude Code agents, with serve.py --control and your own company (control.js).
 const control = createControl({ busy: () => !!building?.walking?.() });
+// The receptionist's and the assistant's brain, with serve.py --brain: they answer with Claude,
+// through Claude Code on the computer that serves the page (brain.js). Off otherwise.
+const brain = createBrain();
 let starting = null; // an agent the receptionist was asked to start, waiting for your word
 let controlNote = ''; // what came of the last thing done from the panel
 const lastFeed = new Map();
@@ -259,7 +263,13 @@ async function dropTask(id) {
   return { ok: true };
 }
 
+// What the rules answer even with the brain on: at once, and nothing Claude could be talked into
+// instead. A refusal stays a refusal.
+const RULED = new Set(['refuse', 'greeting', 'tour']);
+const ruledBy = (t) => (RULED.has(t.id) ? { ...t, answer: (c) => { const a = t.answer(c); return a && { ...a, ruled: t.id }; } } : t);
+
 function setupDesk() {
+  const called = deskName() || 'The receptionist';
   const real = {
     id: 'sample',
     answer: (c) => has(c.q, ['real', 'made up', 'fake', 'sample', 'demo', 'invented', 'pretend']) && {
@@ -284,14 +294,159 @@ function setupDesk() {
     words: {
       place: `This is Arnheim, showing ${org.company}${madeUp() ? ', a company that is made up' : ''}. Each floor is a project and each room holds one kind of thing. The light shows what is happening.`,
       hints: ['What is Arnheim?', 'What needs me?', "What's running?", 'Who runs this company?', 'Where is the website?', 'Is this real?', 'What do the colours mean?'],
-      role: madeUp() ? 'Receptionist. Every answer comes from the sample company.' : `Receptionist. Every answer comes from ${org.company}'s own files.`,
+      role: brain.on ? 'Receptionist. Answers with Claude, through Claude Code on this computer.'
+        : madeUp() ? 'Receptionist. Every answer comes from the sample company.' : `Receptionist. Every answer comes from ${org.company}'s own files.`,
+      me: brain.on ? [
+        `I'm ${deskName() ? `${deskName()}, the receptionist` : 'the receptionist'}. I answer with Claude, through Claude Code on this computer, and about ${org.company} I only say what this building shows.`,
+        'I can also take a message: say "remind me to ..." and I will add it as a task.',
+      ] : undefined,
       unknown: `I don't know that, and I won't guess. I only know what ${madeUp() ? 'the sample company holds' : `${org.company}'s files hold`}.`,
-      note: `${deskName() || 'The receptionist'} can add a task and undo it, in this tab only. Nothing is saved. ${deskName() || 'The receptionist'} never merges, publishes, runs jobs or signs in.`,
+      note: `${brain.on ? `${called} answers with Claude, through Claude Code on this computer and on your own Claude plan: your questions go there, with the building's facts. Greetings, refusals and tasks stay with the building's own rules. ` : ''}${called} can add a task and undo it, in this tab only. Nothing is saved. ${called} never merges, publishes, runs jobs or signs in.`,
       added: 'It is in the Work room now, in this tab only.',
       keys: `1 Overview, 2 Company, 3 ${deskTab()}. Esc goes back. Arrow keys turn the building, plus and minus zoom. They do nothing while you are typing.`,
     },
-    topics: (list) => insertAfter(insertAfter(list, 'thanks', [real]), 'tour', [howTo]),
+    topics: (list) => {
+      const all = insertAfter(insertAfter(list, 'thanks', [real]), 'tour', [howTo]);
+      return brain.on ? all.map(ruledBy) : all;
+    },
+    // A typed question at the desk: Claude's answer as it comes, with the brain on.
+    think: (text, a) => (brain.on && !a.ruled && !a.offer ? claudeSays('receptionist', text) : null),
   });
+}
+
+/* ---------- the brain: Claude answers for the receptionist and the assistant (brain.js) ---------- */
+
+const BRAIN_LIST = 25; // at most this many of anything in one section, then how many more
+
+// What the building knows, for Claude, in named sections: whichever company it shows (the sample,
+// or yours from data/ with its feeds, such as your Claude Code conversations) and, with control on,
+// the agents started from here and what waits for your permission. The server sends every section
+// with the first question and then only those that changed, so any time in them is a clock time,
+// never "a minute ago", which would change every minute.
+function brainFacts() {
+  const out = [];
+  const add = (name, lines) => {
+    const text = [lines].flat(Infinity).filter((x) => x != null && x !== false && x !== '').join('\n');
+    if (text) out.push([name, text]);
+  };
+  const clock = (at) => new Date(at < 1e12 ? at * 1000 : at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const some = (list, line) => [...list.slice(0, BRAIN_LIST).map(line), list.length > BRAIN_LIST && `And ${list.length - BRAIN_LIST} more.`];
+  const q = (text) => `"${text}"`;
+  const label = (project) => floorOf(project)?.label || project;
+  const asks = control.on ? control.state().asks : [];
+  const runs = control.on ? control.state().runs.filter((r) => !work.conversations.some((c) => c.id === r.key)) : [];
+  const needs = openTasks().filter((t) => t.status === 'needs_you');
+  const checks = byProject(work.conversations.filter((c) => c.check));
+  const waiting = openTasks().filter((t) => t.status === 'waiting');
+  const talking = byProject(work.conversations.filter((c) => c.working));
+  const jobs = work.jobs.filter((j) => j.state === 'running');
+
+  add('Company', [
+    `${org.company}.${org.about ? ` ${org.about}` : ''}`,
+    madeUp() ? [sampleLine(), hasStory() && 'Its work moves on a short loop, a story told over and over so the building has something to show.']
+      : `This is ${org.company}'s own building, drawn from its own files.`,
+    org.mission && `Its mission, in its founder's words: ${q(org.mission)}.`,
+    org.founder?.name && `Its founder: ${org.founder.name}${org.founder.title ? `, ${org.founder.title}` : ''}.`,
+    `The receptionist, at the front desk${org.lobby ? ` in ${org.lobby.label}` : ''}: ${deskName() || 'not named'}.`,
+    org.assistant?.name && `The founder's assistant, in the founder's office at the top: ${org.assistant.name}${org.assistant.title ? `, ${org.assistant.title}` : ''}.`,
+    `Today is ${new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}.`,
+  ]);
+  add('The building', [
+    'Arnheim shows the company as a building you can turn and walk through: each project is a floor, each kind of work a room, and the people at work are its agents. The light shows what is happening: warm is working now, amber needs you, dim is quiet.',
+    'Arnheim is free and open, and named after Edgar Allan Poe\'s story "The Domain of Arnheim", about a man who shapes a landscape into a world of its own.',
+    `Floors, top to bottom: ${[org.founder && "the founder's office", ...org.floors.map((f) => f.label)].filter(Boolean).join(', ')}${org.lobby ? `, then ${org.lobby.label} (the lobby)` : ''}${org.basement ? `, and ${org.basement.label} (the basement)` : ''}. A lift joins them.`,
+  ]);
+  add('Needs you', [
+    needs.length ? [`${needWord(needs.length)}, in this order:`, some(needs, (t) => `- ${q(t.title)}, on ${label(t.project)}`)] : 'Nothing needs you right now.',
+    checks.length > 0 && [`${count(checks.length, 'conversation has', 'conversations have')} something for you to check:`, some(checks, (c) => `- ${q(c.title)}, on ${label(c.project)}`)],
+    waiting.length > 0 && [`${count(waiting.length, 'task is', 'tasks are')} waiting on something else:`, some(waiting, (t) => `- ${q(t.title)}, on ${label(t.project)}`)],
+    asks.length > 0 && ['Waiting for your permission:', asks.map((a) => `- ${a.what}`)],
+  ]);
+  add('Working now', [
+    !talking.length && !jobs.length && 'Nothing is working right now.',
+    talking.length > 0 && [`${count(talking.length, 'conversation is', 'conversations are')} working:`, some(talking, (c) => `- ${q(c.title)}, on ${label(c.project)}`)],
+    jobs.length > 0 && [`${count(jobs.length, 'job is', 'jobs are')} running:`, some(jobs, (j) => `- ${q(j.name)}, on the ${machineLabel(j.machine)}`)],
+  ]);
+  for (const floor of org.floors) {
+    const p = floor.project;
+    const tasks = openTasks().filter((t) => t.project === p);
+    const goals = work.goals.filter((g) => g.project === p);
+    const prs = work.pullRequests.filter((x) => x.project === p);
+    const copies = work.copies.filter((c) => c.project === p);
+    add(`Floor: ${floor.label}`, [
+      `${floor.label}${p !== floor.label ? ` (the project ${p})` : ''}: ${floor.about || 'nothing is written about it yet.'}`,
+      floor.story,
+      `Rooms: ${roomsOf(floor).map((r) => r.label).join(', ')}.`,
+      tasks.length ? ['Open tasks:', some(tasks, (t) => `- ${q(t.title)}: ${(STATUS[t.status] || t.status || 'open').toLowerCase()}`)] : 'No open tasks.',
+      goals.length ? ['Goals:', some(goals, (g) => `- ${q(g.title)}: ${g.status === 'reached' ? 'reached' : 'open'}`)] : 'No goals written yet.',
+      prs.length > 0 && ['Open pull requests:', some(prs, (x) => `- #${x.number} ${q(x.title)}${x.draft ? ', a draft' : ''}`)],
+      copies.length > 0 && ['Working copies with unsaved changes:', some(copies, (c) => `- ${c.name}: ${count(c.changes, 'change', 'changes')}`)],
+    ]);
+    // The people at work on this floor: each conversation's agent, and agents started from here.
+    const convos = work.conversations.filter((c) => c.project === p);
+    const started = runs.filter((r) => r.project === p);
+    add(`Agents on ${floor.label}`, [
+      convos.length + started.length === 0 && 'No agents here.',
+      some(convos, (c) => {
+        const ask = asks.find((a) => a.key === c.id);
+        const says = c.says || {};
+        const now = [c.working && 'working now', (ask || says.needs) && 'waiting for you', c.check && 'finished, with something for you to check'].filter(Boolean).join(', ') || 'quiet';
+        return [
+          `- The ${p} agent on ${q(c.title)}${control.on ? ` (conversation ${c.id})` : ''}: ${now}.`,
+          ask && `  Waiting for your permission: ${ask.what}.`,
+          says.needs && `  It needs: ${says.needs}`,
+          says.now && `  It last said: ${q(says.now)}`,
+          says.next && `  Next: ${says.next}`,
+          says.when && `  When: ${says.when}`,
+          c.at && `  Last heard from at ${clock(c.at)}.`,
+        ];
+      }),
+      some(started, (r) => [
+        `- An agent started from the building, on ${q(r.title)} (conversation ${r.key}): ${{ working: 'working now', stopped: 'stopped, as you asked', failed: 'stopped with an error' }[r.state] || 'finished'}.`,
+        r.said && `  It last said: ${q(r.said)}`,
+      ]),
+    ]);
+  }
+  if (org.lobby) {
+    add(`${org.lobby.label} (the lobby)`, [
+      `Rooms: ${roomsOf(org.lobby).map((r) => r.label).join(', ')}.`,
+      work.presence.length ? some(work.presence, (e) => `- ${e.name} (${e.type}${e.project ? `, ${e.project}` : ''}): ${e.status || 'no status'}${e.link ? `, at ${e.link}${isDown(e) ? ', not answering' : e.up ? ', answering' : ''}` : ', no address written down'}.`)
+        : 'Nothing is written down here yet.',
+    ]);
+  }
+  if (org.basement) {
+    const machines = org.basement.rooms.filter((r) => kindOf(org.basement, r) === 'machine');
+    add(`${org.basement.label} (the basement)`, [
+      machines.length > 0 && ['Machines:', machines.map((r) => { const m = roomModel(org.basement, r); return `- ${r.label}: ${m.big}, ${String(m.detail).toLowerCase()}.`; })],
+      work.jobs.length > 0 && ['Jobs:', some(work.jobs, (j) => `- ${q(j.name)}, on the ${machineLabel(j.machine)}: ${{ running: 'running', queued: 'waiting in the queue' }[j.state] || j.state}.`)],
+      work.library.length > 0 && ['On the library shelves:', some(work.library, (b) => `- ${b.name}${b.status ? `: ${b.status}` : ''}`)],
+    ]);
+  }
+  if (work.company.length) add('Company notes', ['Filed in the Company room:', some(work.company, (e) => `- ${e.section}: ${e.name}${e.note ? `. ${e.note}` : ''}`)]);
+  if (hasStory() && happened.length) add('Just now', ['What happened lately, newest first:', happened.map((e) => `- At ${clock(e.at)}: ${e.line}`)]);
+  return out;
+}
+
+const brainWho = (role) => ({ role, name: role === 'assistant' ? org.assistant?.name || '' : deskName(), company: org.company });
+
+// Claude's answer for the receptionist or the assistant, a piece at a time. It throws if there is
+// none, so the rules can answer instead.
+async function* claudeSays(role, text) {
+  try {
+    yield* brain.ask(brainWho(role), text, brainFacts());
+  } catch (error) {
+    console.warn('Arnheim: no answer from Claude.', error.message);
+    throw error;
+  }
+}
+
+// Reads Claude the facts as someone steps up to the receptionist or the assistant, so their first
+// answer comes sooner. The server does nothing if they know them all already.
+const primed = {};
+function primeBrain(role) {
+  if (!brain.on || Date.now() - (primed[role] || 0) < 3000) return;
+  primed[role] = Date.now();
+  brain.prime(brainWho(role), brainFacts());
 }
 
 /* ---------- talking in the walk (voice.js) ---------- */
@@ -303,14 +458,37 @@ const talkItem = (who) => work.conversations.find((c) => convoHref(c) === who.hr
 const isConvo = (item) => work.conversations.includes(item);
 const convoNow = (id) => work.conversations.find((c) => c.id === id) || null;
 
+const TOUR = ['tour', 'show me round', 'show me around', 'look around'];
+
 function poeSays(text) {
-  if (has(norm(text), ['tour', 'show me round', 'show me around', 'look around'])) return `I can show you round from the ${deskTab()} tab, once you leave the walk.`;
+  if (has(norm(text), TOUR)) return `I can show you round from the ${deskTab()} tab, once you leave the walk.`;
   const a = poe.answer(text);
   if (a.offer) return `I can add "${a.offer.title}" as a task from the ${deskTab()} tab, where you pick its project.`;
   const lines = [...a.lines];
   // The things an answer links to belong to its first line, so they are said right after it.
   if (a.links?.length && a.links.length <= 4) lines.splice(1, 0, `${a.links.map((x) => (x.sub ? `${x.title}, on ${x.sub}` : x.title)).join('. ')}.`);
   return lines.join(' ');
+}
+
+// What the receptionist or the assistant says on a walk. With the brain on, Claude answers, a piece at
+// a time, except for what the rules keep (a greeting, a refusal, a message to take down, a tour).
+// If Claude has no answer at all, the rules answer instead.
+function deskSays(role, text) {
+  if (!brain.on || has(norm(text), TOUR)) return poeSays(text);
+  const a = poe.answer(text);
+  if (a.ruled || a.offer) return poeSays(text);
+  return (async function* thought() {
+    let given = false;
+    try {
+      for await (const piece of claudeSays(role, text)) {
+        given = true;
+        yield piece;
+      }
+    } catch (error) {
+      if (given) throw error; // voice.js says the answer was cut off
+      yield poeSays(text);
+    }
+  })();
 }
 
 function sampleReply(item, text) {
@@ -344,11 +522,11 @@ const talk = {
     if (who.href === DESK) {
       const hr = new Date().getHours();
       const hello = hr >= 5 && hr < 12 ? 'Good morning' : hr >= 12 && hr < 18 ? 'Good afternoon' : hr >= 18 && hr < 23 ? 'Good evening' : 'Hello';
-      return `${hello}. Ask me what's happening, or anything about the building.${control.on ? ' I can start an agent on a project too.' : ''}`;
+      return `${hello}. Ask me what's happening, or anything ${brain.on ? 'at all' : 'about the building'}.${control.on ? ' I can start an agent on a project too.' : ''}`;
     }
     if (isAide(who)) {
       const hello = `Hello. I'm ${org.assistant.name}, ${org.founder?.name || 'the founder'}'s assistant.`;
-      return madeUp() ? `${hello} This company is made up, and so am I. Ask me anything about it.` : `${hello} Ask me anything about ${org.company}.`;
+      return madeUp() ? `${hello} This company is made up, and so am I. Ask me anything${brain.on ? '' : ' about it'}.` : `${hello} Ask me anything${brain.on ? '' : ` about ${org.company}`}.`;
     }
     const item = talkItem(who);
     return item ? `Hi. I'm on "${item.title}". Ask me how it's going.` : null;
@@ -361,7 +539,7 @@ const talk = {
         if (start.reply != null) return start.reply;
       }
     }
-    if (who.href === DESK || isAide(who)) return poeSays(text);
+    if (who.href === DESK || isAide(who)) return deskSays(who.href === DESK ? 'receptionist' : 'assistant', text);
     const item = talkItem(who);
     if (item && control.on && isConvo(item)) return agentReply(control, item, text, () => convoNow(item.id));
     return item ? sampleReply(item, text) : "I've finished here, so there's nothing new to tell.";
@@ -776,6 +954,7 @@ function onRoute() {
   controlNote = ''; // a note on the last thing done belongs to the page it was done on
   readRoute();
   if (route.floor !== 'front-desk') poe.stopTour(false);
+  else primeBrain('receptionist');
   render({ nav: true });
   const isFloor = focusBuilding();
   $('view-back').hidden = !isFloor;
@@ -852,8 +1031,8 @@ async function startBuilding() {
       onPick(hit) {
         tip.hidden = true;
         if (hit.company) { location.hash = '#/company'; return; }
-        if (hit.href === DESK) { location.hash = DESK; return; }
-        if (isAide(hit)) return; // she has no page of her own: the talk opens in the walk
+        if (hit.href === DESK) { primeBrain('receptionist'); location.hash = DESK; return; }
+        if (isAide(hit)) { primeBrain('assistant'); return; } // she has no page of her own: the talk opens in the walk
         if (hit.walk) { location.hash = hit.href || `#/${hit.floorId}/${hit.roomId}`; return; }
         if (route.floor !== hit.floorId) { location.hash = `#/${hit.floorId}`; return; }
         location.hash = hit.href || `#/${hit.floorId}/${hit.roomId}`;
@@ -871,7 +1050,7 @@ async function startBuilding() {
     showNotes();
     applyScene();
     focusBuilding();
-    window.__arnheim = { building, model: liveModel, poe, control };
+    window.__arnheim = { building, model: liveModel, poe, control, brain, talk, facts: brainFacts };
   } catch (error) {
     console.error(error);
     building = null;
@@ -1060,7 +1239,7 @@ async function followWork() {
 
 async function boot() {
   try {
-    [org, work] = await readCompany();
+    [[org, work]] = await Promise.all([readCompany(), brain.check()]); // the desk's words depend on the brain
     workSig = JSON.stringify(work);
   } catch (error) {
     console.error(error);

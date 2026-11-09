@@ -7,6 +7,9 @@
 // topics (kit.topics), each a function that answers a question or passes. They only change
 // anything if the page hands over addTask and dropTask, and then only add the task they were
 // asked to add, or drop it again on Undo. They never merge, publish, run jobs or sign in.
+// A page can also answer typed questions in its own way (kit.think): given the question and the
+// rules' answer, it gives the words as they come (an async iterable), or null to keep the rules'
+// answer. If it gives nothing, the rules' answer shows instead.
 
 const WORDS = {
   // What this place is, and more ways people ask about it.
@@ -441,9 +444,32 @@ export function createPoe(kit) {
 
   function ask(text) {
     const a = answer(text);
+    const thought = kit.think?.(text, a);
+    if (thought) { think(text, a, thought); return; }
     log.unshift({ you: text, poe: a });
     draw();
     speak(a.lines.join(' '));
+  }
+
+  // The page's own answer (kit.think), shown as it comes and read aloud once whole. If nothing
+  // comes, the rules' answer instead; if it stops partway, they say so.
+  async function think(text, a, thought) {
+    const entry = { you: text, poe: { lines: ['…'] } };
+    log.unshift(entry);
+    draw();
+    let words = '';
+    try {
+      for await (const piece of thought) {
+        words += String(piece);
+        entry.poe = { lines: [words] };
+        draw();
+      }
+    } catch {
+      if (words.trim()) words += ' (The answer was cut off.)';
+    }
+    entry.poe = words.trim() ? { lines: [words] } : a;
+    draw();
+    speak(entry.poe.lines.join(' '));
   }
 
   function reply(a) {

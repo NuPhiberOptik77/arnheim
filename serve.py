@@ -6,6 +6,8 @@
   python3 serve.py --lan    on phones and other computers on this network too (README, "Phones")
   python3 serve.py --control  and let the page talk to your Claude Code agents, answer their
                             permission requests, and start and stop them (docs/connect.md)
+  python3 serve.py --brain  and let the receptionist and your assistant talk about anything, with
+                            Claude through your own Claude Code (docs/brain.md)
 
 It serves the page and its files from this folder, and nothing else: no other folders, no
 listings, nothing cached, so a change shows on the next reload. Your own company goes in data/
@@ -13,8 +15,8 @@ listings, nothing cached, so a change shows on the next reload. Your own company
 names it was opened by (127.0.0.1 and localhost, and with --lan an IP address or a name ending
 .local), so a web page elsewhere can't read it by pointing a name of its own here.
 It also answers /voice/, the voice the walk's people speak with, if this computer has one
-(voice/bridge.py, and README, "Voice"), and with --control, /control/ (connect/control.py), only
-to the page on this computer: never with --lan.
+(voice/bridge.py, and README, "Voice"), and with --control, /control/ (connect/control.py), and
+with --brain, /brain/ (connect/brain.py), only to the page on this computer: never with --lan.
 """
 import argparse
 import errno
@@ -23,10 +25,12 @@ import io
 import ipaddress
 import json
 import os
+import signal
 import socket
 import sys
 from urllib.parse import unquote
 
+from connect.brain import Brain
 from connect.control import Control
 from voice.bridge import Voice
 
@@ -38,6 +42,7 @@ TYPES = {
     ".jpg": "image/jpeg", ".hdr": "image/vnd.radiance",  # the real materials walk mode loads (vendor/polyhaven)
 }
 PORT_TAKEN = {errno.EADDRINUSE, getattr(errno, "WSAEADDRINUSE", errno.EADDRINUSE)}
+HERE_ONLY = ("127.0.0.1", "::1", "::ffff:127.0.0.1")  # what this computer's own requests come from
 
 
 VOICE = Voice()
@@ -104,7 +109,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             off = name == "token" and method == "GET"
             code, data = (200, {"on": False}) if off else (404, {"error": "Control is off. Start Arnheim with --control to switch it on."})
             kind, data, extra = "application/json; charset=utf-8", json.dumps(data).encode(), {}
-        elif self.client_address[0] not in ("127.0.0.1", "::1", "::ffff:127.0.0.1"):
+        elif self.client_address[0] not in HERE_ONLY:
             code, kind, data, extra = 403, "application/json; charset=utf-8", b'{"error": "Only on this computer."}', {}
         else:
             code, kind, data, extra = control.handle(method, name, body, self.headers.get("X-Arnheim-Control", ""))
@@ -116,6 +121,40 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         return io.BytesIO(data)
 
+    def brain(self, path, body=b""):
+        """/brain/: off unless serve.py was started with --brain, and then only for this computer, as
+        /control/ is. An answer goes back a line at a time, as Claude says it."""
+        method = self.command if self.command != "HEAD" else "GET"
+        name = path[len("/brain/"):]
+        brain = self.server.brain
+        if brain is None:
+            off = name == "status" and method == "GET"
+            code, data = (200, {"on": False}) if off else (404, {"error": "The brain is off. Start Arnheim with --brain to switch it on."})
+            kind, data, extra = "application/json; charset=utf-8", json.dumps(data).encode(), {}
+        elif self.client_address[0] not in HERE_ONLY:
+            code, kind, data, extra = 403, "application/json; charset=utf-8", b'{"error": "Only on this computer."}', {}
+        else:
+            code, kind, data, extra = brain.handle(method, name, body, self.headers.get("X-Arnheim-Brain", ""))
+        self.send_response(code)
+        self.send_header("Content-Type", kind)
+        for header, value in extra.items():
+            self.send_header(header, value)
+        if isinstance(data, bytes):
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            return io.BytesIO(data)
+        self.end_headers()  # no length: the answer ends when the connection closes
+        self.close_connection = True
+        try:
+            for part in data:
+                self.wfile.write(part)
+                self.wfile.flush()
+        except OSError:
+            pass  # the page stopped listening
+        finally:
+            data.close()
+        return None
+
     def do_POST(self):
         path = unquote(self.path.split("?", 1)[0])
         if not self.allowed():
@@ -126,13 +165,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         except ValueError:
             self.send_error(400)
             return
-        known = path.startswith(("/voice/", "/control/"))
+        known = path.startswith(("/voice/", "/control/", "/brain/"))
         if not known or not 0 <= size <= 2_000_000:
             self.send_error(404 if not known else 413)
             return
         body = self.rfile.read(size)
-        reply = self.voice(path, body) if path.startswith("/voice/") else self.control(path, body)
-        self.wfile.write(reply.getvalue())
+        if path.startswith("/brain/"):
+            reply = self.brain(path, body)
+        else:
+            reply = self.voice(path, body) if path.startswith("/voice/") else self.control(path, body)
+        if reply is not None:
+            self.wfile.write(reply.getvalue())
 
     def send_head(self):
         if not self.allowed():
@@ -143,6 +186,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.voice(path)
         if path.startswith("/control/"):
             return self.control(path)
+        if path.startswith("/brain/"):
+            return self.brain(path)
         if path in ("/", "/index.html"):
             path = "/index.html"
         else:
@@ -167,6 +212,7 @@ class Server(http.server.ThreadingHTTPServer):
     request_queue_size = 128  # one page load asks for about 25 files at once
     lan = False
     control = None  # connect/control.py's Control, with --control
+    brain = None  # connect/brain.py's Brain, with --brain
 
 
 def network_address():
@@ -213,11 +259,19 @@ def main():
     parser.add_argument("--lan", action="store_true", help="show it to phones and other computers on this network too")
     parser.add_argument("--control", action="store_true",
                         help="let the page on this computer talk to your Claude Code agents, answer their permission requests, and start and stop them")
+    parser.add_argument("--brain", action="store_true",
+                        help="let the receptionist and your assistant talk about anything, with Claude through your own Claude Code")
     args = parser.parse_args()
     if not 0 < args.port < 65536:
         parser.error("the port is a number from 1 to 65535")
     if args.control and args.lan:
         sys.exit("Control works only on this computer, so it can't go with --lan. Leave out one of them.")
+    if args.brain and args.lan:
+        sys.exit("The brain works only on this computer, so it can't go with --lan. Leave out one of them.")
+    try:
+        brain = Brain(tell=lambda why: print(f"The brain had no answer: {why}", file=sys.stderr, flush=True)) if args.brain else None
+    except ValueError as error:
+        sys.exit(str(error))
     try:
         server = Server(("0.0.0.0" if args.lan else "127.0.0.1", args.port), Handler)
     except OSError as error:
@@ -229,10 +283,15 @@ def main():
         raise
     server.lan = args.lan
     server.control = Control() if args.control else None
+    server.brain = brain
     print(f"Arnheim is at http://127.0.0.1:{args.port}", flush=True)
     if args.control:
         print("Control is on: the page on this computer can talk to your Claude Code agents, answer their "
               "permission requests, and start and stop them (docs/connect.md).", flush=True)
+    if brain:
+        print(f"The brain is on: the receptionist and your assistant answer with Claude ({brain.model}), through "
+              "your own Claude Code and on your own Claude plan. What you ask them goes to Claude with the "
+              "building's facts, and nothing is kept on disk (docs/brain.md).", flush=True)
     if args.lan:
         address = network_address()
         where = f"http://{address}:{args.port}" if address else f"this computer's network address, port {args.port}"
@@ -241,12 +300,15 @@ def main():
     for line in company_note():
         print(line, flush=True)
     print("Ctrl-C stops it.", flush=True)
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))  # stopped by its process id: tidy up as for Ctrl-C
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
         server.server_close()
+        if brain:
+            brain.close()
 
 
 if __name__ == "__main__":

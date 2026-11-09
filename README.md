@@ -72,7 +72,8 @@ light, to read it.
 Everything they know comes from your own files: `company.json` and `work.json`, and the feeds you
 connect ([docs/connect.md](docs/connect.md)). They match the words of your question to what those
 files say. There is no AI and nothing leaves your computer, and when the files don't say, they say
-they don't know.
+they don't know. Switch on the brain, and they answer anything with Claude ("Talk about anything",
+below).
 
 - **Ask them** what needs you, what's running, what's happening on a floor, what a room is for and
   what's in it, about goals, pull requests, websites, email and machines, who runs the company,
@@ -144,6 +145,23 @@ your computer ([docs/connect.md](docs/connect.md), step 4).
 
 Everything stays on your computer.
 
+## Talk about anything
+
+Switch on the brain, and the receptionist and your assistant answer with Claude. Ask them anything,
+out loud on a walk or typed at the front desk, and follow up as you would with a person. About your
+company they still say only what your files say, and when the files don't say, they say so.
+
+```bash
+python3 serve.py --brain
+```
+
+It needs Claude Code installed and signed in on the computer that runs `serve.py`, and it uses your
+own Claude plan: Sonnet, unless `ARNHEIM_BRAIN_MODEL` names another, such as `haiku`. The building's
+facts and what you say to them go to Claude, through your Claude Code, and nothing is kept on disk.
+Greetings, refusals and "remind me to ..." stay with the building's own rules, and they still never
+merge, publish, run jobs or sign in. It is off unless you switch it on, and never works with
+`--lan` ([docs/brain.md](docs/brain.md)).
+
 ## Voice
 
 Optional: without it you type and read, and everything else is the same. The voice runs on the
@@ -189,11 +207,14 @@ you type: browsers only allow the microphone over HTTPS or on the computer itsel
   models were downloaded.
 - **A phone can't open it:** start with `--lan` and use the second address. Guest Wi-Fi often keeps
   devices apart.
+- **The receptionist doesn't answer with Claude:** the terminal that runs `serve.py --brain` says
+  why ([docs/brain.md](docs/brain.md)).
 
 ## More
 
 - [docs/data.md](docs/data.md): every field in the data files.
 - [docs/connect.md](docs/connect.md): connecting Claude Code, git and GitHub.
+- [docs/brain.md](docs/brain.md): the brain, for talking about anything with Claude.
 - [docs/embed.md](docs/embed.md): Arnheim in your own page, with its talk and voice hooks.
 - [CONTRIBUTING.md](CONTRIBUTING.md): how to help. The tests are `python3 -m unittest discover tests`.
 
