@@ -241,7 +241,7 @@ export const ROOMS = {
       g.add(rug, decal(1.1, 1.1, W / 2, D / 2 + 0.15), at(cyl(0.42, 0.42, 0.04, mat(WOOD, { rough: 0.5 }), 24), W / 2, 0.38, D / 2 + 0.15), at(cyl(0.05, 0.07, 0.38, mat(DARK), 10), W / 2, 0, D / 2 + 0.15));
       g.add(decal(0.9, 0.9, W - 0.42, 0.42), at(piece('plant', { height: 1.3 }), W - 0.42, 0, 0.42));
     },
-    // A seat per conversation, with someone in it while the conversation is working now.
+    // A seat per conversation, with someone in it while it works, or waits for you (a blue light).
     fill(g, info, ctx, s) {
       const list = info.items || [];
       const cap = 8;
@@ -262,13 +262,11 @@ export const ROOMS = {
           at(box(0.56, 0.42, 0.1, fabric, { r: 0.04 }), 0, 0.42, -0.24),
         );
         g.add(decal(1, 1, seat.position.x, seat.position.z), seat);
-        if (c.working) {
-          seat.add(buildSeated(identity(c.id), { seat: 0.46, pose: 'chat' })); // the same person for the same id
-          g.add(decal(1.5, 1.5, seat.position.x, seat.position.z, { color: WARM, opacity: 0.3, add: true, y: 0.02 }));
-        }
+        if (c.working || c.check) seat.add(buildSeated(identity(c.id), { seat: 0.46, pose: 'chat' })); // the same person for the same id
+        if (c.working) g.add(decal(1.5, 1.5, seat.position.x, seat.position.z, { color: WARM, opacity: 0.3, add: true, y: 0.02 }));
         if (c.check) seat.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 8), mat(COOL, { emissive: COOL, emissiveIntensity: 2.4 })), 0, 0.98, -0.24));
         ctx.object({ x: seat.position.x, y: 0, z: seat.position.z, w: 0.8, h: 1.05, d: 0.8, title: c.title, sub: c.sub, href: c.href, mood: c.working ? 'working' : c.check ? 'check' : 'quiet',
-          figure: c.working ? { x: seat.position.x, z: seat.position.z, stand: [seat.position.x + (cx - seat.position.x) * 0.55, seat.position.z + (cz - seat.position.z) * 0.55] } : null });
+          figure: c.working || c.check ? { x: seat.position.x, z: seat.position.z, stand: [seat.position.x + (cx - seat.position.x) * 0.55, seat.position.z + (cz - seat.position.z) * 0.55] } : null });
       });
       if (list.length > shown.length) ctx.more(list.length - shown.length, cx, 0.72, cz);
     },

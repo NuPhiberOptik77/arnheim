@@ -463,16 +463,21 @@ export function createWalk(ctx) {
     const open = reach();
     const add = (who, ax, az, sx, sz) => {
       let best = null;
-      let gap = Infinity;
-      for (let i = 0; i < open.length; i++) {
-        if (!open[i]) continue;
-        const q = i % map.cols;
-        const x = map.x0 + (q + 0.5) * CELL;
-        const z = map.z0 + ((i - q) / map.cols + 0.5) * CELL;
-        const away = Math.hypot(x - ax, z - az);
-        if (away < 0.55 || away > 1.9 || spots.some((s) => Math.hypot(x - s.x, z - s.z) < 0.9)) continue;
-        const d = Math.hypot(x - sx, z - sz);
-        if (d < gap) { gap = d; best = { x, z }; }
+      // Near them and apart from the other rings (they touch at 0.8); in a crowded room, a little
+      // further off and closer together, so everyone still has one.
+      for (const [far, apart] of [[2.2, 0.8], [2.9, 0.62]]) {
+        let gap = Infinity;
+        for (let i = 0; i < open.length; i++) {
+          if (!open[i]) continue;
+          const q = i % map.cols;
+          const x = map.x0 + (q + 0.5) * CELL;
+          const z = map.z0 + ((i - q) / map.cols + 0.5) * CELL;
+          const away = Math.hypot(x - ax, z - az);
+          if (away < 0.55 || away > far || spots.some((s) => Math.hypot(x - s.x, z - s.z) < apart)) continue;
+          const d = Math.hypot(x - sx, z - sz);
+          if (d < gap) { gap = d; best = { x, z }; }
+        }
+        if (best) break;
       }
       if (!best) return;
       const ring = new THREE.Mesh(ringGeo, ringIdle);
@@ -653,11 +658,14 @@ export function createWalk(ctx) {
   canvas.addEventListener('pointerup', release, { signal });
   canvas.addEventListener('pointercancel', release, { signal });
 
-  // Tap to talk: tapping someone who has a ring (the receptionist, the founder's assistant) walks you onto it,
+  // Tap to talk: tapping someone who has a ring (the receptionist, the founder's assistant, an agent at
+  // work or waiting for you) walks you onto it,
   // round whatever is in the way, and turns you to face them as you arrive. The talk itself starts
   // as you step in (setTalk), just as if you had walked there.
+  const ringOf = (hit) => spots.find((s) => (hit.href ? s.who.href === hit.href : s.who.title === hit.title)) || null;
+
   function walkToTalk(hit) {
-    const spot = spots.find((s) => s.who.title === hit.title);
+    const spot = ringOf(hit);
     if (!spot) return false;
     if (spot === talking) { showCard(spot.who, true); return true; }
     const way = wayTo(spot.x, spot.z);
@@ -735,7 +743,7 @@ export function createWalk(ctx) {
     if (thing && (!surface || thing.distance <= surface.distance + 0.3)) {
       const hit = thing.object.userData;
       if (hit.lift) { openPicker(); return; }
-      if (hit.talk && walkToTalk(hit)) return;
+      if ((hit.talk || ringOf(hit)) && walkToTalk(hit)) return;
       showCard(hit);
       if (!hit.stay) ctx.onPick?.({ ...hit, walk: true });
       return;
@@ -963,7 +971,17 @@ export function createWalk(ctx) {
     return out.sort((a, b) => a.rank - b.rank).slice(0, 5);
   }
 
-  // Where the walker is, for tests.
+  // A point on this floor (floor-local metres) on the screen, in page pixels, or null behind you.
+  function onScreen(x, y, z) {
+    const p = here.group.position;
+    const v = new THREE.Vector3(p.x + x, p.y + y, p.z + z).project(camera);
+    if (v.z > 1 || Math.abs(v.x) > 1 || Math.abs(v.y) > 1) return null;
+    const box = canvas.getBoundingClientRect();
+    return [Math.round(box.left + ((v.x + 1) / 2) * box.width), Math.round(box.top + ((1 - v.y) / 2) * box.height)];
+  }
+
+  // Where the walker is, for tests, with where the people to talk to and the rooms' openings are
+  // on the screen, to tap.
   function info() {
     const r2 = (n) => Math.round(n * 100) / 100;
     return {
@@ -972,6 +990,8 @@ export function createWalk(ctx) {
       photo: photoState, film: footage.enabled, talk: talking?.who.title || null, rings: spots.map((r) => [r2(r.x), r2(r.z)]),
       voice: voice.info(),
       notes: notes.info(),
+      people: here ? spots.map((s) => ({ title: s.who.title, href: s.who.href || null, at: onScreen(s.ax, 0.9, s.az), ring: onScreen(s.x, 0.03, s.z) })) : [],
+      openings: here ? here.rooms.map((r) => ({ room: r.roomId, x: r2(r.g.position.x + W / 2), z: r2(r.g.position.z + D + 0.8), at: onScreen(r.g.position.x + W / 2, 0, r.g.position.z + D + 0.8) })) : [],
     };
   }
 

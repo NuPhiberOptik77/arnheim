@@ -4,6 +4,8 @@
   python3 serve.py          on this computer only, at http://127.0.0.1:8740
   python3 serve.py 8741     on another port
   python3 serve.py --lan    on phones and other computers on this network too (README, "Phones")
+  python3 serve.py --control  and let the page talk to your Claude Code agents, answer their
+                            permission requests, and start and stop them (docs/connect.md)
 
 It serves the page and its files from this folder, and nothing else: no other folders, no
 listings, nothing cached, so a change shows on the next reload. Your own company goes in data/
@@ -11,7 +13,8 @@ listings, nothing cached, so a change shows on the next reload. Your own company
 names it was opened by (127.0.0.1 and localhost, and with --lan an IP address or a name ending
 .local), so a web page elsewhere can't read it by pointing a name of its own here.
 It also answers /voice/, the voice the walk's people speak with, if this computer has one
-(voice/bridge.py, and README, "Voice").
+(voice/bridge.py, and README, "Voice"), and with --control, /control/ (connect/control.py), only
+to the page on this computer: never with --lan.
 """
 import argparse
 import errno
@@ -24,6 +27,7 @@ import socket
 import sys
 from urllib.parse import unquote
 
+from connect.control import Control
 from voice.bridge import Voice
 
 ROOT = os.path.dirname(os.path.realpath(__file__))  # links resolved, as every file below is
@@ -91,6 +95,27 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         return io.BytesIO(data)
 
+    def control(self, path, body=b""):
+        """/control/: off unless serve.py was started with --control, and then only for this computer."""
+        method = self.command if self.command != "HEAD" else "GET"
+        name = path[len("/control/"):]
+        control = self.server.control
+        if control is None:
+            off = name == "token" and method == "GET"
+            code, data = (200, {"on": False}) if off else (404, {"error": "Control is off. Start Arnheim with --control to switch it on."})
+            kind, data, extra = "application/json; charset=utf-8", json.dumps(data).encode(), {}
+        elif self.client_address[0] not in ("127.0.0.1", "::1", "::ffff:127.0.0.1"):
+            code, kind, data, extra = 403, "application/json; charset=utf-8", b'{"error": "Only on this computer."}', {}
+        else:
+            code, kind, data, extra = control.handle(method, name, body, self.headers.get("X-Arnheim-Control", ""))
+        self.send_response(code)
+        self.send_header("Content-Type", kind)
+        self.send_header("Content-Length", str(len(data)))
+        for header, value in extra.items():
+            self.send_header(header, value)
+        self.end_headers()
+        return io.BytesIO(data)
+
     def do_POST(self):
         path = unquote(self.path.split("?", 1)[0])
         if not self.allowed():
@@ -101,10 +126,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         except ValueError:
             self.send_error(400)
             return
-        if not path.startswith("/voice/") or not 0 <= size <= 2_000_000:
-            self.send_error(404 if not path.startswith("/voice/") else 413)
+        known = path.startswith(("/voice/", "/control/"))
+        if not known or not 0 <= size <= 2_000_000:
+            self.send_error(404 if not known else 413)
             return
-        reply = self.voice(path, self.rfile.read(size))
+        body = self.rfile.read(size)
+        reply = self.voice(path, body) if path.startswith("/voice/") else self.control(path, body)
         self.wfile.write(reply.getvalue())
 
     def send_head(self):
@@ -114,6 +141,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         path = unquote(self.path.split("?", 1)[0].split("#", 1)[0])
         if path.startswith("/voice/"):
             return self.voice(path)
+        if path.startswith("/control/"):
+            return self.control(path)
         if path in ("/", "/index.html"):
             path = "/index.html"
         else:
@@ -137,6 +166,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 class Server(http.server.ThreadingHTTPServer):
     request_queue_size = 128  # one page load asks for about 25 files at once
     lan = False
+    control = None  # connect/control.py's Control, with --control
 
 
 def network_address():
@@ -181,9 +211,13 @@ def main():
     parser = argparse.ArgumentParser(description="Shows Arnheim in a browser.")
     parser.add_argument("port", nargs="?", type=int, default=8740, help="the port to use (8740 if left out)")
     parser.add_argument("--lan", action="store_true", help="show it to phones and other computers on this network too")
+    parser.add_argument("--control", action="store_true",
+                        help="let the page on this computer talk to your Claude Code agents, answer their permission requests, and start and stop them")
     args = parser.parse_args()
     if not 0 < args.port < 65536:
         parser.error("the port is a number from 1 to 65535")
+    if args.control and args.lan:
+        sys.exit("Control works only on this computer, so it can't go with --lan. Leave out one of them.")
     try:
         server = Server(("0.0.0.0" if args.lan else "127.0.0.1", args.port), Handler)
     except OSError as error:
@@ -194,7 +228,11 @@ def main():
             sys.exit(f"This computer won't let Arnheim use port {args.port}. Give one above 1024: python3 serve.py 8740")
         raise
     server.lan = args.lan
+    server.control = Control() if args.control else None
     print(f"Arnheim is at http://127.0.0.1:{args.port}", flush=True)
+    if args.control:
+        print("Control is on: the page on this computer can talk to your Claude Code agents, answer their "
+              "permission requests, and start and stop them (docs/connect.md).", flush=True)
     if args.lan:
         address = network_address()
         where = f"http://{address}:{args.port}" if address else f"this computer's network address, port {args.port}"

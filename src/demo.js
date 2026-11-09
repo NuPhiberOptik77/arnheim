@@ -3,6 +3,7 @@
 // data/company.json is there, and otherwise the sample, a company that is made up (sample/). The
 // sample's work moves on a loop (the story at the end of its work.json), so there is always
 // something to see. Nothing is saved anywhere: a reload reads the files again.
+import { agentControls, agentReply, createControl, deskControls, deskStart } from './control.js';
 import { icon } from './icons.js';
 import { createPoe, has, insertAfter, norm, poeBadge } from './poe-desk.js';
 
@@ -33,6 +34,10 @@ let org = null; // the company map: floors and rooms
 let work = null; // what is going on in it
 let dir = 'sample'; // where they came from: data (your own company) or sample (made up)
 let feeds = []; // files in data/ that tools keep up to date (docs/connect.md)
+// Control of your Claude Code agents, with serve.py --control and your own company (control.js).
+const control = createControl();
+let starting = null; // an agent the receptionist was asked to start, waiting for your word
+let controlNote = ''; // what came of the last thing done from the panel
 const lastFeed = new Map();
 let workSig = ''; // the work as last read, to tell when it has changed
 const mine = []; // tasks the receptionist took down in this tab, kept through each fresh read
@@ -149,7 +154,7 @@ function roomModel(floor, room) {
     };
   }
   if (kind === 'conversations') {
-    const list = work.conversations.filter((c) => c.project === project).sort((a, b) => (!!b.working - !!a.working) || (!!b.check - !!a.check));
+    const list = work.conversations.filter((c) => c.project === project).sort((a, b) => (!!b.working - !!a.working) || (!!b.check - !!a.check) || ((b.at || 0) - (a.at || 0)));
     const working = list.filter((c) => c.working).length;
     const checks = list.filter((c) => c.check).length;
     return {
@@ -295,6 +300,8 @@ function setupDesk() {
 // with no AI; in the sample they are made up, and so is what they say. A page with real agents
 // passes its own answers, and there what you say reaches the agent doing the work.
 const talkItem = (who) => work.conversations.find((c) => convoHref(c) === who.href) || work.tasks.find((t) => taskHref(t) === who.href) || null;
+const isConvo = (item) => work.conversations.includes(item);
+const convoNow = (id) => work.conversations.find((c) => c.id === id) || null;
 
 function poeSays(text) {
   if (has(norm(text), ['tour', 'show me round', 'show me around', 'look around'])) return `I can show you round from the ${deskTab()} tab, once you leave the walk.`;
@@ -337,7 +344,7 @@ const talk = {
     if (who.href === DESK) {
       const hr = new Date().getHours();
       const hello = hr >= 5 && hr < 12 ? 'Good morning' : hr >= 12 && hr < 18 ? 'Good afternoon' : hr >= 18 && hr < 23 ? 'Good evening' : 'Hello';
-      return `${hello}. Ask me what's happening, or anything about the building.`;
+      return `${hello}. Ask me what's happening, or anything about the building.${control.on ? ' I can start an agent on a project too.' : ''}`;
     }
     if (isAide(who)) {
       const hello = `Hello. I'm ${org.assistant.name}, ${org.founder?.name || 'the founder'}'s assistant.`;
@@ -347,11 +354,89 @@ const talk = {
     return item ? `Hi. I'm on "${item.title}". Ask me how it's going.` : null;
   },
   answer(who, text) {
+    if (who.href === DESK) {
+      const start = deskStart(control, text, starting);
+      if (start) {
+        starting = start.pending;
+        if (start.reply != null) return start.reply;
+      }
+    }
     if (who.href === DESK || isAide(who)) return poeSays(text);
     const item = talkItem(who);
+    if (item && control.on && isConvo(item)) return agentReply(control, item, text, () => convoNow(item.id));
     return item ? sampleReply(item, text) : "I've finished here, so there's nothing new to tell.";
   },
+  // With control on: Allow and Deny, or Stop, on an agent's card; Start at the front desk.
+  controls(who) {
+    if (!control.on) return null;
+    if (who.href === DESK) {
+      return deskControls(starting, () => {
+        const start = deskStart(control, 'start it', starting);
+        starting = start?.pending || null;
+        return start?.reply;
+      }, () => { starting = null; return "All right, I won't start it."; });
+    }
+    const item = talkItem(who);
+    return item && isConvo(item) ? agentControls(control, item) : null;
+  },
 };
+
+/* ---------- control in the panel (control.js) ---------- */
+
+function controlDone(promise, said) {
+  promise.then((out) => { controlNote = said(out); render(); }, (error) => { controlNote = error.message; render(); });
+}
+
+// A conversation's page: its permission request with Allow and Deny, a box to say something to
+// it, and Stop while it works.
+function convoControls(c) {
+  const ask = control.askFor(c.id);
+  const run = control.run(c.id);
+  const working = c.working || run?.state === 'working';
+  const send = (event) => {
+    event.preventDefault();
+    const input = event.currentTarget.elements.text;
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    input.blur();
+    controlDone(control.say(c.id, text), (r) => (r.sent === 'resumed' ? 'Sent. It is answering now.'
+      : working ? 'Sent. It reads it at its next step, and its answer shows above.'
+        : 'Sent. It is waiting for you in Claude Code, so it sees this the next time you send it something there.'));
+  };
+  return h('div.control',
+    ask && h('div.control-ask',
+      h('p', `Waiting for your permission: ${ask.what}`),
+      h('div.control-row',
+        btn('Allow', () => controlDone(control.answer(ask.id, 'allow'), () => 'Allowed, just this once.'), '.primary'),
+        btn('Deny', () => controlDone(control.answer(ask.id, 'deny'), () => 'Denied.')))),
+    h('form.control-say', { onsubmit: send },
+      h('input', { name: 'text', type: 'text', maxlength: 2000, autocomplete: 'off', placeholder: 'Say something to it', 'aria-label': `A message for ${c.title}` }),
+      h('button.btn', { type: 'submit' }, 'Send')),
+    working && h('div.control-row', btn('Stop', () => controlDone(control.halt(c.id), () => 'Stopping. It stops at its next step.'))),
+    controlNote && h('p.small.muted', { role: 'status' }, controlNote));
+}
+
+// A floor's Conversations room: start an agent on its project, in its folder.
+function startForm(floor) {
+  const p = control.projects().find((x) => x.project === floor.project);
+  if (!p) return null;
+  const go = (event) => {
+    event.preventDefault();
+    const input = event.currentTarget.elements.text;
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    input.blur();
+    controlDone(control.begin(p.project, text), () => `Started. It shows here once it begins.`);
+  };
+  return h('form.control.control-start', { onsubmit: go },
+    h('h3', 'Start an agent here'),
+    h('textarea', { name: 'text', rows: 3, maxlength: 2000, placeholder: `What should it do on ${floor.label}?`, 'aria-label': `What a new agent on ${floor.label} should do` }),
+    h('div.control-row', h('button.btn.primary', { type: 'submit' }, 'Start')),
+    h('p.small.muted', 'It runs in this project\'s folder with your own Claude Code settings, as if you had started it there.'),
+    controlNote && h('p.small.muted', { role: 'status' }, controlNote));
+}
 
 /* ---------- the panel ---------- */
 
@@ -470,6 +555,7 @@ function viewRoom(floor, room) {
       title(room.label),
       room.about && h('p', room.about),
       ...roomItems(floor, room, info),
+      control.on && kindOf(floor, room) === 'conversations' ? startForm(floor) : null,
     ],
   };
 }
@@ -502,7 +588,7 @@ function viewItem(floor, room, id) {
   }
   if (kind === 'conversations') {
     const c = work.conversations.find((x) => x.id === id && x.project === floor.project);
-    return c ? show(c.title, [['Now', c.working ? 'Working' : c.check ? 'To check' : 'Quiet'], ['Project', c.project]]) : gone();
+    return c ? show(c.title, [['Now', c.working ? 'Working' : c.check ? 'To check' : 'Quiet'], ['Project', c.project], ['Last said', c.says?.now || control.run(c.id)?.said]], control.on ? convoControls(c) : null) : gone();
   }
   if (kind === 'code') {
     const [what, key] = id.split('/');
@@ -687,6 +773,7 @@ function focusBuilding() {
 }
 
 function onRoute() {
+  controlNote = ''; // a note on the last thing done belongs to the page it was done on
   readRoute();
   if (route.floor !== 'front-desk') poe.stopTour(false);
   render({ nav: true });
@@ -784,7 +871,7 @@ async function startBuilding() {
     showNotes();
     applyScene();
     focusBuilding();
-    window.__arnheim = { building, model: liveModel, poe };
+    window.__arnheim = { building, model: liveModel, poe, control };
   } catch (error) {
     console.error(error);
     building = null;
@@ -1014,6 +1101,17 @@ async function boot() {
   setInterval(step, Math.max(2, Number(work.every) || 6) * 1000);
   setInterval(tick, 1000);
   if (dir === 'data') setInterval(followWork, FOLLOW_MS);
+  if (dir === 'data' && !madeUp()) {
+    // Control is off unless serve.py says it is on; then the panel follows what waits for you.
+    let seen = '';
+    control.watch((s) => {
+      const sig = JSON.stringify([s.on, s.asks.map((a) => a.id), s.runs.map((r) => [r.key, r.state, r.answered]), s.projects.length]);
+      if (sig === seen) return;
+      seen = sig;
+      refresh();
+    });
+    control.start();
+  }
 }
 
 boot();

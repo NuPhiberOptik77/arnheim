@@ -85,6 +85,45 @@ class ServeTest(unittest.TestCase):
         self.assertEqual(self.ask("/voice/wake", method="POST", headers={"Origin": own, "Content-Length": "many"})[0], 400)
         self.assertEqual(self.ask("/sample/company.json", method="POST", headers={"Origin": own}, body=b"")[0], 404)
 
+    def test_control_is_off_unless_asked(self):
+        status, body = self.ask("/control/token")
+        self.assertEqual((status, json.loads(body)), (200, {"on": False}))
+        own = f"http://127.0.0.1:{self.port}"
+        self.assertEqual(self.ask("/control/state")[0], 404)
+        self.assertEqual(self.ask("/control/say", method="POST", headers={"Origin": own}, body=b"{}")[0], 404)
+
+
+class ControlServeTest(ServeTest):
+    """With --control: only its own page on this computer, and only with the page's token."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.server.control = serve.Control()
+
+    def test_control_is_off_unless_asked(self):
+        status, body = self.ask("/control/token")
+        token = json.loads(body)["token"]
+        self.assertEqual(status, 200)
+        self.assertEqual(self.ask("/control/token", host=f"example.com:{self.port}")[0], 403)
+        self.assertEqual(self.ask("/control/state")[0], 403)
+        self.assertEqual(self.ask("/control/state", headers={"X-Arnheim-Control": "guess"})[0], 403)
+        self.assertEqual(self.ask("/control/state", headers={"X-Arnheim-Control": token})[0], 200)
+        own = f"http://127.0.0.1:{self.port}"
+        body = json.dumps({"key": "cc-nobody", "text": "hi"}).encode()
+        for origin in ("http://example.com", None):
+            headers = {"X-Arnheim-Control": token, **({"Origin": origin} if origin else {})}
+            self.assertEqual(self.ask("/control/say", method="POST", headers=headers, body=body)[0], 403, origin)
+        status, reply = self.ask("/control/say", method="POST", headers={"X-Arnheim-Control": token, "Origin": own}, body=body)
+        self.assertEqual(status, 400)  # its own page, but no such conversation
+        self.assertIn("left the building", json.loads(reply)["error"])
+
+    def test_never_with_lan(self):
+        import subprocess
+        done = subprocess.run([sys.executable, os.path.join(ROOT, "serve.py"), "--control", "--lan", "8765"], capture_output=True, text=True, timeout=20)
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn("only on this computer", done.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

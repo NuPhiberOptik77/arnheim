@@ -14,8 +14,12 @@ keeps data/feeds/claude-code.json up to date for the page, which reads it every 
 
 It keeps a title for each conversation (its own, or the first line of your first message), the
 first sentences of the last thing Claude said, your latest message's first words and task titles,
-all in data/, on this computer. It prints nothing, never stops Claude Code, and always ends well:
-any trouble goes to data/feeds/claude-code.log. Standard library only.
+all in data/, on this computer. Any trouble goes to data/feeds/claude-code.log, and Claude carries on.
+
+With control switched on (serve.py --control, and connect/control.py), it also hands Claude what you
+say to it in the building, at its next step; while the building is open, it shows a permission
+Claude asks for there and waits a while for your answer; and it stops Claude when you ask. Otherwise
+it prints nothing, so Claude Code goes on as if it weren't there. Standard library only.
 """
 import json
 import os
@@ -24,6 +28,9 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, HERE)
+import control  # noqa: E402  (beside this file: what the building has for Claude Code)
+
 DATA = os.environ.get("ARNHEIM_DATA") or os.path.join(os.path.dirname(HERE), "data")
 FEED = os.path.join(DATA, "feeds", "claude-code.json")
 LOG = os.path.join(DATA, "feeds", "claude-code.log")
@@ -96,8 +103,12 @@ def key_of(event):
     return "cc-" + re.sub(r"[^A-Za-z0-9]", "", str(event["session_id"]))[:12]
 
 
-def change(event, feed, project, now):
-    """What this event changes in the feed's conversations and tasks."""
+def change(event, feed, project, now, extra=None):
+    """What this event changes in the feed's conversations and tasks. `extra` says what the
+    building's control did: handed over a message (heard), had Claude go on rather than stop
+    (going_on), stopped it (stopped), or asks for your permission (asking); or that the
+    conversation was started from the building (started_here), so it stays when it ends."""
+    extra = extra or {}
     name = event.get("hook_event_name")
     key = key_of(event)
     talks = [c for c in feed.get("conversations") or [] if isinstance(c, dict)]
@@ -109,11 +120,12 @@ def change(event, feed, project, now):
             return True
 
     gone = {c.get("id") for c in talks if old(c)}
-    if name == "SessionEnd":
+    ends = name == "SessionEnd" and not extra.get("started_here")  # one started from the building stays, to talk to
+    if ends:
         gone.add(key)
     talks = [c for c in talks if c.get("id") not in gone]
     tasks = [t for t in tasks if t.get("session") not in gone]
-    if name == "SessionEnd":
+    if ends:
         return talks, tasks
 
     talk = next((c for c in talks if c.get("id") == key), None)
@@ -135,13 +147,18 @@ def change(event, feed, project, now):
     def drop(tid):
         tasks[:] = [t for t in tasks if t.get("id") != tid]
 
-    if name == "SessionStart" and event.get("source") in (None, "startup", "clear"):
+    if name == "SessionEnd":
+        talk.update(working=False)
+    elif name == "SessionStart" and event.get("source") in (None, "startup", "clear"):
         talk.update(working=False, check=False)
     elif name == "UserPromptSubmit":
         said = line(event.get("prompt"), 100)
         if talk["title"] == NEW and said:
             talk["title"] = line(event.get("prompt"), 70)
         talk.update(working=True, check=False, says={"now": f'I\'m working on what you asked: "{said}".' if said else "I'm working on it."})
+        drop(ask)
+    elif name == "PostToolUse" and extra.get("stopped"):
+        talk.update(working=False, check=True, says={"now": "I stopped, as you asked.", "next": "It's your turn now."})
         drop(ask)
     elif name == "PostToolUse":
         talk.update(working=True, check=False)
@@ -168,19 +185,35 @@ def change(event, feed, project, now):
             task(ask, title=f"{talk['title']}: {message}", status="needs_you", note=message)
         elif kind == "idle_prompt":
             talk.update(working=False, check=True)
+    elif name == "PermissionRequest":
+        message = line(f"I'm waiting for your permission: {extra.get('asking') or event.get('tool_name') or 'a tool'}", 140)
+        talk.update(working=False, check=True)
+        talk["says"] = {**talk.get("says", {}), "needs": f"{message}."}
+        task(ask, title=line(f"{talk['title']}: {message}", 120), status="needs_you", note=message)
+    elif name == "Stop" and extra.get("going_on"):  # it has your message to answer first
+        said = sentences(event.get("last_assistant_message"))
+        talk.update(working=True, check=False)
+        if said:
+            talk["says"] = {"now": said}
+        drop(ask)
     elif name == "Stop":
         said = sentences(event.get("last_assistant_message"))
         talk.update(working=bool(event.get("background_tasks")), check=True,
                     says={"now": said or "I've finished for now.", "next": "It's your turn now."})
+        if talk.get("heard"):  # what it just said answers your message
+            talk["answered"] = talk.pop("heard")
+        talk["stopped"] = now
         drop(ask)
     elif name == "TaskCreated" and event.get("task_id"):
         task(f"{key}-t{event['task_id']}", title=line(event.get("task_subject") or "A task", 90), status="open")
     elif name == "TaskCompleted" and event.get("task_id"):
         drop(f"{key}-t{event['task_id']}")
+    if extra.get("heard"):
+        talk["heard"] = extra["heard"]
     return talks, tasks
 
 
-def update(event):
+def update(event, extra=None):
     if not event.get("session_id"):
         return
     project = project_for(event.get("cwd"))
@@ -199,7 +232,7 @@ def update(event):
             project = seat and seat.get("project")
             if not project:
                 return
-        talks, tasks = change(event, feed, project, time.time())
+        talks, tasks = change(event, feed, project, time.time(), extra)
         out = {
             "about": "Kept up to date by connect/claude_code.py, from Claude Code's hooks (docs/connect.md). Safe to delete.",
             "conversations": talks,
@@ -211,19 +244,77 @@ def update(event):
         os.replace(part, FEED)  # whole, so the page never reads half a file
 
 
+def note(error):
+    """Trouble goes to the log, never to Claude Code."""
+    try:
+        os.makedirs(os.path.dirname(LOG), exist_ok=True)
+        mode = "w" if os.path.isfile(LOG) and os.path.getsize(LOG) > 100_000 else "a"
+        with open(LOG, mode, encoding="utf-8") as handle:
+            handle.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {type(error).__name__}: {error}\n")
+    except OSError:
+        pass
+
+
+def keep(event, extra=None):
+    try:
+        update(event, extra)
+    except Exception as error:  # the feed's trouble never costs Claude your message or answer
+        note(error)
+
+
+def respond(event):
+    """Keeps the feed up to date, and gives what Claude Code should hear back, if anything: your
+    messages from the building, your answer there to a permission, or your request to stop.
+    None means nothing: Claude Code carries on as usual."""
+    name = event.get("hook_event_name")
+    if not event.get("session_id"):
+        return None
+    key = key_of(event)
+    box = control.Box(DATA)
+    if name == "PermissionRequest":
+        tool = str(event.get("tool_name") or "a tool")
+        what = control.describe(tool, event.get("tool_input"))
+        keep(event, {"asking": what})
+        got = control.await_answer(box, key, tool, what)
+        if got == "allow":  # this one request, as it was shown: never a rule for later ones
+            return {"hookSpecificOutput": {"hookEventName": name, "decision": {"behavior": "allow"}}}
+        if got in ("deny", "stop"):
+            decision = {"behavior": "deny", "message": "Denied from Arnheim, the building." if got == "deny" else "Stopped from Arnheim, the building."}
+            if got == "stop":
+                decision["interrupt"] = True
+            return {"hookSpecificOutput": {"hookEventName": name, "decision": decision}}
+        return None
+    stop = box.stopping(key) if name in ("PostToolUse", "UserPromptSubmit", "Stop") else False
+    if stop and name == "PostToolUse":
+        keep(event, {"stopped": True})
+        return {"continue": False, "stopReason": "Stopped from Arnheim, the building."}
+    # A new message from you, or a turn that ends anyway, spends a request to stop.
+    rows = box.take(key) if name in ("PostToolUse", "UserPromptSubmit") or (name == "Stop" and not stop) else []
+    if not rows:
+        keep(event, {"started_here": os.path.exists(box.path("runs", key + ".json"))} if name == "SessionEnd" else None)
+        return None
+    heard = rows[-1].get("id")
+    if name == "Stop":
+        keep(event, {"heard": heard, "going_on": True})
+        return {"decision": "block", "reason": control.message(rows, stopping=True)}
+    keep(event, {"heard": heard})
+    return {"hookSpecificOutput": {"hookEventName": name, "additionalContext": control.message(rows)}}
+
+
 def main():
+    out = None
     try:
         raw = sys.stdin.read()
         event = json.loads(raw) if raw.strip() else {}
         if isinstance(event, dict):
-            update(event)
+            out = respond(event)
     except Exception as error:  # never trouble Claude Code: note it and carry on
+        note(error)
+    if out:
         try:
-            os.makedirs(os.path.dirname(LOG), exist_ok=True)
-            mode = "w" if os.path.isfile(LOG) and os.path.getsize(LOG) > 100_000 else "a"
-            with open(LOG, mode, encoding="utf-8") as handle:
-                handle.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {type(error).__name__}: {error}\n")
-        except OSError:
+            sys.stdout.write(json.dumps(out, ensure_ascii=False))
+            sys.stdout.flush()
+        except (OSError, ValueError):
             pass
     sys.exit(0)
 

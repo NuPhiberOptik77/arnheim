@@ -53,10 +53,11 @@ Each person in the building has a ring of light on the floor beside them. Step i
 conversation opens, with no button to press. Type, or turn on **Voice** to speak and hear them
 answer aloud ("Voice", below).
 
-- **Your agents.** Someone sits at a desk or in a chair while work is being done. Ask how it's
-  going, what's next, or whether they need you. In the sample they answer from lines written for
-  them in `sample/work.json`. Connected to Claude Code, they tell you what Claude last said. A page
-  of your own can pass your words on to the agent doing the work ([docs/embed.md](docs/embed.md)).
+- **Your agents.** Someone sits at a desk or in a chair while work is being done, or while they
+  wait for you. Tap them to walk up. Ask how it's going, what's next, or whether they need you. In
+  the sample they answer from lines written for them in `sample/work.json`. Connected to Claude
+  Code, they tell you what Claude last said, and with control on, what you say reaches the agent
+  itself (below).
 - **The receptionist**, at the front desk on a walk and in the panel under their name, knows the
   whole company (below). On a walk, talk to them out loud like anyone else: turn on Voice, step
   into their ring and ask.
@@ -135,6 +136,11 @@ pull requests. Three steps, all in [docs/connect.md](docs/connect.md):
    `feeds`.
 2. Add Arnheim's hooks to Claude Code's settings.
 3. For git and GitHub, run `python3 connect/projects.py --every 60` beside `serve.py`.
+
+Then, if you like, switch on control: start Arnheim with `python3 serve.py --control`, and from
+the building you can talk to your agents for real, answer their permission requests with Allow or
+Deny, stop them, and start new ones on a project, by typing or out loud. It answers only the page on
+your computer ([docs/connect.md](docs/connect.md), step 4).
 
 Everything stays on your computer.
 

@@ -55,6 +55,8 @@ more). Only `answer` is needed:
   the words. If it fails, the server listens.
 - `headers()`: headers for the voice server, such as a page token.
 - `base`: where the voice server is, if not `../voice/` beside `src`.
+- `controls(who)`: buttons for their card while you stand with them, as
+  `{ note, buttons: [{ label, run }] }`, or null. `run` gives what they say about it after.
 
 `who` is the person: `{ title, href }`. The receptionist's `href` is `#/front-desk` and the
 assistant's `#/assistant`, unless the map gives them another; anyone else's is what they are
@@ -62,6 +64,15 @@ working on. Without `talk`, the rings only open what someone is working on.
 
 The voice is a few requests under `/voice/`. `serve.py` answers them, and so can a server of your
 own: `voice/bridge.py` is standard-library Python, with one call (`Voice.handle`) for all of them.
+
+## Controlling agents
+
+`src/control.js` is the page's side of controlling Claude Code agents ([connect.md](connect.md),
+step 4). `createControl({ base, headers })` talks to the server, by default `../control/` beside
+`src`. `agentReply` and `agentControls` give an agent's answers and card buttons for `talk`, and
+`deskStart` and `deskControls` let the receptionist start agents; `src/demo.js` shows how. On the
+server, `connect/control.py` is standard-library Python with one call (`Control.handle`) for every
+request, as the voice has. Answer it only for the page on this computer.
 
 ## Serving it
 

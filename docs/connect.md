@@ -1,9 +1,10 @@
 # Connect it to your work
 
 Arnheim can follow your real work as it happens. Connect it to Claude Code, and each conversation
-you have with Claude in one of your projects shows on that project's floor. Connect it to git and
-GitHub, and each project's unsaved changes and open pull requests show in its Code room. Anything
-else that can write a small file can join in too.
+you have with Claude in one of your projects shows on that project's floor. Switch on control, and
+you can talk to those agents for real, answer their permission requests, and start and stop them
+from the building. Connect it to git and GitHub, and each project's unsaved changes and open pull
+requests show in its Code room. Anything else that can write a small file can join in too.
 
 Everything stays on your computer. The connectors write into `data/feeds/`, inside the `data/`
 folder that git ignores, and the page reads them from there every few seconds, so the building
@@ -13,7 +14,8 @@ follows along without a reload.
 
 - **A seat for each Claude Code conversation**, in the project's Conversations room, named after
   the conversation, or after the first line of your first message.
-- **Someone in the seat while Claude works**, and the room lit warm.
+- **Someone in the seat while Claude works**, and the room lit warm. They stay seated while it
+  waits for you.
 - **An amber desk when Claude needs you**: when it asks for your permission or asks you something,
   a desk in the Work room says what it is waiting for, the floor says "Needs you", and the receptionist lists it
   when you ask what needs you. It goes as soon as you answer.
@@ -22,8 +24,8 @@ follows along without a reload.
   tasks leave. Newer Claude models keep no written task list unless you ask for one: start Claude
   Code with `CLAUDE_CODE_ENABLE_TODO_TOOLS=1 claude` to have it keep one.
 - **The conversation talks**: on a walk, stand at its ring and ask how it's going, and it answers
-  with the first sentences of the last thing Claude said. What you say in the walk doesn't reach
-  Claude: the page only shows.
+  with the first sentences of the last thing Claude said. Unless control is on (step 4), what you
+  say there doesn't reach Claude: the page only shows.
 - **From git**: a crate in the Code room when a project has changes not yet committed, with how
   many. **From GitHub**: a book for each open pull request.
 
@@ -110,6 +112,40 @@ Every minute it counts each floor folder's changes that are not yet committed an
 never changes a repository. `--no-github` leaves out pull requests, and without `--every` it looks
 once.
 
+## 4. Control your agents from the building
+
+Optional, and off unless you switch it on. Then the person at this computer can:
+
+- **Talk to an agent.** What you type or say in its ring on a walk, or send from its page in the
+  panel, reaches its Claude Code conversation at its next step, and its answer comes back to you.
+  An agent waiting for you in Claude Code sees it the next time you send it something there.
+- **Answer its permission requests.** When it asks to run a command or change a file, the request
+  shows on its card in the walk and on its page in the panel, with Allow and Deny. In its ring you
+  can also say "allow" or "deny". An answer is for that one request only. If nobody answers within
+  two minutes, or the building is closed, Claude Code asks as it always does.
+- **Stop it.** Stop on its card, or say "stop": it stops at its next step.
+- **Start one.** In a floor's Conversations room, or by asking the receptionist ("start an agent on
+  Lantern to fix the login page", then "start it"). It runs in the floor's folder with your own
+  Claude Code settings, as if you had started it there, and stays in the building to talk to.
+
+To switch it on, connect Claude Code (step 2) and add one more hook beside those, for permission
+requests. It waits for your answer, so it gets a longer time limit:
+
+```json
+"PermissionRequest": [{ "hooks": [{ "type": "command", "command": "python3 /path/to/arnheim/connect/claude_code.py", "timeout": 150 }] }]
+```
+
+Then start Arnheim with `--control`:
+
+```bash
+python3 serve.py --control
+```
+
+Control answers only the page on the computer that runs `serve.py`, with the token that page is
+given, and never works with `--lan`. Starting agents needs Claude Code's `claude` command
+(`ARNHEIM_CLAUDE` names another). `ARNHEIM_CONTROL_WAIT` sets how long a permission request waits
+for an answer in the building, in seconds: keep the hook's `timeout` above it.
+
 ## What is kept, and where
 
 The connectors write `data/feeds/claude-code.json` and `data/feeds/projects.json`. From Claude Code
@@ -118,7 +154,12 @@ words of your latest message; the first sentences of the last thing Claude said;
 for; and its task titles. Nothing else from the conversation is kept, and nothing leaves this
 computer, unless you serve Arnheim with `--lan`, when anyone on your network can open it.
 
-A conversation leaves the building when it ends, or after twelve hours with no word from it.
+With control on, your messages wait in `data/control/` until Claude takes them, a permission
+request and its answer are deleted once it is answered, and each agent started from the building
+keeps its last words there.
+
+A conversation leaves the building when it ends, or after twelve hours with no word from it. One
+started from the building stays until then, to talk to.
 Delete the files to start afresh. If the Claude Code connector meets any trouble, it writes it to
 `data/feeds/claude-code.log` and lets Claude carry on.
 

@@ -18,6 +18,9 @@
 //                            at 16 kHz), it resolves to the words. If it fails, the server listens.
 //   headers()                optional: headers for the page's own server, such as a page token
 //   base                     optional: where the voice server is (by default ../voice/ beside src)
+//   controls(who)            optional: buttons for the card while you stand with them, as
+//                            { note, buttons: [{ label, run }] }, or null for none. `run` gives what
+//                            they say about it after (control.js: Allow, Deny, Stop, Start)
 
 import { icon } from './icons.js';
 
@@ -152,7 +155,9 @@ export function createVoice({ hud, card, ctx, el, button, signal }) {
   const send = el('button', 'aw-btn', 'Ask');
   send.type = 'submit';
   form.append(input, send);
-  box.append(said, line, form);
+  const acts = el('div', 'aw-acts');
+  acts.hidden = true;
+  box.append(said, line, acts, form);
   box.hidden = !talk;
   card.append(box);
   form.addEventListener('submit', (event) => {
@@ -199,6 +204,37 @@ export function createVoice({ hud, card, ctx, el, button, signal }) {
     else text = 'Listening. Just speak.';
     line.textContent = text;
     line.className = `aw-mic aw-${state}`;
+  }
+
+  // The page's buttons for whoever is in the ring (talk.controls), looked at again every second
+  // while you stand there: Allow and Deny while an agent waits for your permission, and so on.
+  let actsSig = '';
+  let actsTimer = 0;
+  function drawActs() {
+    let c = null;
+    try { c = who ? talk?.controls?.(who) || null : null; } catch (error) { console.warn('Arnheim: no controls.', error); }
+    const sig = c ? JSON.stringify([keyOf(who), c.note || '', (c.buttons || []).map((b) => b.label)]) : '';
+    if (sig === actsSig) return;
+    actsSig = sig;
+    acts.replaceChildren();
+    acts.hidden = !c;
+    if (!c) return;
+    if (c.note) acts.append(el('p', 'aw-act-note', c.note));
+    for (const b of c.buttons || []) {
+      const node = button(b.label, async () => {
+        node.disabled = true;
+        const asked = who;
+        let out = null;
+        try { out = await b.run(); } catch (error) { out = error?.message || null; }
+        if (out && keyOf(asked) === keyOf(who)) {
+          add({ them: String(out) });
+          say(String(out));
+        }
+        actsSig = '';
+        drawActs();
+      }, b.label);
+      acts.append(node);
+    }
   }
 
   function drawLog() {
@@ -424,6 +460,8 @@ export function createVoice({ hud, card, ctx, el, button, signal }) {
     split.end();
     reply = entry.them;
     settle(g);
+    actsSig = '';
+    drawActs();
   }
 
   /* ---------- listening: the microphone, only while someone is in a ring with the voice on ---------- */
@@ -548,6 +586,10 @@ export function createVoice({ hud, card, ctx, el, button, signal }) {
     hush();
     stopEar();
     who = next;
+    clearInterval(actsTimer);
+    actsSig = '';
+    drawActs();
+    if (who && talk.controls) actsTimer = setInterval(drawActs, 1000);
     if (!who) { mode = 'idle'; return; }
     input.placeholder = `Type to ${nameOf(who)}`;
     input.setAttribute('aria-label', `Say something to ${nameOf(who)}`);
@@ -577,6 +619,7 @@ export function createVoice({ hud, card, ctx, el, button, signal }) {
     hush();
     stopEar();
     clearTimeout(poll);
+    clearInterval(actsTimer);
     box.remove();
     toggle.remove();
     audio?.close?.().catch(() => {});
