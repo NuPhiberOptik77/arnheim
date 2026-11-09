@@ -224,3 +224,5 @@ Arnheim is named after Edgar Allan Poe's story "The Domain of Arnheim". MIT lice
 builds on [House Control](https://github.com/0xProbabillity/house-control) (MIT), Three.js (MIT)
 and Lucide icons (ISC), and its photographed materials are CC0, from Poly Haven. Their notices are
 in `THIRD_PARTY_NOTICES.md`.
+
+Made by Alistair Akrofi-Mantey Abram at [Allwhen Labs](https://allwhengroup.com).
