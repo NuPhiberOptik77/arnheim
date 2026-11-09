@@ -33,9 +33,16 @@ Press **Walk** to step inside, at the reception.
 
 - **Move** with WASD or the arrow keys on a computer, or the stick on a phone. Drag to look round.
   Tap the floor to walk there.
-- **Change floors** in the lift at the end of each floor. Your office is at the top.
+- **Change floors** in the lift at the end of each floor's hall: walk in and pick a floor. Or use
+  ▲ and ▼ beside the floor's name at the top (Page Up and Page Down on a keyboard), or tap the
+  name for the list of floors. Your office is at the top, the shared machines are in the basement.
 - **Open** anything by tapping it: a desk, a screen, a person.
 - **Leave** with the Leave button or Esc.
+
+A walk round goes like this. You start at reception: step into the ring in front of the
+receptionist and ask what needs you. Take the lift to a floor lit warm, where work is going on.
+Its rooms open onto the hall, and each agent at work has a ring beside them: step in, or tap them,
+and ask how it's going. Then the lift again, to the next floor, or up to your office.
 
 With reduced motion on, the camera keeps still and floors change at once. On a slow computer or
 phone, add `?lite` to the address.
@@ -50,15 +57,32 @@ answer aloud ("Voice", below).
   going, what's next, or whether they need you. In the sample they answer from lines written for
   them in `sample/work.json`. Connected to Claude Code, they tell you what Claude last said. A page
   of your own can pass your words on to the agent doing the work ([docs/embed.md](docs/embed.md)).
-- **The receptionist**, at the front desk, knows the whole company: what needs you, what's
-  running, what each floor and room is for, where the websites and email are. Say "remind me to
-  ..." and they add a task. They answer from your files only, with no AI, and say when they don't
-  know.
+- **The receptionist**, at the front desk on a walk and in the panel under their name, knows the
+  whole company (below).
 - **Your assistant**, at their own desk in your office, if you have one. In the sample they answer
   as the receptionist does; your own page can give them their own answers.
 
 Your office also holds your notes: the newest eight hang in its library. Tap one, or stand in its
 light, to read it.
+
+### What the receptionist knows, and what they can do
+
+Everything they know comes from your own files: `company.json` and `work.json`, and the feeds you
+connect ([docs/connect.md](docs/connect.md)). They match the words of your question to what those
+files say. There is no AI and nothing leaves your computer, and when the files don't say, they say
+they don't know.
+
+- **Ask them** what needs you, what's running, what's happening on a floor, what a room is for and
+  what's in it, about goals, pull requests, websites, email and machines, who runs the company,
+  or what the colours mean.
+- **Take me there**: an answer about something has a link that takes you to it.
+- **Show me round**: in the panel, they take you round the building, floor by floor.
+- **"Remind me to ..."** adds a task. The page Arnheim comes with keeps it in that browser tab
+  only.
+- **Read aloud**, in the panel, has them speak their answers. On a walk, turn on Voice instead.
+
+They never merge, publish, run jobs or sign in. A page of your own can teach them more words and
+topics, or give them answers of its own ([docs/embed.md](docs/embed.md)).
 
 ## Make it yours
 
