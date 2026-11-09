@@ -20,15 +20,6 @@ FIRST = ("af_heart", "af_bella", "af_nicole", "am_michael", "am_fenrir", "bf_emm
 
 
 def main():
-    # Speech is for someone waiting. A server that runs at macOS's background priority hands that on to what
-    # it starts, which made waking about three times and every sentence about five times slower, so leave it.
-    which = getattr(os, "PRIO_DARWIN_PROCESS", 4 if sys.platform == "darwin" else None)
-    if which is not None:
-        try:
-            os.setpriority(which, 0, 0)
-        except OSError:
-            pass
-
     # Keep the answers' channel clean: anything a library prints goes to the log instead.
     proto = os.fdopen(os.dup(1), "wb")
     os.dup2(2, 1)
