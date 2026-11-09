@@ -262,7 +262,7 @@ export function createWalk(ctx) {
       const hit = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.1, 0.6), hitMaterial);
       hit.position.set(entry.poe.x, 1.05, entry.poe.z);
       hit.visible = false;
-      hit.userData = { hit: true, floorId: person.floorId, roomId: person.roomId, href: P.href, title: P.name, sub: 'The receptionist. Tap to talk.' };
+      hit.userData = { hit: true, talk: true, floorId: person.floorId, roomId: person.roomId, href: P.href, title: P.name, sub: 'The receptionist. Tap to talk.' };
       entry.group.add(hit);
       entry.picks.push(hit);
     }
@@ -651,6 +651,68 @@ export function createWalk(ctx) {
   canvas.addEventListener('pointerup', release, { signal });
   canvas.addEventListener('pointercancel', release, { signal });
 
+  // Tap to talk: tapping someone who has a ring (Poe, the founder's assistant) walks you onto it,
+  // round whatever is in the way, and turns you to face them as you arrive. The talk itself starts
+  // as you step in (setTalk), just as if you had walked there.
+  function walkToTalk(hit) {
+    const spot = spots.find((s) => s.who.title === hit.title);
+    if (!spot) return false;
+    if (spot === talking) { showCard(spot.who, true); return true; }
+    const way = wayTo(spot.x, spot.z);
+    if (!way) return false;
+    showCard(hit);
+    me.target = { ...way.shift(), next: way, face: [spot.ax, spot.az] };
+    ctx.wake(2);
+    return true;
+  }
+
+  // The way from here to a spot on this floor: the floor plan's squares, searched outward from where
+  // you stand, then pulled straight wherever nothing is in the way. Null if it can't be reached.
+  function wayTo(tx, tz) {
+    const { cols, rows, x0, z0 } = map;
+    const square = (x, z) => {
+      const q = Math.floor((x - x0) / CELL);
+      const r = Math.floor((z - z0) / CELL);
+      return q < 0 || r < 0 || q >= cols || r >= rows ? -1 : r * cols + q;
+    };
+    const start = square(me.x, me.z);
+    const goal = square(tx, tz);
+    if (start < 0 || goal < 0) return null;
+    const from = new Int32Array(cols * rows).fill(-1);
+    from[start] = start;
+    const queue = [start];
+    for (let head = 0; head < queue.length && from[goal] < 0; head++) {
+      const i = queue[head];
+      const q = i % cols;
+      const r = (i - q) / cols;
+      for (const [nq, nr] of [[q + 1, r], [q - 1, r], [q, r + 1], [q, r - 1]]) {
+        const j = nr * cols + nq;
+        if (nq < 0 || nr < 0 || nq >= cols || nr >= rows || from[j] >= 0) continue;
+        if (blocked(x0 + (nq + 0.5) * CELL, z0 + (nr + 0.5) * CELL)) continue;
+        from[j] = i;
+        queue.push(j);
+      }
+    }
+    if (from[goal] < 0) return null;
+    const squares = [{ x: tx, z: tz }];
+    for (let i = from[goal]; i !== start; i = from[i]) squares.unshift({ x: x0 + ((i % cols) + 0.5) * CELL, z: z0 + (Math.floor(i / cols) + 0.5) * CELL });
+    const clear = (a, b) => {
+      const steps = Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / (CELL / 2));
+      for (let i = 1; i <= steps; i++) if (blocked(a.x + ((b.x - a.x) * i) / steps, a.z + ((b.z - a.z) * i) / steps)) return false;
+      return true;
+    };
+    const points = [];
+    let at = { x: me.x, z: me.z };
+    for (let k = 0; k < squares.length; k++) {
+      let far = k;
+      while (far + 1 < squares.length && clear(at, squares[far + 1])) far += 1;
+      at = squares[far];
+      points.push(at);
+      k = far;
+    }
+    return points;
+  }
+
   function tapAt(x, y) {
     if (ride) return;
     const now = performance.now();
@@ -671,6 +733,7 @@ export function createWalk(ctx) {
     if (thing && (!surface || thing.distance <= surface.distance + 0.3)) {
       const hit = thing.object.userData;
       if (hit.lift) { openPicker(); return; }
+      if (hit.talk && walkToTalk(hit)) return;
       showCard(hit);
       if (!hit.stay) ctx.onPick?.({ ...hit, walk: true });
       return;
@@ -758,10 +821,15 @@ export function createWalk(ctx) {
       wx = (-sin * f + cos * s) * pace;
       wz = (-cos * f - sin * s) * pace;
     } else if (me.target) {
+      // On a way with corners (walkToTalk), each corner is passed on the move, not stopped at.
+      if (me.target.next?.length && Math.hypot(me.target.x - me.x, me.target.z - me.z) < 0.3) {
+        me.target = { ...me.target.next.shift(), next: me.target.next, face: me.target.face };
+      }
+      const last = !me.target.next?.length;
       const dx = me.target.x - me.x;
       const dz = me.target.z - me.z;
       const dist = Math.hypot(dx, dz);
-      if (dist < 0.12) {
+      if (last && dist < 0.12) {
         const them = me.target.face;
         me.target = null;
         if (them) {
@@ -769,12 +837,12 @@ export function createWalk(ctx) {
           me.yawGoal += Math.atan2(Math.sin(turn), Math.cos(turn));
         }
       } else {
-        const pace = Math.min(WALK, 0.3 + dist * 1.4);
+        const pace = last ? Math.min(WALK, 0.3 + dist * 1.4) : WALK;
         wx = (dx / dist) * pace;
         wz = (dz / dist) * pace;
         let face = Math.atan2(-dx, -dz) - me.yawGoal;
         face = Math.atan2(Math.sin(face), Math.cos(face));
-        if (dist > 0.6) me.yawGoal += face * Math.min(1, dt * 2.4);
+        if (dist > 0.6 || !last) me.yawGoal += face * Math.min(1, dt * 2.4);
       }
     }
     const want = Math.hypot(wx, wz);

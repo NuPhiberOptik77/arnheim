@@ -33,7 +33,8 @@ With reduced motion on, the camera keeps still and floors change at once.
 
 A ring of light lies on the floor beside each person at work, and in front of Poe's desk. Stand in
 it and the walk knows who you mean: the ring brightens, a card names them, and the page opens what
-they are working on, as if you had tapped it.
+they are working on, as if you had tapped it. Tap Poe herself and you walk onto her ring, round
+anything in the way, and turn to face her.
 
 At the top of the lift is the founder's office, a floor only the walk has, named after the founder
 in the map ("Ellison's office" in the sample). It is one wide room under a high ceiling, with glass
@@ -42,8 +43,8 @@ two rings of light round a small sun behind it. A cloud of small lights hangs ov
 a library on one side and a lounge on the other. Tap the desk to see whose it is.
 
 If the map names the founder's assistant, she stands at a slim desk of her own on the left as you
-step out of the lift, facing you, with a ring in front of her desk: step in to talk to her as you
-would to Poe. In the sample she is Wren, made up, and answers as Poe does. A page with its own
+step out of the lift, facing you, with a ring in front of her desk: tap her, or step in, to talk to
+her as you would to Poe. In the sample she is Wren, made up, and answers as Poe does. A page with its own
 answers can make her the one who knows everything (see `talk` below).
 
 The founder's newest notes hang in the library there, up to eight cards of lit paper on threads in

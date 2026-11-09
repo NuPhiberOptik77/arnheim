@@ -593,7 +593,7 @@ export function buildPenthouse(storey, { founder = null, assistant = null } = {}
     const hit = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.85, 1.6), new THREE.MeshBasicMaterial());
     hit.position.set(ax - 0.3, 0.92, az);
     hit.visible = false;
-    hit.userData = { hit: true, stay: true, title: assistant.name, sub: `${assistant.title || 'Assistant'}. Step into the ring by her desk to talk.` };
+    hit.userData = { hit: true, stay: true, talk: true, title: assistant.name, sub: `${assistant.title || 'Assistant'}. Tap to talk.` };
     g.add(hit);
     extras.push(hit.material);
     aide = {
