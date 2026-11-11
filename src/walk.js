@@ -1062,6 +1062,8 @@ export function createWalk(ctx) {
   }
 
   // For tests: whether a spot on this floor stops the walker, and the squares they can reach from where they stand.
-  const debug = { blocked: (x, z) => blocked(x, z), reach: () => reach(), map: () => map, me: () => ({ x: me.x, z: me.z }) };
+  const debug = { blocked: (x, z) => blocked(x, z), reach: () => reach(), map: () => map, me: () => ({ x: me.x, z: me.z }),
+    // walks you to a spot on this floor, round whatever is in the way (for tests)
+    go(x, z) { const way = wayTo(x, z); if (way) { me.target = { ...way.shift(), next: way }; ctx.wake(2); } return !!way; } };
   return { update, labels, info, dispose, setNotes: notes.set, debug };
 }

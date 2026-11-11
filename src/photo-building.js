@@ -16,6 +16,7 @@ const PART = 40; // how far the other floors move away while one is out
 const GLIDE = 3; // how far a floor slides out towards you
 const FRONT = -0.33; // the front wall is cut away just inside its inner face
 const CUT = 2.1; // and a floor that is out loses everything above this height: ceiling, lamps, the tops of walls
+const CUT_LOBBY = 3.05; // the lobby keeps its taller wall, with the company's name and mission at the top
 const MAX_PIXEL_RATIO = 1.5;
 const PULSE_MS = 4000;
 const LABEL_ROOM = 1.6;
@@ -329,8 +330,10 @@ export function createPhotoBuilding(canvas, org, { base, onPick, onHover, onStat
     const s = focusStorey();
     const glide = s ? GLIDE * smooth(s.t, 0, 0.6) : 0;
     front.constant = OZ + glide + FRONT;
-    top.constant = s ? s.group.position.y + lerp(s.height + PART, CUT, smooth(s.t, 0.1, 0.95)) : 1e4;
+    top.constant = s ? s.group.position.y + lerp(s.height + PART, cutOf(s), smooth(s.t, 0.1, 0.95)) : 1e4;
   }
+
+  const cutOf = (s) => (s.role === 'lobby' ? CUT_LOBBY : CUT);
 
   function roomWorld(r, out, x = 0, y = 0, z = 0) {
     const p = r.storey.group.position;
@@ -773,12 +776,12 @@ export function createPhotoBuilding(canvas, org, { base, onPick, onHover, onStat
       }
     } else if (!r && s.t > 0.85) {
       for (const room of s.rooms) {
-        out.push({ key: `r:${room.key}`, title: room.label, sub: infoText(room.info), kind: room.mood, align: 'center', room, local: [room.centre[0], CUT + 0.3, room.centre[1]], rank: 0 });
+        out.push({ key: `r:${room.key}`, title: room.label, sub: infoText(room.info), kind: room.mood, align: 'center', room, local: [room.centre[0], cutOf(s) + 0.3, room.centre[1]], rank: 0 });
         for (const m of room.moreChips) out.push({ key: `m:${room.key}:${m.x}`, title: `+${m.count} more`, kind: 'quiet', align: 'center', room, local: [m.x, m.y + 0.25, m.z], rank: 2 });
       }
       if (personRoom?.storey === s) out.push(personLabel(personRoom));
     } else if (r && s.t > 0.85) {
-      out.push({ key: `r:${r.key}`, title: r.label, sub: infoText(r.info), kind: r.mood, align: 'center', room: r, local: [r.centre[0], CUT + 0.4, r.box.z0 + 0.3], rank: 0 });
+      out.push({ key: `r:${r.key}`, title: r.label, sub: infoText(r.info), kind: r.mood, align: 'center', room: r, local: [r.centre[0], cutOf(s) + 0.4, r.box.z0 + 0.3], rank: 0 });
       for (const m of r.moreChips) out.push({ key: `m:${r.key}:${m.x}`, title: `+${m.count} more`, kind: 'quiet', align: 'center', room: r, local: [m.x, m.y + 0.25, m.z], rank: 1 });
       if (r === personRoom) out.push(personLabel(r));
       for (const o of r.objects) {
@@ -1130,7 +1133,9 @@ export function createPhotoBuilding(canvas, org, { base, onPick, onHover, onStat
     // every floor back in the building, whole, while one at a time is walked
     for (const s of storeys) { s.t = s.goalT = 0; s.part = s.goalPart = 0; placeStorey(s); }
     if (outer) outer.visible = false;
-    renderer.clippingPlanes = [];
+    // the cuts stay on (switching three.js's clipping off and on again leaves stale planes behind) but
+    // stand out of the way while you walk
+    front.constant = top.constant = 1e5;
     scene.background = (shells.lobby || shells.floor)?.sky || bgTexture;
     camera.near = 0.05;
     camera.far = 120;
@@ -1161,9 +1166,9 @@ export function createPhotoBuilding(canvas, org, { base, onPick, onHover, onStat
     camera.near = 0.3;
     camera.far = 500;
     camera.fov = 24;
-    renderer.clippingPlanes = [front, top];
     scene.background = bgTexture;
     for (const s of storeys) placeStorey(s);
+    placeCuts();
     for (const room of rooms.values()) tintRoom(room);
     if (outer) outer.visible = true;
     resize();
@@ -1236,6 +1241,7 @@ export function createPhotoBuilding(canvas, org, { base, onPick, onHover, onStat
 
   return {
     setLive, setScene, setTheme, focus, highlight, zoomBy, turn, resetView, wake, where, dispose,
+    debug: () => ({ scene, camera, renderer, storeys }), // for tests in the console; changes nothing by itself
     walk, walking: () => !!walker, walkInfo: () => walker?.info() || null, walkDebug: () => walker?.debug || null,
     setNotes(list) { notes = Array.isArray(list) ? list : []; walker?.setNotes(notes); },
     ready: () => ready,

@@ -362,8 +362,12 @@ def company(col, room, plan, design, style):
     put(P.art(col, 0.9, 1.0, ("#ECE5D8", "#7E8B74", "#2E3B35", "#C9A57B"), 5.3, "blobs", "oak"), x0, run_y, "E", "art", col, z=1.65)
     put(P.table_lamp(col), x0 + 0.225, run_y + 0.86, "E", "lamp", col, z=1.02)
     # the reading corner by the door, out of the photographer's corner opposite (style.json's camera stands there)
-    put(P.lounge_chair(col, "#8E5B32", "leather"), x0 + 0.85, y1 - 1.15, toward(1.0, -1.0), "leather chair", col)
-    put(P.floor_lamp(col, 1.5), x0 + 0.35, y1 - 0.5, "S", "floor lamp", col)
+    if design.get("all_doors_open"):  # the live floor: its door stands open, so the corner moves to the far wall, out of the way in
+        put(P.lounge_chair(col, "#8E5B32", "leather"), x1 - 0.85, y1 - 1.15, toward(-1.0, -1.0), "leather chair", col)
+        put(P.floor_lamp(col, 1.5), x1 - 0.35, y1 - 0.5, "S", "floor lamp", col)
+    else:
+        put(P.lounge_chair(col, "#8E5B32", "leather"), x0 + 0.85, y1 - 1.15, toward(1.0, -1.0), "leather chair", col)
+        put(P.floor_lamp(col, 1.5), x0 + 0.35, y1 - 0.5, "S", "floor lamp", col)
     put(P.plant(col, "fig", 2.0, "#D9D2C6", seed=43), x1 - 0.5, y0 + 0.65, "S", "fig", col)
 
 
