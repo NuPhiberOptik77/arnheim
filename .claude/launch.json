@@ -4,8 +4,22 @@
     {
       "name": "arnheim",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["serve.py"],
+      "runtimeArgs": [
+        "serve.py"
+      ],
       "port": 8740
+    },
+    {
+      "name": "studio-viewer",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8791",
+        "--bind",
+        "127.0.0.1"
+      ],
+      "port": 8791
     }
   ]
 }

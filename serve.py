@@ -35,11 +35,12 @@ from connect.control import Control
 from voice.bridge import Voice
 
 ROOT = os.path.dirname(os.path.realpath(__file__))  # links resolved, as every file below is
-SHOWN = ("src", "sample", "vendor", "data")
+SHOWN = ("src", "sample", "vendor", "data", "baked")  # baked: the photo-real floors (studio/publish.py)
 TYPES = {
     ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
     ".json": "application/json; charset=utf-8",
     ".jpg": "image/jpeg", ".hdr": "image/vnd.radiance",  # the real materials walk mode loads (vendor/polyhaven)
+    ".bin": "application/octet-stream",  # the photo-real floors' shapes (baked/)
 }
 PORT_TAKEN = {errno.EADDRINUSE, getattr(errno, "WSAEADDRINUSE", errno.EADDRINUSE)}
 HERE_ONLY = ("127.0.0.1", "::1", "::ffff:127.0.0.1")  # what this computer's own requests come from

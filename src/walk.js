@@ -251,9 +251,10 @@ export function createWalk(ctx) {
   function hallFor(s) {
     let entry = halls.get(s.id);
     if (entry) return entry;
-    entry = s === penthouse
+    // A building can give its own halls (photo-building.js: the baked floor's corridor, lift and reception).
+    entry = (s !== penthouse && ctx.hallFor?.(s)) || (s === penthouse
       ? buildPenthouse(s, { founder, assistant: ctx.org.assistant || null })
-      : buildHall(s, { company: ctx.org.company, mission: ctx.org.mission });
+      : buildHall(s, { company: ctx.org.company, mission: ctx.org.mission }));
     if (photo) dressHall(entry, photo);
     if (s === penthouse) notes.hang(entry);
     const person = ctx.personRoom;
@@ -272,16 +273,16 @@ export function createWalk(ctx) {
 
   // The rooms open onto the hall: no front walls, and a full wall at the far end.
   function setWalls(s, on) {
-    for (const r of s.rooms) r.walls.s.visible = !on;
+    for (const r of s.rooms) if (r.walls) r.walls.s.visible = !on;
     const last = s.rooms[s.rooms.length - 1];
-    if (last) last.walls.e.scale.y = on ? H : CURB;
+    if (last?.walls) last.walls.e.scale.y = on ? H : CURB;
   }
 
   // The receptionist stands behind the hall's reception desk while you walk, and goes back to their room
   // after. Their room's counter is put away meanwhile, so there is only ever one reception desk.
   function placeReceptionist(on) {
     const room = ctx.personRoom;
-    if (!room?.person || room.storey !== here || !hall?.poe) return;
+    if (!room?.person || room.storey !== here || !hall?.poe || hall.baked) return; // a baked hall's receptionist is already at their desk
     const P = room.spec.person;
     const body = room.person.group;
     if (room.counter) room.counter.visible = !on;
@@ -349,7 +350,7 @@ export function createWalk(ctx) {
     const b = new THREE.Vector3();
     const c = new THREE.Vector3();
     const x0 = hall.west - 0.4;
-    const z0 = -0.4;
+    const z0 = (hall.north ?? 0) - 0.4;
     const cols = Math.ceil((hall.east + 0.4 - x0) / CELL);
     const rows = Math.ceil((hall.front + 0.4 - z0) / CELL);
     const cells = new Uint8Array(cols * rows); // what stops you
@@ -486,7 +487,7 @@ export function createWalk(ctx) {
       spots.push({ ...best, ring, who, ax, az });
     };
     for (const room of here.rooms) {
-      const { x: rx, z: rz } = room.g.position;
+      const { x: rx, z: rz } = room.g?.position || { x: 0, z: 0 }; // a baked floor's rooms are in the floor's own coordinates
       for (const o of room.objects) {
         const f = o.figure;
         if (f) add({ title: o.title, sub: o.sub, href: o.href, floorId: room.floorId, roomId: room.roomId }, rx + f.x, rz + f.z, rx + f.stand[0], rz + f.stand[1]);
@@ -946,10 +947,13 @@ export function createWalk(ctx) {
     const out = [];
     camera.getWorldDirection(ahead);
     for (const room of here.rooms) {
-      ctx.roomWorld(room, v, W / 2, H - 0.3, D + 0.02);
+      // over a drawn room's open front; over the middle of a baked one
+      const local = room.g ? [W / 2, H - 0.3, D + 0.02] : [room.centre[0], 2.3, room.centre[1]];
+      const seenAt = room.g ? [room.g.position.x + W / 2, D + 0.02] : room.centre;
+      ctx.roomWorld(room, v, ...local);
       const d = v.distanceTo(camera.position);
-      if (d > 16 || v.sub(camera.position).normalize().dot(ahead) < 0.35 || !inView(room.g.position.x + W / 2, D + 0.02)) continue;
-      out.push({ key: `w:${room.key}`, title: room.label, sub: ctx.infoText(room.info), kind: room.mood, align: 'center', room, local: [W / 2, H - 0.3, D + 0.02], rank: d });
+      if (d > 16 || v.sub(camera.position).normalize().dot(ahead) < 0.35 || !inView(...seenAt)) continue;
+      out.push({ key: `w:${room.key}`, title: room.label, sub: ctx.infoText(room.info), kind: room.mood, align: 'center', room, local, rank: d });
     }
     const person = ctx.personRoom;
     if (hall.poe && person?.storey === here) {
@@ -991,7 +995,10 @@ export function createWalk(ctx) {
       voice: voice.info(),
       notes: notes.info(),
       people: here ? spots.map((s) => ({ title: s.who.title, href: s.who.href || null, at: onScreen(s.ax, 0.9, s.az), ring: onScreen(s.x, 0.03, s.z) })) : [],
-      openings: here ? here.rooms.map((r) => ({ room: r.roomId, x: r2(r.g.position.x + W / 2), z: r2(r.g.position.z + D + 0.8), at: onScreen(r.g.position.x + W / 2, 0, r.g.position.z + D + 0.8) })) : [],
+      openings: here ? here.rooms.map((r) => {
+        const [x, z] = r.g ? [r.g.position.x + W / 2, r.g.position.z + D + 0.8] : r.centre;
+        return { room: r.roomId, x: r2(x), z: r2(z), at: onScreen(x, 0, z) };
+      }) : [],
     };
   }
 
@@ -1054,5 +1061,7 @@ export function createWalk(ctx) {
     });
   }
 
-  return { update, labels, info, dispose, setNotes: notes.set };
+  // For tests: whether a spot on this floor stops the walker, and the squares they can reach from where they stand.
+  const debug = { blocked: (x, z) => blocked(x, z), reach: () => reach(), map: () => map, me: () => ({ x: me.x, z: me.z }) };
+  return { update, labels, info, dispose, setNotes: notes.set, debug };
 }

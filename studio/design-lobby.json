@@ -1,0 +1,75 @@
+{
+  "about": "The lobby's choices the drawing leaves open, as design.json is for the project floor: heights, which rooms are styled, what each room is for and where the building stands. The plan itself (walls, openings, rooms) comes only from the traced data file.",
+  "plan": "out/plan-lobby.json",
+  "site": {
+    "name": "a made-up street in London",
+    "latitude": 51.5
+  },
+  "floor": {
+    "about": "The ground floor, on the street: the lobby under the project floors (D78).",
+    "level": 0,
+    "floor_to_floor": 4.0
+  },
+  "heights": {
+    "ceiling": 3.5,
+    "door_head": 2.6,
+    "window_sill": 0.1,
+    "window_head": 3.3,
+    "small_window_sill": 0.9
+  },
+  "small_window_max_width": 1.5,
+  "rooms": {
+    "RECEPTION": "reception: the receptionist at the desk answers questions about the company; its name and mission on the wall; its websites on a wall of screens behind the desk",
+    "EMAIL": "email: the company's addresses, as pigeonholes (not styled yet)",
+    "SOCIAL MEDIA": "social media: a signboard for each account (not styled yet)",
+    "DOMAINS": "domains: a brass plaque for each domain name (not styled yet)",
+    "LIFT AND STAIRS": "between floors: the way up to every project's floor and down to the basement",
+    "CORRIDOR": "between rooms"
+  },
+  "styled": [
+    "RECEPTION"
+  ],
+  "closed_doors": "every door into a room that is not styled stays shut",
+  "sun": {
+    "about": "The same moment as the project floor (out/sun.json): the photographs show one moment in one building, so the sun is not picked again. Instead the reception desk stands where that sun lands, found by measurement (sun/place_in_sun.py).",
+    "min_elevation_deg": 12,
+    "min_floor_share": 0.08
+  },
+  "subjects": {
+    "about": "The top of what each styled room is for, where the sun should land: plan x0, y0, x1, y1 and height in metres. For the reception, the counter's stone ledge and its lowered end, where visitors meet the receptionist (the worktop behind the ledge is in the counter's own shade). Kept in step with blender/furnish.py.",
+    "RECEPTION": [
+      [
+        9.735,
+        4.395,
+        11.765,
+        4.795,
+        1.05
+      ],
+      [
+        11.77,
+        4.395,
+        12.765,
+        5.275,
+        0.76
+      ]
+    ]
+  },
+  "moment": {
+    "about": "Mid-afternoon in the lobby: Iris, the receptionist, at the lowered end of the desk in the sun, looking up from her screen towards the doors. Her coat today is a quieter plum than the app's.",
+    "company": "sample/company.json",
+    "work": "sample/work.json",
+    "RECEPTION": {
+      "receptionist": true,
+      "turn": -15,
+      "look": -5,
+      "nod": -0.15,
+      "hands": "table",
+      "top": "#57485A",
+      "collar": 1
+    }
+  },
+  "finish": {
+    "about": "The walls' and ceiling's hand-finished plaster: its tone wanders this much either way (materials.plaster).",
+    "plaster_mottle": 0.018
+  }
+}

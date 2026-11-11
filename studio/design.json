@@ -1,0 +1,165 @@
+{
+  "about": "The choices the drawing leaves open: heights, which rooms are styled, what each room is for and where the building stands. The plan itself (walls, openings, rooms) comes only from the traced data file.",
+  "plan": "out/plan.json",
+  "site": {
+    "name": "a made-up street in London",
+    "latitude": 51.5
+  },
+  "floor": {
+    "about": "One project's floor, one storey up. The building keeps a floor for each project, the lobby below and the shared machines in the basement; every project floor uses this plan.",
+    "level": 1,
+    "floor_to_floor": 4.0
+  },
+  "heights": {
+    "ceiling": 3.0,
+    "door_head": 2.3,
+    "window_sill": 0.1,
+    "window_head": 2.8,
+    "small_window_sill": 0.9
+  },
+  "small_window_max_width": 1.5,
+  "rooms": {
+    "GOALS": "goals: what the project is working toward, a flag each on the goals wall (red open, gold reached)",
+    "WORK": "work: the project's tasks, a desk each; a desk glows amber when it needs the founder",
+    "CONVERSATIONS": "conversations: chats where the work is talked through, a seat each at the table",
+    "CODE": "code: open pull requests as books on the shelves, copies of the code with unsaved changes as crates",
+    "COMPANY": "company: money, legal, subscriptions and key dates, a filing cabinet each, round the founder's table",
+    "LIFT AND STAIRS": "between floors: the way to every other project's floor, the lobby and the basement",
+    "CORRIDOR": "between rooms"
+  },
+  "styled": [
+    "GOALS",
+    "WORK",
+    "CONVERSATIONS",
+    "CODE",
+    "COMPANY"
+  ],
+  "closed_doors": "every door into a room that is not styled stays shut",
+  "sun": {
+    "min_elevation_deg": 12,
+    "min_floor_share": 0.08
+  },
+  "subjects": {
+    "about": "The top of what each styled room is for, where the sun should land (D80): plan x0, y0, x1, y1 and height in metres. Kept in step with blender/furnish.py.",
+    "GOALS": [
+      [
+        3.7,
+        4.98,
+        5.6,
+        5.66,
+        0.42
+      ],
+      [
+        4.25,
+        3.8,
+        5.05,
+        4.6,
+        0.36
+      ]
+    ],
+    "CODE": [
+      [
+        1.9,
+        7.835,
+        3.6,
+        8.685,
+        0.74
+      ]
+    ],
+    "CONVERSATIONS": [
+      [
+        1.45,
+        12.855,
+        4.25,
+        13.905,
+        0.74
+      ]
+    ],
+    "WORK": [
+      [
+        8.26,
+        2.2,
+        9.86,
+        5.42,
+        0.74
+      ],
+      [
+        11.86,
+        2.2,
+        13.46,
+        5.42,
+        0.74
+      ],
+      [
+        15.46,
+        2.2,
+        17.06,
+        5.42,
+        0.74
+      ]
+    ],
+    "COMPANY": [
+      [
+        21.58,
+        3.5,
+        22.58,
+        5.7,
+        0.74
+      ]
+    ]
+  },
+  "moment": {
+    "about": "The moment the photographs show, made up like the rest of the sample company: the Studio floor's task 'Write the plan for next year' being worked on at a desk, the founder talking its conversation 'Planning next quarter' through with the agent on it, across the end of the table, the founder's laptop open beside her with the meeting room's door shut (\"shut\": the doors drawn closed at this moment), and the founder's assistant at the Company room's table. Each person's look comes from the sample data, picked the way the 3D app picks it (the founder's from their name), so the photographs and the app show the same people.",
+    "company": "sample/company.json",
+    "WORK": {
+      "id": "s1",
+      "desk": [
+        1,
+        1,
+        -1
+      ]
+    },
+    "CONVERSATIONS": [
+      {
+        "id": "cs1",
+        "seat": [
+          0,
+          "N"
+        ],
+        "turn": -10,
+        "look": 0,
+        "roll": 0.12,
+        "nod": 0.05,
+        "hands": "glass",
+        "mouth": 0.0
+      },
+      {
+        "founder": true,
+        "seat": [
+          0,
+          "S"
+        ],
+        "turn": 0,
+        "look": -5,
+        "hands": "talk",
+        "wear": "shirt",
+        "top": "#E8E2D5",
+        "build": 0.93,
+        "roll": 0.09,
+        "nod": 0.1,
+        "laptop": true
+      }
+    ],
+    "COMPANY": {
+      "assistant": true,
+      "seat": [
+        1,
+        1
+      ],
+      "turn": 28
+    },
+    "shut": [
+      "o3"
+    ]
+  }
+}

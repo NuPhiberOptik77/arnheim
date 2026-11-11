@@ -1024,6 +1024,7 @@ async function startBuilding() {
     const canvas = $('scene').cloneNode(false);
     $('scene').replaceWith(canvas);
     building = createBuilding(canvas, org, {
+      look: params.get('look') || undefined, // ?look=photo: the photo-real building
       talk,
       labels: $('labels'),
       onStatus: onModelStatus,

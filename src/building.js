@@ -12,6 +12,7 @@ import { at, box, cyl, decal, disposeTree, floorMesh, freeze, lampGlow, mat, new
 import { piece } from './three/furniture.js';
 import { D, H, ROOMS, W, paletteFor } from './three/rooms.js';
 import { buildPerson, receptionistSpec } from './three/poe.js';
+import { createPhotoBuilding } from './photo-building.js';
 
 const rad = THREE.MathUtils.degToRad;
 const clamp = THREE.MathUtils.clamp;
@@ -69,7 +70,13 @@ const PLAN_WALLS = [
   { n: FAR, w: INNER, e: CURB, s: CURB },
 ];
 
-export function createBuilding(canvas, org, { onPick, onHover, onStatus, onWalk, onNotes, labels, insets = [64, 44], talk = null }) {
+export function createBuilding(canvas, org, options) {
+  // The photo-real look (photo-building.js): the same calls, drawn from the baked floors.
+  if (options?.look === 'photo') return createPhotoBuilding(canvas, org, options);
+  return createDrawnBuilding(canvas, org, options);
+}
+
+function createDrawnBuilding(canvas, org, { onPick, onHover, onStatus, onWalk, onNotes, labels, insets = [64, 44], talk = null }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'default' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;

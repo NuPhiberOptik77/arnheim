@@ -1,0 +1,112 @@
+{
+ "about": "How each room on the floor is dressed and photographed. Cameras stand level at 1.3 m, verticals straight, like an architectural photographer's.",
+ "GOALS": {
+  "floor": "oak",
+  "cameras": [
+   {
+    "at": [
+     4.04,
+     1.55
+    ],
+    "look": [
+     3.54,
+     6.5
+    ],
+    "lens": 28,
+    "height": 1.0,
+    "exposure": -1.9,
+    "shift_y": 0.0,
+    "fstop": 2.8,
+    "focus": 4.43
+   }
+  ],
+  "goals": [
+   [
+    "Keep the studio small and steady",
+    "open"
+   ],
+   [
+    "Move into a real workshop",
+    "reached"
+   ]
+  ],
+  "goals_about": "The sample company's Studio project's goals (sample/work.json), one card each."
+ },
+ "CODE": {
+  "floor": "oak",
+  "cameras": [
+   {
+    "at": [
+     5.79,
+     7.29
+    ],
+    "look": [
+     0.733,
+     10.52
+    ],
+    "lens": 24,
+    "height": 1.1,
+    "exposure": -1.0,
+    "shift_y": 0.04
+   }
+  ]
+ },
+ "CONVERSATIONS": {
+  "floor": "oak",
+  "cameras": [
+   {
+    "at": [
+     5.7,
+     11.25
+    ],
+    "look": [
+     0.3,
+     14.0
+    ],
+    "lens": 20,
+    "height": 1.25,
+    "exposure": -1.0,
+    "shift_y": -0.05
+   }
+  ]
+ },
+ "WORK": {
+  "floor": "oak",
+  "cameras": [
+   {
+    "at": [
+     9.03,
+     7.8
+    ],
+    "look": [
+     14.96,
+     2.44
+    ],
+    "lens": 26,
+    "height": 1.25,
+    "exposure": -1.1,
+    "shift_y": -0.1,
+    "wb": 4700
+   }
+  ]
+ },
+ "COMPANY": {
+  "floor": "oak",
+  "cameras": [
+   {
+    "at": [
+     23.0,
+     8.75
+    ],
+    "look": [
+     20.9,
+     1.0
+    ],
+    "lens": 20,
+    "height": 1.2,
+    "exposure": -1.0,
+    "shift_y": -0.04
+   }
+  ]
+ }
+}

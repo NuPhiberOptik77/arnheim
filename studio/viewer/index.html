@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arnheim building</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #e9e5de; overflow: hidden; font: 14px/1.4 -apple-system, "Helvetica Neue", Arial, sans-serif; color: #1f1d1a; }
+  canvas { display: block; touch-action: none; }
+  #bar { position: fixed; left: 16px; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; }
+  #floors, #rooms { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  #bar button { border: 0; border-radius: 999px; padding: 8px 14px; background: rgba(255, 255, 255, 0.86); color: #1f1d1a; font: inherit; cursor: pointer; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15); }
+  #bar button[aria-pressed="true"] { background: #1f1d1a; color: #fff; }
+  #bar #floors button:not([aria-pressed="true"]) { background: rgba(233, 229, 222, 0.92); font-weight: 600; }
+  #note { position: fixed; left: 16px; top: 16px; max-width: 420px; padding: 10px 12px; border-radius: 10px; background: rgba(255, 255, 255, 0.86); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15); }
+  #note b { display: block; }
+</style>
+</head>
+<body>
+<div id="note"><b id="where">Arnheim</b><span id="what">Loading the baked floors.</span></div>
+<div id="bar"><div id="floors" aria-label="Floors"></div><div id="rooms" aria-label="Rooms"></div></div>
+<script type="module" src="viewer.js"></script>
+</body>
+</html>

@@ -7,3 +7,6 @@ CLAUDE.local.md
 .claude/settings.local.json
 /.voice
 __pycache__/
+
+# The photo-real floors as the live building loads them: made from studio/out by studio/publish.py
+/baked/
