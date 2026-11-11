@@ -209,6 +209,17 @@ def main():
         for room, specs in json.load(open(o["extra"])).items():
             styles.setdefault(room, {})["cameras"] = specs
     clear()
+    if o["floor"] == "site":  # the outside: the streets, the light wells and the roof (street.py)
+        import street as outside_site
+        basement = json.load(open(os.path.join(STUDIO, "design-basement.json")))
+        outside_site.build(basement)
+        outside_site.roof(None)
+        light(design, sun, calib)
+        render_settings(o["samples"], o["res"])
+        sc = bpy.context.scene
+        sc.view_settings.exposure = design.get("exposure", -1.6)
+        outside_site.bake_site(int(o["bake-size"]), int(o["bake-samples"]))
+        return
     if o["shell"]:  # the live building's floor: every inside door open, so a walk reaches every room
         design = {**design, "all_doors_open": True}
     shell.build_shell(plan, design, styles)

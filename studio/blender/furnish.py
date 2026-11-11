@@ -10,6 +10,7 @@ import math
 import random
 
 import bmesh
+from mathutils import Vector
 
 import json
 import os
@@ -114,8 +115,9 @@ def edge_gaps(plan, axis, at, kinds):
     return sorted(out)
 
 
-def finish(col, plan, design, room):
+def finish(col, plan, design, room, style=None):
     x0, x1, y0, y1 = bounds(room)
+    lights = (style or {}).get("lights", "downlights")
     H = design["heights"]["ceiling"]
     white = M.matte("#F2F0EB", 0.4)
     edges = [("h", y0, x0, x1, +1), ("h", y1, x0, x1, -1), ("v", x0, y0, y1, +1), ("v", x1, y0, y1, -1)]
@@ -146,14 +148,18 @@ def finish(col, plan, design, room):
             mid = (g_lo + g_hi) / 2
             x, y = (mid, at) if axis == "h" else (at, mid)
             put(P.roller_blind(col, g_hi - g_lo + 0.1, 0.06), x, y, face, "blind", col, z=H - 0.02)
-    # recessed downlights on a grid about 2.4 m apart, a sprinkler head beside each
+    # recessed downlights on a grid about 2.4 m apart, a sprinkler head beside each (style "lights": "downlights on"
+    # lights them, as in a room below ground; "battens" hangs LED battens instead, as in a machine room)
     nx = max(1, round((x1 - x0) / 2.4))
     ny = max(1, round((y1 - y0) / 2.4))
     for i in range(nx):
         for j in range(ny):
             x = x0 + (i + 0.5) * (x1 - x0) / nx
             y = y0 + (j + 0.5) * (y1 - y0) / ny
-            put(P.downlight(col), x, y, "S", "downlight", col, z=H)
+            if lights == "battens":
+                put(P.batten(col, 1.5), x, y, "E" if (y1 - y0) > (x1 - x0) else "S", "batten", col, z=H)
+            else:
+                put(P.downlight(col, lit=lights == "downlights on"), x, y, "S", "downlight", col, z=H)
             put(P.sprinkler(col), x + 0.6, y + 0.3, "S", "sprinkler", col, z=H)
 
 
@@ -448,7 +454,245 @@ def reception(col, room, plan, design, style):
     put(P.plant(col, "fig", 1.9, "#E3DDD3", seed=83), x0 + 0.45, 4.8, "S", "fig", col)  # by the door to social media
 
 
-ROOMS = {"GOALS": goals, "CODE": code, "CONVERSATIONS": conversations, "WORK": work, "COMPANY": company, "RECEPTION": reception}
+# ---------- the basement ----------
+
+def library(col, room, plan, design, style):
+    """The Library of third-party code, the length of the west wing: a book on the shelves for each piece of code
+    the company uses or has looked at (the live building puts them there), long reading tables under pendants,
+    low cabinets under the high windows onto the light well, a reading corner at each end."""
+    x0, x1, y0, y1 = bounds(room)
+    H = design["heights"]["ceiling"]
+    # the shelves along the east wall, south of the door in from the corridor
+    for k, yy in enumerate((1.5, 3.05, 4.6, 6.15)):
+        put(P.bookcase(col, 1.5, 2.4, 0.34, 2, 6, tone="#A9825A", seed=81 + k), x1 - 0.34, y0 + yy, "W", "shelves of third-party code", col,
+            live="shelves", slot={"w": 1.5, "h": 2.4, "d": 0.34, "cols": 2, "rows": 6})
+    # low oak cabinets under the west windows, with lamps lit and a few things on them
+    for k, yy in enumerate((3.75, 8.5, 13.0)):
+        put(P.sideboard(col, 1.8, 0.45, 0.72, tone="#A9825A", legs=False), x0 + 0.225, yy, "E", "low cabinet", col)
+        put(P.table_lamp(col, 0.46, "#D9CBB2", lit=True), x0 + 0.24, yy - 0.55, "E", "lamp", col, z=0.72)
+        put(P.plant(col, "snake", 0.45 + 0.08 * k, "#E3DDD3" if k % 2 else "#2E2D2B", seed=60 + k, pot_h=0.16), x0 + 0.24, yy + 0.5, "E", "plant", col, z=0.72)
+    # two long reading tables down the middle, a pendant over each, chairs either side
+    for k, ty in enumerate((y0 + 4.4, y0 + 11.6)):
+        tx = (x0 + 0.45 + x1 - 0.34) / 2
+        put(P.rug(col, 3.6, 2.6, "#7C5A44"), tx, ty, "E", "rug", col)
+        put(P.table(col, 2.6, 1.0, 0.75, top="oak", legs="oak", style="four", tone="#B08A62"), tx, ty, "E", "reading table", col)
+        for i in range(3):
+            yy = ty - 0.85 + i * 0.85
+            put(P.shell_chair(col, "#5D4B3C", tone="#A9825A"), tx - 0.72, yy, "E", "chair", col, turn=0.05 * (i - 1))
+            put(P.shell_chair(col, "#5D4B3C", tone="#A9825A"), tx + 0.72, yy, "W", "chair", col, turn=-0.04 * (i - 1))
+        put(P.pendant_linear(col, 1.8, 3.0 - (0.75 + 0.85), H, "#FFE2BC"), tx, ty, "E", "pendant", col)
+        put(P.notebook(col, "#2F3B36", 0.15, 0.22, open_=True), tx - 0.25, ty - 0.6 + k * 0.4, "E", "open notebook", col, z=0.75, turn=0.2)
+        put(P.mug(col, "#E9E2D6"), tx + 0.3, ty + 0.4 - k * 0.7, "E", "mug", col, z=0.75)
+        put(P.pen(col), tx - 0.1, ty - 0.3 + k * 0.4, "E", "pen", col, z=0.75, turn=0.5)
+    # the south end: two leather chairs and a lamp, turned to each other
+    put(P.rug(col, 2.6, 1.8, "#C9B79C"), (x0 + x1) / 2 - 0.2, y0 + 1.25, "S", "rug", col)
+    put(P.lounge_chair(col, "#7A4A2A", "leather"), x0 + 1.25, y0 + 1.15, toward(1.0, 0.3), "leather chair", col)
+    put(P.lounge_chair(col, "#7A4A2A", "leather"), x0 + 3.55, y0 + 1.15, toward(-1.0, 0.3), "leather chair", col)
+    put(P.table(col, 0.45, 0.45, 0.5, top="black", legs="black", style="pedestal", round_=True), x0 + 2.4, y0 + 0.85, "S", "side table", col)
+    put(P.floor_lamp(col, 1.5), x0 + 0.45, y0 + 0.45, "S", "floor lamp", col)
+    # the north end: a sofa against the north wall, a low table, armchairs, plants
+    put(P.rug(col, 3.4, 2.4, "#6B3F34"), (x0 + x1) / 2, y1 - 1.6, "S", "rug", col)
+    put(P.sofa(col, 2.4, 0.95, "#D8CDBD", legs="none"), (x0 + x1) / 2, y1 - 0.55, "S", "sofa", col)
+    put(P.table(col, 1.1, 0.6, 0.38, top="oak", legs="oak", style="four", tone="#A9825A"), (x0 + x1) / 2, y1 - 1.75, "S", "low table", col)
+    put(P.lounge_chair(col, "#8A5F3C", "leather"), x0 + 0.9, y1 - 2.6, toward(1.0, 0.6), "armchair", col)
+    put(P.floor_lamp(col, 1.5), x1 - 0.4, y1 - 0.4, "S", "floor lamp", col)
+    put(P.plant(col, "fig", 1.9, "#D9D2C6", seed=63), x0 + 0.45, y1 - 0.45, "S", "fig", col)
+    put(P.plant(col, "fig", 1.6, "#A8674A", seed=64), x1 - 0.45, y0 + 7.6, "S", "fig", col)
+    # art on the east wall north of the door, and on the north wall over the sofa
+    put(P.art(col, 1.2, 0.9, ("#ECE5D8", "#7E8B74", "#2E3B35", "#C9A57B"), 6.2, "blobs", "oak"), x1, y1 - 3.6, "W", "art", col, z=1.5)
+    put(P.art(col, 1.6, 0.8, ("#E9E1D3", "#C46A3C", "#2E3B35", "#D9B98C"), 2.7, "blobs", "black"), (x0 + x1) / 2, y1, "S", "art", col, z=1.45)
+
+
+def machine_room(col, room, plan, design, style):
+    """One shared machine's room: the machine in a rack against the side wall (the live building puts it there and
+    lights it when it's on or busy), a crash cart beside it, a workbench under the high window with a pegboard of
+    tools, a tool chest, wire shelving of spares and archive boxes, a cable tray from the rack to the door, an air
+    conditioner, painted pipes, and LED battens on the ceiling."""
+    x0, x1, y0, y1 = bounds(room)
+    H = design["heights"]["ceiling"]
+    seed = int(x0 * 10)
+    rnd = random.Random(seed)
+    rx, ry = x0 + 0.52, y0 + 4.6
+    put(P.server_rack(col, lit=True, seed=seed), rx, ry, "E", "the machine", col,
+        live="machine", slot={"w": 0.6, "d": 1.0, "h": 2.0})
+    put(P.rug(col, 1.4, 1.0, "#2C2E31"), rx + 1.15, ry, "E", "mat", col)
+    put([P.rbox("ups", (-0.22, -0.32, 0), (0.22, 0.32, 0.62), col, M.matte("#25272B", 0.4, 0.3), 0.01)], rx - 0.08, ry + 0.95, "E", "ups", col)
+    put(P.crash_cart(col), rx + 1.3, ry - 1.0, toward(-1.0, 0.4), "crash cart", col)
+    # the workbench under the window, a pegboard above it, a screen, keyboard, laptop, toolbox
+    bx, by = (x0 + x1) / 2 - 0.2, y0 + 0.45
+    put(P.workbench(col, 2.2, 0.72, 0.9), bx, by, "N", "workbench", col)
+    put(P.monitor(col, 0.55, on=False), bx - 0.45, by + 0.12, "N", "screen", col, z=0.9)
+    put(P.keyboard(col), bx - 0.45, by - 0.12, "N", "keyboard", col, z=0.9)
+    put(P.laptop(col, open_=False), bx + 0.35, by - 0.02, "N", "laptop", col, z=0.9, turn=0.15)
+    put([P.rbox("toolbox", (-0.22, -0.11, 0), (0.22, 0.11, 0.16), col, M.matte("#B0352B", 0.45), 0.01)], bx + 0.8, by + 0.05, "N", "toolbox", col, z=0.18)
+    put(P.task_chair(col, "#3F4743"), bx - 0.4, by + 0.85, "N", "chair", col, turn=rnd.uniform(-0.5, 0.5))
+    put(P.tool_cabinet(col, 0.7, 0.46, 1.0, rnd.choice(["#B32A22", "#2D4A6B", "#3C4148"])), bx + 1.65, y0 + 0.35, "N", "tool chest", col)
+    # a steel table in the middle for whatever is being tested or mended: an open case, a meter, a coil of cable
+    mx, my = (x0 + x1) / 2 + 0.6, y0 + 3.6
+    put(P.workbench(col, 1.6, 0.8, 0.86, tone="#9C8466"), mx, my, "E", "test table", col)
+    put([P.rbox("open case", (-0.1, -0.24, 0), (0.1, 0.24, 0.44), col, M.matte("#2A2D33", 0.4, 0.4), 0.004),
+         kit.box("board", (-0.098, -0.2, 0.05), (-0.09, 0.2, 0.4), col, M.matte("#2F5A44", 0.5))], mx - 0.1, my + 0.35, "E", "open case", col, z=0.86, turn=0.1)
+    put([P.rbox("meter", (-0.05, -0.09, 0), (0.05, 0.09, 0.04), col, M.matte("#E0A21B", 0.4), 0.008)], mx + 0.2, my - 0.4, "E", "meter", col, z=0.86, turn=-0.3)
+    ring = [(0.12 * math.cos(t * 2 * math.pi / 24), 0.12 * math.sin(t * 2 * math.pi / 24), 0.02) for t in range(25)]
+    put([P.tube("cable coil", ring, 0.015, col, M.matte("#1A3A6B", 0.5), 8)], mx + 0.15, my - 0.05, "E", "cable", col, z=0.86)
+    put(P.laptop(col, open_=True), mx - 0.05, my - 0.35, toward(0.0, -1.0), "laptop open", col, z=0.86, turn=0.2)
+    put(P.stool(col, 0.65, "#A9825A"), mx + 0.7, my + 0.2, "W", "stool", col, turn=rnd.uniform(-0.6, 0.6))
+    # a pegboard of tools on the west wall, south of the rack
+    put(P.pegboard(col, 1.3, 0.8, seed=seed), x0, y0 + 2.2, "E", "pegboard", col, z=1.05)
+    # wire shelving along the east wall, archive boxes stacked on the floor beside it
+    for k, yy in enumerate((y0 + 1.9, y0 + 3.2, y0 + 4.5)):
+        put(P.wire_shelving(col, 1.2, 0.45, 1.8, 5, seed=seed + k), x1 - 0.23, yy, "W", "shelving", col)
+    for k in range(3):
+        put([P.rbox("archive box", (-0.2, -0.16, 0), (0.2, 0.16, 0.28), col, M.matte(rnd.choice(["#C9B590", "#BFA982", "#D3C4A5"]), 0.8), 0.006)],
+            x1 - 0.3, y0 + 5.5 + (k % 2) * 0.05, "W", "box", col, z=0.28 * k, turn=rnd.uniform(-0.08, 0.08))
+    put([P.rbox("archive box", (-0.2, -0.16, 0), (0.2, 0.16, 0.28), col, M.matte("#C9B590", 0.8), 0.006)], x1 - 0.75, y0 + 5.6, "W", "box", col, turn=0.2)
+    # a cable tray from over the rack to over the door, under the ceiling
+    put(P.cable_tray(col, (x1 - 0.6) - (rx + 0.2), 0.3), (rx + 0.2 + x1 - 0.6) / 2, ry, "S", "cable tray", col, z=H - 0.35)
+    # the air conditioner high on the east wall, a fire extinguisher by the door, a step ladder against the north wall
+    put([P.rbox("air conditioner", (-0.45, -0.12, 0), (0.45, 0.0, 0.3), col, M.matte("#F1EFEA", 0.35), 0.03),
+         kit.box("vent", (-0.4, -0.125, 0.03), (0.4, -0.115, 0.06), col, M.matte("#B9B6B0", 0.5))], x1, y0 + 6.6, "W", "air conditioner", col, z=2.35)
+    put([kit.cylinder("extinguisher", Vector((0, 0, 0.3)), 0.08, 0.5, col, M.matte("#B32A22", 0.3, coat=0.4), 32, bevel=0.02),
+         kit.cylinder("extinguisher head", Vector((0, 0, 0.6)), 0.03, 0.1, col, M.matte("#1C1C1C", 0.4), 16)], x1 - 0.2, y1 - 0.25, "S", "extinguisher", col)
+    alu = M.steel("#C4C6C8", 0.35)
+    ladder = [P.rbox("ladder rail", (-0.22, -0.02, 0), (-0.19, 0.02, 1.6), col, alu, 0.006), P.rbox("ladder rail", (0.19, -0.02, 0), (0.22, 0.02, 1.6), col, alu, 0.006)]
+    ladder += [P.rbox("ladder step", (-0.2, -0.05, z), (0.2, 0.05, z + 0.025), col, alu, 0.004) for z in (0.3, 0.6, 0.9, 1.2)]
+    put(ladder, x0 + 0.6, y1 - 0.12, "S", "ladder", col, turn=0.0)
+    # a whiteboard on the north wall beside the door, never over it: west of it, past the ladder, where it fits
+    door = [g for g in edge_gaps(plan, "h", y1, ("door", "double door", "open")) if g[1] > x0 and g[0] < x1]
+    wx = x0 + 2.2
+    if door and wx + 0.72 > door[0][0] and wx - 0.72 < door[0][1]:
+        lo, hi = x0 + 0.9, door[0][0] - 0.15
+        wx = (lo + hi) / 2 if hi - lo >= 1.3 else (door[0][1] + 0.15 + x1 - 0.5) / 2
+    put([P.rbox("whiteboard", (-0.6, -0.012, 0), (0.6, 0.0, 0.9), col, M.matte("#F6F6F3", 0.15, coat=0.6), 0.004),
+         kit.box("whiteboard frame", (-0.62, -0.006, -0.02), (0.62, 0.004, 0.92), col, M.steel("#B9BCC0", 0.3))], wx, y1, "S", "whiteboard", col, z=1.1)
+    # two pipes along the ceiling, painted, end to end
+    for k, z in enumerate((H - 0.18, H - 0.32)):
+        put([P.tube("pipe", [(0, -(y1 - y0) / 2 + 0.05, 0), (0, (y1 - y0) / 2 - 0.05, 0)], 0.04 - k * 0.01, col, M.matte("#D9D5CC", 0.4), 16)],
+            x1 - 0.35 - k * 0.12, (y0 + y1) / 2, "S", "pipe", col, z=z)
+
+
+# ---------- the founder's office, on the top floor ----------
+
+def office(col, room, plan, design, style):
+    """The founder's office: the founder's desk across from the lift doors, the chair behind it facing them and two
+    armchairs in front; the assistant at a desk of their own on the left as you step out of the lift (the live
+    building seats them); a round table for four under a ring of light; a reading corner with a telescope by the
+    glass; the founder's name over the lift doors (the live building writes it)."""
+    x0, x1, y0, y1 = bounds(room)
+    H = design["heights"]["ceiling"]
+    lx = 7.95                                    # the middle of the lift doors
+    # the founder's desk and its chairs
+    dx, dy = lx, 4.4
+    put(P.rug(col, 4.2, 3.6, "#8C7B6A"), dx, dy + 0.6, "S", "rug", col)
+    put(P.table(col, 2.6, 1.0, 0.74, top="oak", legs="oak", style="plinth", tone="#C9A882"), dx, dy, "S", "founder's desk", col)
+    SLOTS.append({"kind": "desk", "at": [dx, dy, 0.0], "rot": 0.0, "w": 2.6, "d": 1.0, "h": 0.74})
+    put(P.task_chair(col, "#4A2E21"), dx, dy - 0.85, "N", "founder's chair", col)
+    for k in (-1, 1):
+        put(P.lounge_chair(col, "#CBBBA6", "fabric"), dx + k * 0.95, dy + 1.55, toward(-k * 0.25, -1.0), "armchair", col)
+    put(P.laptop(col, open_=False), dx + 0.55, dy + 0.05, "S", "laptop", col, z=0.74, turn=0.1)
+    put(P.notebook(col, "#4A2E21", 0.16, 0.22), dx - 0.7, dy + 0.05, "S", "notebook", col, z=0.74, turn=-0.15)
+    put(P.table_lamp(col, 0.44, "#E8DCC6", lit=True), dx - 1.1, dy - 0.25, "S", "desk lamp", col, z=0.74)
+    put(P.pen(col), dx - 0.45, dy + 0.15, "S", "pen", col, z=0.74, turn=0.7)
+    # a low cabinet behind the founder, under the glass
+    put(P.sideboard(col, 2.4, 0.45, 0.62, tone="#C9A882", legs=False), dx, y0 + 0.5, "N", "credenza", col)
+    put(P.plant(col, "snake", 0.55, "#E3DDD3", seed=91, pot_h=0.18), dx - 0.8, y0 + 0.5, "N", "plant", col, z=0.62)
+    put(P.book_stack(col, 3, seed=31), dx + 0.7, y0 + 0.5, "N", "books", col, z=0.62, turn=0.3)
+    # the assistant's desk: on the left as you step out of the lift, the assistant facing the way out of it
+    ax, ay = 11.55, 8.5
+    put(P.table(col, 1.5, 0.7, 0.75, top="oak", legs="black", style="four", tone="#C9A882"), ax - 0.55, ay, "E", "assistant's desk", col)
+    # the screen to one side and turned in, so whoever comes to talk sees the assistant, not the back of it
+    put(P.monitor(col, 0.55, on=False), ax - 0.7, ay + 0.52, toward(0.7, -0.52), "screen", col, z=0.75)
+    put(P.keyboard(col), ax - 0.42, ay + 0.3, "E", "keyboard", col, z=0.75, turn=math.pi / 2)
+    put(P.notebook(col, "#2F3B36"), ax - 0.45, ay - 0.35, "E", "notebook", col, z=0.75, turn=0.2)
+    put(P.table_lamp(col, 0.4, "#E8DCC6", lit=True), ax - 0.75, ay - 0.6, "E", "lamp", col, z=0.75)
+    m, look = who(design, "OFFICE")
+    if m is not None:
+        put(people.person(col, look, "desk", seat=0.52, table=0.75, reach=0.345, seed=identity_seed(m),
+                          look_to=math.radians(m.get("look", 0)), hands=m.get("hands", "table"), moving=m.get("moving", 0.0)),
+            ax, ay, "W", "person", col, turn=math.radians(m.get("turn", 0)))
+    put(P.task_chair(col, "#3F4743"), ax + 0.05, ay, "W", "chair", col, live="assistant")
+    SLOTS.append({"kind": "assistant", "at": [ax, ay, 0.0], "rot": round(FACE["W"], 4), "seat": 0.52, "table": 0.75, "stand": [round(ax - 1.75, 3), ay]})
+    put(P.plant(col, "fig", 1.9, "#D9D2C6", seed=93), ax + 0.4, y1 - 0.45, "S", "fig", col)
+    # a round table for four under a ring of light, between the desk and the lounge
+    tx, ty = 13.6, 3.6
+    put(P.rug(col, 3.0, 3.0, "#B9AF9F", round_=True), tx, ty, "S", "rug", col)
+    put(P.table(col, 1.3, 1.3, 0.74, top="stone", style="pedestal", round_=True), tx, ty, "S", "round table", col)
+    for k in range(4):
+        a = k * math.pi / 2 + math.pi / 4
+        put(P.shell_chair(col, "#8C7A66"), tx + math.cos(a) * 0.85, ty + math.sin(a) * 0.85, toward(-math.cos(a), -math.sin(a)), "chair", col)
+    put(P.pendant_ring(col, 0.75, 2.45, H), tx, ty, "S", "ring light", col)
+    put(P.carafe(col), tx + 0.2, ty + 0.1, "S", "carafe", col, z=0.74)
+    put(P.tumbler(col), tx - 0.15, ty + 0.25, "S", "glass", col, z=0.74)
+    # the reading corner in the south-west, by the glass: two chairs, a lamp, a telescope
+    rx, ry = 2.6, 2.6
+    put(P.rug(col, 2.6, 2.2, "#6B3F34"), rx, ry, "S", "rug", col)
+    put(P.lounge_chair(col, "#7A4A2A", "leather"), rx - 0.75, ry + 0.4, toward(0.8, -0.6), "leather chair", col)
+    put(P.lounge_chair(col, "#8E5B32", "leather"), rx + 0.85, ry + 0.45, toward(-0.8, -0.6), "leather chair", col)
+    put(P.table(col, 0.45, 0.45, 0.5, top="black", legs="black", style="pedestal", round_=True), rx + 0.05, ry - 0.2, "S", "side table", col)
+    put(P.floor_lamp(col, 1.5), rx - 1.5, ry + 1.1, "S", "floor lamp", col)
+    put(P.telescope(col), x0 + 0.9, y0 + 0.9, toward(-0.5, -1.0), "telescope", col)
+    for (px, py, h, seed) in ((x0 + 0.45, 5.4, 2.1, 95), (16.4, y0 + 0.5, 2.0, 97), (6.4, y1 - 0.5, 1.7, 99)):
+        put(P.plant(col, "fig", h, "#D9D2C6", seed=seed), px, py, "S", "fig", col)
+    # the founder's name over the lift doors: the live building writes it
+    org = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", design["moment"]["company"]))) if design.get("moment", {}).get("company") else {}
+    put(P.letters(col, (org.get("founder", {}).get("name") or "").upper(), 0.2, "#C9A46A", 0.012), lx, y1, "S", "name over the lift", col, z=2.75,
+        live="nameplate", slot={"w": 2.4, "h": 0.5, "z": 2.6, "color": "#C9A46A"})
+
+
+def office_library(col, room, plan, design, style):
+    """The founder's library, in the west wing: shelves nearly to the ceiling along the back wall and beside the lift,
+    a ladder on its rail, two armchairs by a lamp. The founder's notes hang in a row in front of the back shelves
+    (the live building hangs them there)."""
+    x0, x1, y0, y1 = bounds(room)
+    H = design["heights"]["ceiling"]
+    n = 3
+    w = (x1 - x0 - 0.1) / n
+    for k in range(n):
+        put(P.bookcase(col, w, H - 0.25, 0.36, 3, 8, tone="#A9825A", seed=101 + k), x0 + 0.05 + w * (k + 0.5), y1 - 0.36, "S", "shelves", col)
+    for k in range(2):
+        put(P.bookcase(col, 1.6, H - 0.25, 0.36, 2, 8, tone="#A9825A", seed=111 + k), x1 - 0.36, 11.6 + k * 1.65, "W", "shelves", col)
+    alu = M.oak("#A9825A", 26.0, "Z")
+    lh = H - 0.35
+    lean = 0.55
+    lad = [P.tube("ladder rail", [(sx, 0.0, 0.0), (sx, lean, lh)], 0.02, col, alu, 10) for sx in (-0.22, 0.22)]
+    lad += [P.tube("ladder rung", [(-0.22, lean * z / lh, z), (0.22, lean * z / lh, z)], 0.014, col, alu, 8) for z in [0.3 + 0.32 * i for i in range(int((lh - 0.4) / 0.32))]]
+    lad.append(P.tube("rail", [(-2.0, lean + 0.04, lh + 0.02), (2.0, lean + 0.04, lh + 0.02)], 0.012, col, M.steel("#B89B62", 0.35), 10))
+    put(lad, x0 + 1.5, y1 - 0.36 - lean - 0.05, "S", "ladder", col)
+    cx, cy = (x0 + x1) / 2, 11.4
+    put(P.rug(col, 3.0, 2.2, "#7C5A44"), cx, cy, "S", "rug", col)
+    for k in (-1, 1):
+        put(P.lounge_chair(col, "#8A5F3C" if k < 0 else "#B5603F", "leather"), cx + k * 0.95, cy, toward(-k * 1.0, 0.25), "armchair", col)
+    put(P.table(col, 0.5, 0.5, 0.52, top="oak", legs="black", style="pedestal", round_=True), cx, cy + 0.1, "S", "side table", col)
+    put(P.book_stack(col, 2, seed=41), cx, cy + 0.1, "S", "books", col, z=0.52, turn=0.4)
+    put(P.floor_lamp(col, 1.5), cx - 1.75, cy + 0.6, "S", "floor lamp", col)
+    # where the notes hang: a row at eye height in front of the back shelves, turned a little to the chairs
+    for k in range(8):
+        nx = x0 + 0.55 + k * (x1 - x0 - 1.1) / 7
+        SLOTS.append({"kind": "note", "at": [round(nx, 3), round(y1 - 1.05, 3), 1.52], "rot": round(math.atan2(cx - nx, 8.0), 4)})
+
+
+def office_lounge(col, room, plan, design, style):
+    """The lounge, east of the office: a curved sofa round a stone table on a round rug, open to the glass; a big
+    picture over a sideboard on the back wall."""
+    x0, x1, y0, y1 = bounds(room)
+    cx, cy = (x0 + x1) / 2 + 0.2, 4.6
+    put(P.rug(col, 4.4, 4.4, "#5A4A3E", round_=True), cx, cy, "S", "rug", col)
+    put(P.curved_sofa(col, 1.75, 130, 0.95, "#3F5A4F"), cx, cy + 0.15, "S", "curved sofa", col)
+    put(P.table(col, 1.3, 1.3, 0.36, top="stone", style="plinth", round_=True), cx, cy - 0.35, "S", "stone table", col)
+    put(P.book_stack(col, 3, seed=51), cx - 0.2, cy - 0.3, "S", "books", col, z=0.36, turn=0.4)
+    put(P.carafe(col), cx + 0.3, cy - 0.45, "S", "vase", col, z=0.36)
+    put(P.sideboard(col, 2.8, 0.48, 0.72, tone="#A9825A"), cx, y1 - 0.26, "S", "sideboard", col)
+    put(P.art(col, 2.6, 1.6, ("#E9D9C2", "#D08A52", "#5E6E78", "#2E3B35"), 3.3, "bands", "black"), cx, y1, "S", "picture", col, z=1.15)
+    put(P.table_lamp(col, 0.5, "#E8DCC6", lit=True), cx - 1.1, y1 - 0.26, "S", "lamp", col, z=0.72)
+    put(P.floor_lamp(col, 1.55), x1 - 0.5, y0 + 0.6, "S", "floor lamp", col)
+    for k, (px, py, h) in enumerate(((x1 - 0.5, y1 - 0.5, 2.1), (x0 + 0.5, y0 + 0.5, 1.8))):
+        put(P.plant(col, "fig", h, "#D9D2C6", seed=121 + k), px, py, "S", "fig", col)
+    put(P.lounge_chair(col, "#CBBBA6", "fabric"), x1 - 1.2, y0 + 1.5, toward(-0.7, 0.7), "chair by the glass", col)
+
+
+ROOMS = {"GOALS": goals, "CODE": code, "CONVERSATIONS": conversations, "WORK": work, "COMPANY": company, "RECEPTION": reception,
+         "LIBRARY": library, "WEST MACHINE ROOM": machine_room, "MIDDLE MACHINE ROOM": machine_room, "EAST MACHINE ROOM": machine_room,
+         "OFFICE": office, "OFFICE LIBRARY": office_library, "LOUNGE": office_lounge}
 
 
 def in_the_sun(design, x, y, h, c, gz):
@@ -522,8 +766,10 @@ def outside(col, design, plan=None):
 def furnish(plan, design, styles):
     col = kit.collection("furniture")
     for r in plan["rooms"]:
-        fn = ROOMS.get(r["name"])
+        fn = ROOMS.get(design.get("furnish", {}).get(r["name"], r["name"]))  # a floor can furnish a room its own way
         if fn and r["name"] in design["styled"]:
             fn(col, r, plan, design, styles.get(r["name"], {}))
-            finish(col, plan, design, r)
+            finish(col, plan, design, r, styles.get(r["name"], {}))
+        elif design.get("lit", {}).get(r["name"]):  # a room left unfurnished still gets its ceiling lights (below ground)
+            finish(col, plan, design, r, {"lights": design["lit"][r["name"]]})
     outside(kit.collection("garden"), design, plan)

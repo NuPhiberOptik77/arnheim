@@ -57,9 +57,13 @@ def opening_heights(plan, design, o):
 
 
 def street_drop(design):
-    """How far the street is below this floor: whole storeys for an upper floor, one step for the ground floor."""
+    """How far the street is below this floor: whole storeys for an upper floor, one step for the ground floor,
+    and less than nothing for the basement, whose street is a storey above it, less the lobby's step."""
     fl = design.get("floor", {})
-    return fl.get("level", 0) * fl.get("floor_to_floor", 4.0) or 0.15
+    level = fl.get("level", 0)
+    if level < 0:
+        return level * fl.get("floor_to_floor", 3.6) + 0.15
+    return level * fl.get("floor_to_floor", 4.0) or 0.15
 
 
 def build_shell(plan, design, styles):
@@ -106,7 +110,12 @@ def build_shell(plan, design, styles):
             at = b
         if hi > at:
             parts.append((at, hi, 0.0, H))
-        parts.append((lo, hi, -G, -0.02))  # the storeys below, so the floor stands on a building
+        if G > 0:
+            parts.append((lo, hi, -G, -0.02))  # the storeys below, so the floor stands on a building
+        else:
+            parts.append((lo, hi, -0.6, -0.02))  # under the basement, its footings
+            if w.get("exterior"):
+                parts.append((lo, hi, H + 0.25, -G))  # and up the light well to the street
         for i, (a, b, z0, z1) in enumerate(parts):
             z1 = z1 + 0.25 if z1 >= H - 1e-6 else z1  # up through the ceiling slab
             if h:
@@ -125,13 +134,67 @@ def build_shell(plan, design, styles):
     for r in plan["rooms"]:
         style = styles.get(r["name"], {})
         floor = style.get("floor", "oak")
-        mat = M.terrazzo(style.get("floor_tone", "#DCD6CC")) if floor == "terrazzo" else M.oak_floor(style.get("floor_tone", "#C7B59C"))
+        mat = (M.terrazzo(style.get("floor_tone", "#DCD6CC")) if floor == "terrazzo" else
+               M.concrete(style.get("floor_tone", "#A9A59D")) if floor == "concrete" else M.oak_floor(style.get("floor_tone", "#C7B59C")))
         kit.polygon_slab(f"floor {r['name']} {r['id']}", r["polygon"], -0.02, 0.0, col, mat)
         kit.polygon_slab(f"slab {r['id']}", r["polygon"], -0.3, -0.02, col, M.matte("#9C968C", 0.9))
         kit.polygon_slab(f"ceiling {r['id']}", r["polygon"], H, H + 0.25, col, M.plaster("#F5F4F1", mottle=mottle) if mottle else M.plaster("#F5F4F1"))
+    if G < 0:
+        light_wells(design, W, D, H, -G, col)
+        return
     # Outside, a storey down: open ground, and paving round the building.
     kit.box("ground", (-400, -400, -G - 0.02), (400, 400, -G), col, M.ground())
     kit.box("paving", (-3, -3, -G), (W + 3, D + 3, -G + 0.02), col, M.stone("#CFC8BC", "#B9B0A2", 0.6, 0.5))
+
+
+def light_wells(design, W, D, H, street, col, streets=True):
+    """Round a basement: the street overhead, and along the walls the design names, a light well dug down to
+    below the windows, its far side a painted retaining wall with railings at the pavement's edge. The building
+    over the basement stands as one block from its ceiling up to the street (the lobby's floor)."""
+    lw = design.get("light_wells", {})
+    width = lw.get("width", 2.4)
+    bottom = lw.get("floor", 1.5)
+    south, west = "south" in lw.get("sides", ["south", "west"]), "west" in lw.get("sides", ["south", "west"])
+    sx = -width if west else 0.0   # the wells' outer edges
+    sy = -width if south else 0.0
+    t = 0.3
+    pave = M.stone("#CFC8BC", "#B9B0A2", 0.6, 0.5)
+    # the street and pavement all round, leaving the wells open (the site, blender/site.py, lays its own)
+    if streets:
+        kit.box("street west", (-400, -400, street - 0.3), (sx - t, 400, street), col, pave)
+        kit.box("street south", (sx - t, -400, street - 0.3), (400, sy - t, street), col, pave)
+        kit.box("street east", (W, sy - t, street - 0.3), (400, 400, street), col, pave)
+        kit.box("street north", (sx - t, D, street - 0.3), (W, 400, street), col, pave)
+        kit.box("lobby over", (0, 0, H + 0.25), (W, D, street), col, M.matte("#9C968C", 0.9))
+    retaining = M.plaster("#E9E6E0")
+    if south:
+        kit.box("light well south floor", (sx, sy, bottom - 0.25), (W, 0.0, bottom), col, M.concrete("#9F9B93"))
+        kit.box("light well south wall", (sx - t, sy - t, -0.6), (W, sy, street - 0.3), col, retaining)
+        kit.box("light well south east end", (W - 0.0, sy - t, -0.6), (W + t, 0.0, street - 0.3), col, retaining)
+    if west:
+        kit.box("light well west floor", (sx, sy if south else 0.0, bottom - 0.25), (0.0, D, bottom), col, M.concrete("#9F9B93"))
+        kit.box("light well west wall", (sx - t, sy - t, -0.6), (sx, D, street - 0.3), col, retaining)
+        kit.box("light well west north end", (sx - t, D, -0.6), (0.0, D + t, street - 0.3), col, retaining)
+    # railings along the pavement's edge: a top rail and bars every 12 cm
+    steel = M.matte("#22252A", 0.45, 0.6)
+    runs = []
+    if south:
+        runs.append(((sx - t / 2, sy - t / 2), (W, sy - t / 2)))
+    if west:
+        runs.append(((sx - t / 2, sy - t / 2), (sx - t / 2, D)))
+    for k, ((x0, y0), (x1, y1)) in enumerate(runs):
+        n = int(math.hypot(x1 - x0, y1 - y0) / 0.12)
+        horiz = abs(y1 - y0) < 1e-6
+        if horiz:
+            kit.box(f"railing {k} top", (x0, y0 - 0.02, street + 1.02), (x1, y0 + 0.02, street + 1.06), col, steel)
+            kit.box(f"railing {k} foot", (x0, y0 - 0.02, street), (x1, y0 + 0.02, street + 0.06), col, steel)
+        else:
+            kit.box(f"railing {k} top", (x0 - 0.02, y0, street + 1.02), (x0 + 0.02, y1, street + 1.06), col, steel)
+            kit.box(f"railing {k} foot", (x0 - 0.02, y0, street), (x0 + 0.02, y1, street + 0.06), col, steel)
+        for i in range(n + 1):
+            x = x0 + (x1 - x0) * i / max(n, 1)
+            y = y0 + (y1 - y0) * i / max(n, 1)
+            kit.box(f"railing {k} bar {i}", (x - 0.008, y - 0.008, street + 0.06), (x + 0.008, y + 0.008, street + 1.02), col, steel)
 
 
 def window(o, h, t, c, a, b, sill, head, col, size):

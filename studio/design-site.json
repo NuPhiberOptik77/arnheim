@@ -1,0 +1,10 @@
+{
+  "about": "The outside of the building (blender/street.py): the streets on the corner, the pavements, the light wells round the basement, and the roof. Baked in the floors' measured sun at the lobby's photo exposure, so it meets the lobby's own outside walls.",
+  "plan": "out/plan-lobby.json",
+  "floor": {"level": 0, "floor_to_floor": 4.0},
+  "heights": {"ceiling": 3.5, "door_head": 2.6, "window_sill": 0.1, "window_head": 3.3, "small_window_sill": 0.9},
+  "small_window_max_width": 1.5,
+  "rooms": {},
+  "styled": [],
+  "exposure": -1.6
+}

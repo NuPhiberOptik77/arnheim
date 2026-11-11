@@ -6,6 +6,8 @@ The tracer (trace.py) reads only the picture this makes, never these numbers.
 
 python3 draw_plan.py OUT_DIR           ->  OUT_DIR/plan.svg and OUT_DIR/plan.png (the project floor)
 python3 draw_plan.py OUT_DIR lobby     ->  OUT_DIR/plan-lobby.svg and .png (the ground floor below it)
+python3 draw_plan.py OUT_DIR basement  ->  OUT_DIR/plan-basement.svg and .png (the basement below that)
+python3 draw_plan.py OUT_DIR office    ->  OUT_DIR/plan-office.svg and .png (the founder's office, on the top floor)
 """
 import math
 import os
@@ -126,6 +128,87 @@ LOBBY = {
 }
 
 
+# The basement, under the lobby: the same outside walls and core. The shared machines, each in a room of its own
+# along the street side, lit by high windows onto light wells under the pavement; the Library of third-party code
+# the length of the west wing, its windows onto the light well along the west street; the corridor and the lift
+# and stairs as upstairs. Every room is one Arnheim fills from the company's basement data (D78).
+BASEMENT = {
+    "parts": [("v", 6.0, 0.15, 15.85), ("v", 12.0, 0.15, 9.0), ("v", 18.0, 0.15, 9.0), ("h", 9.0, 6.0, 23.85)],
+    "open": [
+        ("window", S_, 1.0, 5.0, None),                             # library, onto the south light well
+        ("window", S_, 7.0, 11.0, None),                            # the west machine room
+        ("window", S_, 13.0, 17.0, None),                           # the middle machine room
+        ("window", S_, 19.0, 23.0, None),                           # the east machine room
+        ("window", W_, 2.0, 5.5, None),                             # library, onto the west light well
+        ("window", W_, 7.0, 10.0, None),
+        ("window", W_, 11.5, 14.5, None),
+        ("door", ("v", 6.0, INT), 9.4, 10.4, (-1, "b")),            # corridor to the library
+        ("door", ("h", 9.0, INT), 10.5, 11.5, (-1, "b")),           # corridor to the west machine room
+        ("door", ("h", 9.0, INT), 14.5, 15.5, (-1, "b")),           # corridor to the middle machine room
+        ("door", ("h", 9.0, INT), 20.5, 21.5, (-1, "b")),           # corridor to the east machine room
+        ("door", ("h", NB, EXT), 7.5, 8.4, (+1, "a")),              # corridor to lift and stairs
+    ],
+    "rooms": [
+        ("LIBRARY", (EXT, EXT, 6 - INT / 2, DEPTH - EXT)),
+        ("WEST MACHINE ROOM", (6 + INT / 2, EXT, 12 - INT / 2, 9 - INT / 2)),
+        ("MIDDLE MACHINE ROOM", (12 + INT / 2, EXT, 18 - INT / 2, 9 - INT / 2)),
+        ("EAST MACHINE ROOM", (18 + INT / 2, EXT, WIDTH - EXT, 9 - INT / 2)),
+        ("CORRIDOR", (6 + INT / 2, 9 + INT / 2, WIDTH - EXT, NB - EXT / 2)),
+        ("LIFT AND STAIRS", (6 + INT / 2, NB + EXT / 2, CORE_E - EXT / 2, DEPTH - EXT)),
+    ],
+    "furniture": [
+        (0.45, 1.0, 0.85, 15.0), (5.15, 1.0, 5.55, 8.6), (5.15, 11.0, 5.55, 15.4), (2.0, 6.0, 4.0, 9.0),
+        (7.0, 7.9, 11.0, 8.6), (13.0, 7.9, 17.0, 8.6), (19.0, 7.9, 23.0, 8.6),
+        (8.3, 3.5, 9.7, 4.6), (14.3, 3.5, 15.7, 4.6), (20.3, 3.5, 21.7, 4.6),
+        (6.4, 11.3, 7.6, 15.3), (8.0, 11.3, 9.6, 12.9),
+    ] + [(6.4, 11.3 + k * 0.28, 7.6, 11.58 + k * 0.28) for k in range(14)],
+    "title": ("FERNHOLLOW BASEMENT", "Plan 1:100, basement. The shared machines and the library of a made-up company's building, drawn for Arnheim."),
+    "ys": [0, 9, 16],
+    "xs": [0, 6, 12, 18, 24],
+    "label_at": {"LIBRARY": (3.0, 11.5)},
+}
+
+
+def panes(wall, a, b, pane=1.7, pier=0.4):
+    """Windows filling a stretch of wall from a to b: panes about pane wide with a pier of pier between each,
+    and a pier at either end."""
+    n = max(1, round((b - a - pier) / (pane + pier)))
+    w = (b - a - pier * (n + 1)) / n
+    return [("window", wall, round(a + pier + k * (w + pier), 3), round(a + pier + k * (w + pier) + w, 3), None) for k in range(n)]
+
+
+# The founder's office, on the top floor: the same outside walls and core, glass nearly floor to ceiling on the
+# street sides. The lift opens into the middle of it, the founder's desk across from the doors; the library in
+# the west wing (where the founder's notes hang), the lounge to the east, each open to the middle.
+OFFICE = {
+    "parts": [("v", 6.0, 5.2, 15.85), ("h", 6.0, 0.15, 6.0), ("v", 17.0, 0.15, 10.57)],
+    "open": [
+        *panes(S_, 0.3, 16.85), *panes(S_, 17.15, 23.7),            # floor-to-ceiling glass between slim piers
+        *panes(W_, 0.3, 5.85), *panes(W_, 6.15, 15.7),
+        *panes(E_, 0.3, 10.45),
+        ("window", N_, 7.3, 8.7, None),                             # the stair's window
+        ("open", ("h", 6.0, INT), 1.2, 4.8, None),                  # the library, open to the reading corner
+        ("open", ("v", 6.0, INT), 6.6, 10.1, None),                 # the library, open to the office
+        ("open", ("v", 17.0, INT), 2.0, 9.0, None),                 # the office, open to the lounge
+        ("door", ("h", NB, EXT), 7.5, 8.4, (-1, "a")),              # the lift and stairs, into the office
+    ],
+    "rooms": [
+        ("LIBRARY", (EXT, 6 + INT / 2, 6 - INT / 2, DEPTH - EXT)),
+        ("OFFICE", (EXT, EXT, 17 - INT / 2, NB - EXT / 2)),
+        ("LOUNGE", (17 + INT / 2, EXT, WIDTH - EXT, NB - EXT / 2)),
+        ("LIFT AND STAIRS", (6 + INT / 2, NB + EXT / 2, CORE_E - EXT / 2, DEPTH - EXT)),
+    ],
+    "furniture": [
+        (6.6, 3.3, 9.4, 4.3), (10.6, 7.6, 11.3, 9.4), (18.5, 3.0, 22.5, 7.0), (0.5, 15.3, 5.5, 15.7),
+        (6.4, 11.3, 7.6, 15.3), (8.0, 11.3, 9.6, 12.9),
+    ] + [(6.4, 11.3 + k * 0.28, 7.6, 11.58 + k * 0.28) for k in range(14)],
+    "title": ("FERNHOLLOW TOP FLOOR", "Plan 1:100, top floor. The founder's office of a made-up company's building, drawn for Arnheim."),
+    "ys": [0, 6, 10.72, 16],
+    "xs": [0, 6, 17, 24],
+    "label_at": {"OFFICE": (11.5, 6.0), "LIBRARY": (3.0, 11.0)},
+}
+
+
 def wall_rect(axis, at, a, b, t):
     if axis == "h":
         return (a, at - t / 2, b, at + t / 2)
@@ -195,7 +278,7 @@ def draw(fl=None):
             out.append(f'<text x="{X(cx):.1f}" y="{Y(cy) + size + 4:.1f}" font-size="{size - 3}" text-anchor="middle">{area:.1f} m²</text>')
     # dimensions: grid chains below and to the left
     yd = -1.4
-    xs = [0, 6, 19.5, 24]
+    xs = fl.get("xs", [0, 6, 19.5, 24])
     out.append(line(0, yd, WIDTH, yd, w=1))
     for x in xs:
         out.append(line(x, yd - 0.15, x, yd + 0.15, w=1))
@@ -233,11 +316,11 @@ def draw(fl=None):
 
 def main():
     out = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else "out")
-    lobby = len(sys.argv) > 2 and sys.argv[2] == "lobby"
+    which = sys.argv[2] if len(sys.argv) > 2 else ""
     os.makedirs(out, exist_ok=True)
-    svg = os.path.join(out, "plan-lobby.svg" if lobby else "plan.svg")
+    svg = os.path.join(out, f"plan-{which}.svg" if which else "plan.svg")
     with open(svg, "w", encoding="utf-8") as handle:
-        handle.write(draw(LOBBY if lobby else None))
+        handle.write(draw({"lobby": LOBBY, "basement": BASEMENT, "office": OFFICE}.get(which)))
     png = svg[:-4] + ".png"
     subprocess.run([CHROME, "--headless=new", "--hide-scrollbars", "--force-device-scale-factor=1", "--no-first-run",
                     f"--window-size={SHEET[0]},{SHEET[1]}", f"--screenshot={png}", "file://" + svg],

@@ -968,10 +968,11 @@ def roller_blind(col, w, drop=0.35, color="#E6E0D4"):
             rbox("blind rail", (-w / 2 + 0.02, -0.076, -0.135 - drop), (w / 2 - 0.02, -0.06, -0.12 - drop), col, M.matte("#D9D8D3", 0.4), 0.003)]
 
 
-def downlight(col):
-    """A recessed downlight, 90 mm across, in the ceiling at z=0, on."""
+def downlight(col, lit=False):
+    """A recessed downlight, 90 mm across, in the ceiling at z=0; lit=True switches it on."""
+    face = M.glow("#FFE6C8", 220.0) if lit else M.matte("#F7F5F0", 0.2)
     return [kit.cylinder("downlight rim", Vector((0, 0, -0.002)), 0.045, 0.004, col, M.matte("#F2F1EE", 0.35), 32),
-            kit.cylinder("downlight", Vector((0, 0, -0.0045)), 0.034, 0.001, col, M.matte("#F7F5F0", 0.2), 32)]
+            kit.cylinder("downlight", Vector((0, 0, -0.0045)), 0.034, 0.001, col, face, 32)]
 
 
 def sprinkler(col):
@@ -1028,4 +1029,253 @@ def building(col, lo, hi, h, wall, bay, storey, gz=0.0):
                     add((p0, u0 - 0.06, z0), (p1, u0, z1))
                     add((p0, u1, z0), (p1, u1 + 0.06, z1))
     out.append(kit.obj_from_bmesh("window surrounds", bm, col, M.outdoor("#E4E2DD", 0.6)))
+    return out
+
+
+# ---------- the basement: machines, benches and stores ----------
+
+def server_rack(col, h=2.0, w=0.6, d=1.0, lit=False, seed=1):
+    """A steel rack cabinet with a perforated front door left open, filled the way a working rack is: servers of
+    one, two and four units, a patch panel and a switch near the top, blanking plates in the gaps; status lights
+    on each server (lit=True: glowing, for the photographs; the live building lights its own), cable bundles at
+    the back."""
+    rnd = random.Random(seed)
+    frame = M.matte("#1E2024", 0.42, 0.35)
+    face = M.matte("#2A2D33", 0.38, 0.45)
+    mesh = M.matte("#15171A", 0.5, 0.3)
+    blank = M.matte("#1A1C1F", 0.55, 0.2)
+    U = 0.0445
+    out = [rbox("rack top", (-w / 2, -d / 2, h - 0.04), (w / 2, d / 2, h), col, frame, 0.004),
+           rbox("rack plinth", (-w / 2 + 0.02, -d / 2 + 0.02, 0), (w / 2 - 0.02, d / 2 - 0.02, 0.08), col, frame, 0.004),
+           kit.box("rack back", (-w / 2, d / 2 - 0.015, 0.08), (w / 2, d / 2, h - 0.04), col, mesh)]
+    for sx in (-1, 1):
+        out.append(rbox("rack side", (sx * w / 2 - (0.015 if sx > 0 else 0), -d / 2, 0.08), (sx * w / 2 + (0.0 if sx > 0 else 0.015), d / 2, h - 0.04), col, frame, 0.003))
+        out.append(kit.box("rail", (sx * (w / 2 - 0.06) - 0.008, -d / 2 + 0.04, 0.1), (sx * (w / 2 - 0.06) + 0.008, -d / 2 + 0.06, h - 0.06), col, M.steel("#9DA2A8", 0.4)))
+    z = 0.1
+    top_z = h - 0.08
+    k = 0
+    while z + U < top_z:
+        left = (top_z - z) / U
+        if left < 5 and k >= 0:
+            kind = "patch" if left >= 1 and k % 2 == 0 else "blank"
+        else:
+            kind = rnd.choices(["server", "blank"], [0.78, 0.22])[0]
+        n = 1 if kind in ("patch", "blank") else rnd.choice([1, 1, 2, 2, 2, 4])
+        n = min(n, int(left))
+        if n < 1:
+            break
+        top = z + n * U
+        if kind == "blank":
+            out.append(kit.box("blanking plate", (-w / 2 + 0.045, -d / 2 + 0.03, z + 0.001), (w / 2 - 0.045, -d / 2 + 0.034, top - 0.001), col, blank))
+        elif kind == "patch":
+            out.append(rbox("patch panel", (-w / 2 + 0.05, -d / 2 + 0.03, z + 0.003), (w / 2 - 0.05, -d / 2 + 0.12, top - 0.003), col, face, 0.002))
+            for i in range(12):
+                x = -w / 2 + 0.09 + i * (w - 0.18) / 11
+                out.append(kit.box("port", (x - 0.007, -d / 2 + 0.026, z + 0.014), (x + 0.007, -d / 2 + 0.031, z + 0.03), col, M.matte("#0B0C0D", 0.5)))
+                out.append(tube("patch lead", [(x, -d / 2 + 0.02, z + 0.022), (x, -d / 2 - 0.03, z + 0.01), (w / 2 - 0.03, -d / 2 - 0.04, z - 0.02)], 0.003, col, M.matte(["#1A3A6B", "#B8B03A", "#D9D4C8"][i % 3], 0.5), 6))
+        else:
+            out.append(rbox("server", (-w / 2 + 0.05, -d / 2 + 0.035, z), (w / 2 - 0.05, d / 2 - 0.1, top - 0.003), col, face, 0.003))
+            out.append(kit.box("server face", (-w / 2 + 0.045, -d / 2 + 0.03, z + 0.004), (w / 2 - 0.045, -d / 2 + 0.036, top - 0.006), col, mesh))
+            for i in range(3):
+                colr = "#7DFFB0" if i < 2 or rnd.random() < 0.5 else "#FFB347"
+                mat = M.glow(colr, 6.0) if lit else M.matte("#3A3D42", 0.3)
+                x = w / 2 - 0.09 - i * 0.022
+                out.append(kit.box("status light", (x - 0.005, -d / 2 + 0.026, z + 0.012), (x + 0.005, -d / 2 + 0.03, z + 0.02), col, mat))
+            out.append(rbox("handle", (-w / 2 + 0.065, -d / 2 + 0.015, z + 0.006), (-w / 2 + 0.08, -d / 2 + 0.03, top - 0.01), col, M.steel("#B8BCC1", 0.3), 0.003))
+            if n >= 2:  # drive bays across the front
+                for i in range(6):
+                    x = -w / 2 + 0.12 + i * 0.065
+                    out.append(kit.box("drive", (x, -d / 2 + 0.028, z + 0.01), (x + 0.055, -d / 2 + 0.031, top - 0.012), col, M.matte("#30343A", 0.4, 0.4)))
+        z = top
+        k += 1
+    # the front door, open about 100 degrees on its left hinge
+    door_w = w - 0.01
+    hinge = Vector((-w / 2, -d / 2 - 0.01, 0))
+    door = kit.box("rack door", (0, -0.008, 0.09), (door_w, 0.008, h - 0.05), col, mesh)
+    door.matrix_world = Matrix.Translation(hinge) @ Matrix.Rotation(-math.radians(100), 4, "Z")  # swung out towards the room
+    out.append(door)
+    # cable bundles dropping in at the back
+    for k in range(3):
+        x = -w / 2 + 0.12 + k * 0.17
+        out.append(tube("cables", [(x, d / 2 - 0.06, h - 0.1), (x + 0.01, d / 2 - 0.08, h * 0.6), (x - 0.01, d / 2 - 0.07, 0.3)], 0.018, col, M.matte(["#1A3A6B", "#202226", "#B8B03A"][k], 0.5), 10, cap=True))
+    return out
+
+
+def workbench(col, w=1.8, d=0.75, h=0.9, tone="#B48A5E"):
+    """A steel-framed bench with a thick beech top, a shelf under it and a pegboard rail behind."""
+    steel = M.matte("#3C4148", 0.4, 0.5)
+    top = M.oak(tone, 22.0, "X")
+    out = [rbox("bench top", (-w / 2, -d / 2, h - 0.04), (w / 2, d / 2, h), col, top, 0.006),
+           kit.box("bench shelf", (-w / 2 + 0.05, -d / 2 + 0.05, 0.16), (w / 2 - 0.05, d / 2 - 0.05, 0.18), col, steel)]
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            x, y = sx * (w / 2 - 0.04), sy * (d / 2 - 0.04)
+            out.append(rbox("bench leg", (x - 0.025, y - 0.025, 0), (x + 0.025, y + 0.025, h - 0.04), col, steel, 0.003))
+        out.append(rbox("bench rail", (sx * (w / 2 - 0.04) - 0.02, -d / 2 + 0.04, 0.16), (sx * (w / 2 - 0.04) + 0.02, d / 2 - 0.04, 0.2), col, steel, 0.003))
+    return out
+
+
+def wire_shelving(col, w=1.2, d=0.45, h=1.8, levels=5, seed=3):
+    """Chrome wire shelving with archive boxes, spare cables and a few parts on it."""
+    rnd = random.Random(seed)
+    chrome = M.steel("#C9CCD0", 0.25)
+    out = []
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            out.append(kit.cylinder("post", Vector((sx * (w / 2 - 0.015), sy * (d / 2 - 0.015), h / 2)), 0.012, h, col, chrome, 16))
+    for j in range(levels):
+        z = 0.12 + j * (h - 0.16) / (levels - 1)
+        out.append(kit.box("wire shelf", (-w / 2, -d / 2, z - 0.012), (w / 2, d / 2, z), col, M.matte("#B9BCC0", 0.35, 0.6)))
+        x = -w / 2 + 0.04
+        while x < w / 2 - 0.2 and j < levels - 1:
+            kind = rnd.random()
+            if kind < 0.55:
+                bw = rnd.uniform(0.3, 0.4)
+                bh = min(0.28, (h - 0.16) / (levels - 1) - 0.05)
+                out.append(rbox("archive box", (x, -d / 2 + 0.03, z), (x + bw, d / 2 - 0.04, z + bh), col, M.matte(rnd.choice(["#C9B590", "#BFA982", "#D3C4A5", "#3B3F45"]), 0.8), 0.006))
+                x += bw + 0.03
+            elif kind < 0.8:
+                ring = [(x + 0.12 + 0.1 * math.cos(t * 2 * math.pi / 24), 0.1 * math.sin(t * 2 * math.pi / 24), z + 0.02) for t in range(25)]
+                out.append(tube("cable coil", ring, 0.018, col, M.matte(rnd.choice(["#1A3A6B", "#202226", "#D9D4C8"]), 0.5), 8))
+                x += 0.27
+            else:
+                out.append(rbox("part", (x, -0.1, z), (x + 0.22, 0.1, z + 0.06), col, M.matte("#2A2D33", 0.4, 0.4), 0.004))
+                x += 0.27
+    return out
+
+
+def cable_tray(col, length=4.0, w=0.3):
+    """A galvanised ladder tray, hung under the ceiling on threaded rods, with cables laid in it (at z=0 its top)."""
+    galv = M.steel("#A9AEB3", 0.45)
+    out = []
+    for sy in (-1, 1):
+        out.append(kit.box("tray side", (-length / 2, sy * w / 2 - 0.004, -0.06), (length / 2, sy * w / 2 + 0.004, 0.0), col, galv))
+    n = int(length / 0.3)
+    for i in range(n + 1):
+        x = -length / 2 + i * length / n
+        out.append(kit.box("tray rung", (x - 0.012, -w / 2, -0.06), (x + 0.012, w / 2, -0.05), col, galv))
+    for k, c in enumerate(["#1A3A6B", "#202226", "#B8B03A", "#202226", "#1A3A6B"]):
+        y = -w / 2 + 0.05 + k * (w - 0.1) / 4
+        out.append(tube("cable", [(-length / 2, y, -0.04), (length / 2, y, -0.04)], 0.011, col, M.matte(c, 0.5), 8))
+    for i in range(int(length / 1.2) + 1):
+        x = -length / 2 + 0.15 + i * (length - 0.3) / max(1, int(length / 1.2))
+        for sy in (-1, 1):
+            out.append(kit.cylinder("rod", Vector((x, sy * (w / 2 + 0.02), 0.2)), 0.005, 0.4, col, galv, 8))
+    return out
+
+
+def batten(col, length=1.5):
+    """A surface-mounted LED batten on the ceiling, on (at z=0 the ceiling)."""
+    return [rbox("batten body", (-length / 2, -0.035, -0.05), (length / 2, 0.035, 0.0), col, M.matte("#EDEBE6", 0.4), 0.008),
+            kit.box("batten diffuser", (-length / 2 + 0.02, -0.03, -0.053), (length / 2 - 0.02, 0.03, -0.049), col, M.glow("#FFF1DE", 60.0))]
+
+
+def tool_cabinet(col, w=0.7, d=0.46, h=1.0, color="#B32A22"):
+    """A steel tool chest on castors, drawers of graded heights."""
+    paint = M.matte(color, 0.35, 0.3, coat=0.3)
+    steel = M.steel("#B8BCC1", 0.3)
+    out = [rbox("chest", (-w / 2, -d / 2, 0.1), (w / 2, d / 2, h), col, paint, 0.01)]
+    z = 0.14
+    for i, dh in enumerate((0.26, 0.2, 0.14, 0.1, 0.08, 0.08)):
+        if z + dh > h - 0.03:
+            break
+        out.append(kit.box("drawer line", (-w / 2 + 0.02, -d / 2 - 0.003, z + dh - 0.004), (w / 2 - 0.02, -d / 2 + 0.002, z + dh), col, M.matte("#1C1C1C", 0.5)))
+        out.append(rbox("pull", (-w / 2 + 0.06, -d / 2 - 0.02, z + dh - 0.03), (w / 2 - 0.06, -d / 2 - 0.004, z + dh - 0.015), col, steel, 0.004))
+        z += dh
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            out.append(kit.cylinder("castor", Vector((sx * (w / 2 - 0.06), sy * (d / 2 - 0.06), 0.05)), 0.045, 0.035, col, M.matte("#1C1C1C", 0.6), 16, axis="X"))
+    return out
+
+
+def crash_cart(col, h=1.0):
+    """A small trolley with a screen and keyboard on it, wheeled up to whichever machine needs looking at."""
+    steel = M.matte("#2B2E33", 0.4, 0.5)
+    out = [kit.box("cart shelf", (-0.3, -0.22, h - 0.03), (0.3, 0.22, h), col, steel),
+           kit.box("cart shelf", (-0.3, -0.22, 0.2), (0.3, 0.22, 0.23), col, steel)]
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            out.append(kit.cylinder("cart post", Vector((sx * 0.28, sy * 0.2, h / 2 + 0.05)), 0.012, h - 0.1, col, M.steel("#B8BCC1", 0.3), 12))
+            out.append(kit.cylinder("castor", Vector((sx * 0.26, sy * 0.18, 0.04)), 0.035, 0.03, col, M.matte("#1C1C1C", 0.6), 16, axis="X"))
+    out += kit_offset(monitor(col, 0.48, on=False), 0, 0.05, h)
+    out += kit_offset(keyboard(col), 0, -0.12, h)
+    return out
+
+
+def kit_offset(objs, x, y, z):
+    for ob in objs:
+        if ob.parent is None:
+            ob.location = (ob.location.x + x, ob.location.y + y, ob.location.z + z)
+    return objs
+
+
+def pegboard(col, w=1.2, h=0.8, seed=5):
+    """A pegboard with a few tools hung on it."""
+    rnd = random.Random(seed)
+    out = [kit.box("pegboard", (-w / 2, -0.012, 0), (w / 2, 0.0, h), col, M.matte("#C9B38E", 0.8))]
+    for i in range(7):
+        x = -w / 2 + 0.12 + i * (w - 0.24) / 6
+        z = rnd.uniform(0.2, h - 0.15)
+        kind = rnd.random()
+        if kind < 0.4:
+            out.append(rbox("screwdriver", (x - 0.012, -0.03, z - 0.18), (x + 0.012, -0.012, z), col, M.matte(rnd.choice(["#B32A22", "#E0A21B", "#1A3A6B"]), 0.4), 0.006))
+        elif kind < 0.7:
+            out.append(rbox("pliers", (x - 0.03, -0.03, z - 0.2), (x + 0.03, -0.014, z), col, M.steel("#9DA2A8", 0.35), 0.008))
+        else:
+            ring = [(x + 0.07 * math.cos(t * 2 * math.pi / 20), -0.03, z - 0.08 + 0.07 * math.sin(t * 2 * math.pi / 20)) for t in range(21)]
+            out.append(tube("cable loop", ring, 0.008, col, M.matte(rnd.choice(["#202226", "#1A3A6B"]), 0.5), 6))
+    return out
+
+
+def telescope(col):
+    """A brass telescope on a wooden tripod, looking up at the sky through the glass."""
+    oak = M.oak("#A9825A", 30.0, "Z")
+    brass = M.steel("#B89B62", 0.3)
+    out = []
+    for k in range(3):
+        a = k * 2 * math.pi / 3
+        out.append(tube("tripod leg", [(math.cos(a) * 0.36, math.sin(a) * 0.36, 0.0), (math.cos(a) * 0.05, math.sin(a) * 0.05, 1.12)], 0.016, col, oak, 10))
+    out.append(kit.cylinder("mount", Vector((0, 0, 1.15)), 0.05, 0.08, col, brass, 24))
+    d = Vector((0.0, -math.cos(0.65), math.sin(0.65)))
+    base = Vector((0, 0, 1.22)) - d * 0.45
+    out.append(tube("tube", [tuple(base), tuple(base + d * 1.05)], lambda t: 0.055 + 0.02 * t, col, M.matte("#E3DDD2", 0.35, 0.3, coat=0.4), 32))
+    out.append(tube("eyepiece", [tuple(base - d * 0.12), tuple(base)], 0.02, col, brass, 16))
+    return out
+
+
+def street_tree(col, h=7.0, crown=2.6, seed=1):
+    """A street tree seen from across the road: as tree() but with fewer, larger leaves, light enough for the live
+    building's outside."""
+    rnd = random.Random(seed)
+    bark = M.matte("#4A4036", 0.9)
+    top = Vector((0.05, 0.1, h * 0.5))
+    out = [tube("trunk", [(0, 0, 0), (0.08, 0.04, h * 0.3), top], lambda t: 0.16 - 0.08 * t, col, bark, 10)]
+    cc = Vector((0, 0, h - crown * 0.85))
+    for b in range(5):
+        a = rnd.uniform(0, 2 * math.pi)
+        end = cc + Vector((math.cos(a) * crown * 0.55, math.sin(a) * crown * 0.55, rnd.uniform(-0.2, 0.6) * crown * 0.5))
+        out.append(tube("branch", [top, top.lerp(end, 0.5) + Vector((0, 0, 0.3)), end], lambda t: 0.07 - 0.05 * t, col, bark, 6))
+    bm = bmesh.new()
+    shape = [(0.0, 0.0), (0.4, 0.32), (1.0, 0.0), (0.4, -0.32)]
+    for k in range(int(60 * crown / 3)):
+        while True:
+            p = Vector((rnd.uniform(-1, 1), rnd.uniform(-1, 1), rnd.uniform(-1, 1)))
+            if p.length <= 1:
+                break
+        c = cc + Vector((p.x * crown, p.y * crown, p.z * crown * 0.8))
+        for i in range(40):
+            q = c + Vector((rnd.gauss(0, 0.25), rnd.gauss(0, 0.25), rnd.gauss(0, 0.2)))
+            d = Vector((rnd.gauss(0, 1), rnd.gauss(0, 1), rnd.gauss(0, 1) - 0.3)).normalized()
+            side = d.cross(Vector((0, 0, 1)))
+            side = side.normalized() if side.length > 1e-3 else Vector((1, 0, 0))
+            sz = rnd.uniform(0.16, 0.24)
+            bm.faces.new([bm.verts.new(q + d * (u * sz) + side * (v * sz)) for u, v in shape])
+    leaves = M.foliage(rnd.choice(["#4D6339", "#566B3C", "#45603A"]))
+    out.append(kit.obj_from_bmesh("crown", bm, col, leaves))
+    core = bmesh.new()
+    bmesh.ops.create_icosphere(core, subdivisions=3, radius=1.0)
+    for v in core.verts:
+        n = 1.0 + 0.14 * math.sin(v.co.x * 5.1 + seed) * math.sin(v.co.y * 4.3) * math.sin(v.co.z * 3.7 + seed)
+        v.co = cc + Vector((v.co.x * crown * 0.8 * n, v.co.y * crown * 0.8 * n, v.co.z * crown * 0.64 * n))
+    out.append(kit.obj_from_bmesh("crown core", core, col, leaves, smooth=True))
     return out

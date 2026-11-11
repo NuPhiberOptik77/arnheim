@@ -252,7 +252,7 @@ export function createWalk(ctx) {
     let entry = halls.get(s.id);
     if (entry) return entry;
     // A building can give its own halls (photo-building.js: the baked floor's corridor, lift and reception).
-    entry = (s !== penthouse && ctx.hallFor?.(s)) || (s === penthouse
+    entry = ctx.hallFor?.(s, s === penthouse ? { penthouse: true, founder, assistant: ctx.org.assistant || null } : null) || (s === penthouse
       ? buildPenthouse(s, { founder, assistant: ctx.org.assistant || null })
       : buildHall(s, { company: ctx.org.company, mission: ctx.org.mission }));
     if (photo) dressHall(entry, photo);
@@ -308,6 +308,7 @@ export function createWalk(ctx) {
     if (here) leave(here);
     here = s;
     hall = hallFor(s);
+    ctx.entered?.(s, hall);
     if (!hall.group.parent) s.group.add(hall.group);
     hall.group.visible = true;
     setWalls(s, true);

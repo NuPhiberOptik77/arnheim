@@ -1,0 +1,29 @@
+{
+  "about": "How the basement's styled rooms are dressed and photographed, as style.json is for the project floor.",
+  "LIBRARY": {
+    "floor": "oak",
+    "floor_tone": "#B49A7C",
+    "lights": "downlights on",
+    "cameras": [{"at": [5.2, 0.8], "look": [2.2, 12.5], "lens": 20, "height": 1.35, "exposure": 0.0, "shift_y": 0.0, "wb": 4800,
+                 "about": "from the south-east corner, down the length of the library to the sofa at the far end"}]
+  },
+  "WEST MACHINE ROOM": {
+    "floor": "concrete",
+    "floor_tone": "#A9A59D",
+    "lights": "battens",
+    "cameras": [{"at": [11.5, 8.5], "look": [7.0, 3.6], "lens": 18, "height": 1.4, "exposure": 0.0, "shift_y": 0.0, "wb": 5200,
+                 "about": "from just inside the door, across to the machine's rack and the bench under the window"}]
+  },
+  "MIDDLE MACHINE ROOM": {
+    "floor": "concrete",
+    "floor_tone": "#A39F97",
+    "lights": "battens",
+    "cameras": [{"at": [17.5, 8.5], "look": [13.0, 3.6], "lens": 18, "height": 1.4, "exposure": 0.0, "shift_y": 0.0, "wb": 5200}]
+  },
+  "EAST MACHINE ROOM": {
+    "floor": "concrete",
+    "floor_tone": "#ADA9A1",
+    "lights": "battens",
+    "cameras": [{"at": [23.3, 8.5], "look": [18.8, 3.6], "lens": 18, "height": 1.4, "exposure": 0.0, "shift_y": 0.0, "wb": 5200}]
+  }
+}

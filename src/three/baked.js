@@ -251,6 +251,9 @@ function tinted(kit, name, colour) {
   return g;
 }
 
+// the library's books, by where each piece of third-party code stands
+const SHELF_COLOURS = { using: '#2F5A44', 'copied from': '#2D4A6B', considered: '#B08A3E', dropped: '#6B2B26', 'not looked at': '#D8CBB5' };
+
 const MUGS = ['#E9E2D6', '#2E2D2B', '#B9653E'];
 const NOTEBOOKS = ['#2F3B36', '#C9B79C', '#8C5A3C'];
 
@@ -386,7 +389,7 @@ export const FILL = {
   code({ g, slots, info, ctx, kit }) {
     const prs = info.prs || [];
     let left = prs.slice();
-    const colours = (p) => (p.draft ? '#8B93A7' : ['#3E6B4F', '#2F4A3A', '#4F7A5C'][identity(p.id ?? p.title) % 3]);
+    const colours = (p) => p.colour || (p.draft ? '#8B93A7' : ['#3E6B4F', '#2F4A3A', '#4F7A5C'][identity(p.id ?? p.title) % 3]);
     for (const s of slots.filter((x) => x.kind === 'shelves')) {
       const unit = placed(kit.make('bookcase'), s);
       g.add(unit);
@@ -587,8 +590,20 @@ export const FILL = {
     if (list.length > plaques.length) ctx.more(list.length - plaques.length, cx, 0.6, z + 0.1);
   },
 
-  // The basement until it is baked: a rack per machine, a bookcase for the library.
-  machine({ g, info, ctx, box }) {
+  // A shared machine: on a baked basement, its rack where the bake left room for it, the status lights on each
+  // server green while it is on and amber while a job runs; before the basement is baked, a plain rack.
+  machine({ g, slots, info, ctx, kit, box }) {
+    const s = slots?.find((x) => x.kind === 'machine');
+    if (s && kit) {
+      const lit = info.running ? AMBER : info.online ? new THREE.Color('#7fd492') : null;
+      const lights = standard(lit || '#3a3d44', lit ? { emissive: lit, emissiveIntensity: 2.2, roughness: 0.3 } : { roughness: 0.3 });
+      const rack = placed(kit.make('server rack', { live: { lights } }), s);
+      g.add(rack);
+      if (lit) g.add(put(pool(1.6, 1.6, { color: lit, opacity: 0.18, add: true }), ...along(s, 0, 0.007, -0.9)));
+      const p = along(s, 0, 0, 0);
+      ctx.object({ x: p[0], y: 0, z: p[2], w: 1.1, h: 2.0, d: 1.1, title: info.title, sub: info.sub, href: info.href, mood: info.state });
+      return;
+    }
     const cx = (box.x0 + box.x1) / 2;
     const cz = (box.z0 + box.z1) / 2;
     const rack = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.9, 1.0), standard('#2a2d33', { roughness: 0.5, metalness: 0.3 }));
@@ -600,11 +615,15 @@ export const FILL = {
     ctx.object({ x: cx, y: 0, z: cz, w: 1.2, h: 1.9, d: 1.2, title: info.title, sub: info.sub, href: info.href, mood: info.state });
   },
 
-  library({ g, info, ctx, kit, box }) {
+  // The library: a book for each piece of third-party code, coloured by where it stands (in use, copied from,
+  // considered, dropped, not looked at yet), on the baked library's shelves or, before that, on one bookcase.
+  library({ g, slots, info, ctx, kit, box }) {
     const list = info.items || [];
+    const shelves = slots?.filter((x) => x.kind === 'shelves') || [];
     const cx = (box.x0 + box.x1) / 2;
-    const s = { at: [cx, 0, box.z0 + 0.2], rot: 0, w: 1.5, h: 2.4, d: 0.34, cols: 2, rows: 6 };
-    FILL.code({ g, slots: [{ ...s, kind: 'shelves' }], info: { prs: list.map((b) => ({ ...b, draft: false })) }, ctx, kit });
+    const use = shelves.length ? shelves : [{ at: [cx, 0, box.z0 + 0.2], rot: 0, w: 1.5, h: 2.4, d: 0.34, cols: 2, rows: 6, kind: 'shelves' }];
+    const colour = (b) => SHELF_COLOURS[String(b.status || '').toLowerCase()] || null;
+    FILL.code({ g, slots: use, info: { prs: list.map((b) => ({ ...b, draft: false, colour: colour(b) })) }, ctx, kit });
   },
 
   lounge() {},

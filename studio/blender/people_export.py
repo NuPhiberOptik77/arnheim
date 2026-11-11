@@ -43,6 +43,9 @@ def default_people():
     r = org.get("receptionist")
     if r:
         out.append({"name": "receptionist", "look": r.get("look", {}), "dress": "receptionist", "kind": "desk", "seat": 0.52, "table": 0.76, "reach": 0.345})
+    a = org.get("assistant")
+    if a:  # the founder's assistant, at their desk in the founder's office
+        out.append({"name": "assistant", "look": a.get("look", {}), "dress": "assistant", "kind": "desk", "seat": 0.52, "table": 0.75, "reach": 0.345})
     for i in range(AGENTS):  # as furnish.py seats them: at a desk on a task chair, and on a chair at the meeting table
         for kind, seat, reach in (("desk", 0.52, 0.345), ("chat", 0.47, 0.31)):
             out.append({"name": f"agent-{i}-{kind}", "agent": f"agent {i}", "kind": kind, "seat": seat, "table": 0.74, "reach": reach})
@@ -55,6 +58,8 @@ def look_of(p):
     look = people.assistant_look(p.get("look", {}))
     if p.get("dress") == "receptionist":
         look = {**look, "trousers": "#2B2A2E"}
+    elif p.get("dress") == "assistant":
+        look = {**look, "trousers": "#3A4456"}  # as furnish.everyone dresses the assistant
     return {**look, **{k: p["look"][k] for k in ("collar", "nod") if k in p.get("look", {})}}
 
 

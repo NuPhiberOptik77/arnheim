@@ -306,6 +306,36 @@ def stone(g, color="#E3D6C3", vein="#B9A88F", rough=0.35, scale=2.0):
     g.set(Roughness=rough)
 
 
+@material("concrete")
+def concrete(g, color="#A9A59D", rough=0.4):
+    """A sealed concrete floor, ground smooth: soft clouds of lighter and darker cement, a little aggregate
+    showing where the grinding went deeper, and a sheen that varies with the wear."""
+    m = g.coords("Object")
+    cloud = g.n("ShaderNodeTexNoise", Scale=1.4, Detail=7.0, Roughness=0.62)
+    g.link(m, "Vector", cloud, "Vector")
+    fine = g.n("ShaderNodeTexNoise", Scale=38.0, Detail=5.0)
+    g.link(m, "Vector", fine, "Vector")
+    mix = g.n("ShaderNodeMix", _data_type="FLOAT", Factor=0.22)
+    g.link(cloud, "Fac", mix, "A")
+    g.link(fine, "Fac", mix, "B")
+    base = g.ramp(mix, "Result", [(0.32, _shade(color, -0.06)), (0.5, color), (0.68, _shade(color, 0.05))])
+    grit = g.n("ShaderNodeTexVoronoi", Scale=90.0, Randomness=1.0)
+    g.link(m, "Vector", grit, "Vector")
+    seen = g.n("ShaderNodeMath", _operation="LESS_THAN")
+    g.link(grit, "Distance", seen, 0)
+    seen.inputs[1].default_value = 0.09
+    stone_col = g.ramp(grit, "Color", [(0.0, "#8E8A82"), (0.5, "#C2BDB3"), (1.0, "#77736C")])
+    col = g.n("ShaderNodeMix", _data_type="RGBA")
+    g.link(seen, "Value", col, "Factor")
+    g.link(base, "Color", col, "A")
+    g.link(stone_col, "Color", col, "B")
+    g.link(col, "Result", g.bsdf, "Base Color")
+    wear = g.n("ShaderNodeMapRange", **{"To Min": rough - 0.08, "To Max": rough + 0.12})
+    g.link(cloud, "Fac", wear, "Value")
+    g.link(wear, "Result", g.bsdf, "Roughness")
+    g.bump(fine, "Fac", 0.03, 0.001)
+
+
 @material("ceramic")
 def ceramic(g, color="#E9E2D6", rough=0.25):
     m = g.coords("Object")

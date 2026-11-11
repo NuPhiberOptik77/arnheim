@@ -1,0 +1,44 @@
+{
+  "about": "The founder's office's choices the drawing leaves open, as design.json is for the project floor: heights, which rooms are styled, what each room is for and where it stands. The plan itself (walls, openings, rooms) comes only from the traced data file.",
+  "plan": "out/plan-office.json",
+  "site": {
+    "name": "a made-up street in London",
+    "latitude": 51.5
+  },
+  "floor": {
+    "about": "The top floor (D89): the founder's office over the project floors, glass on the street sides.",
+    "level": 5,
+    "floor_to_floor": 4.0
+  },
+  "heights": {
+    "ceiling": 3.6,
+    "door_head": 2.4,
+    "window_sill": 0.0,
+    "window_head": 3.35,
+    "small_window_sill": 0.9
+  },
+  "small_window_max_width": 1.45,
+  "rooms": {
+    "OFFICE": "the founder's office: the founder's desk across from the lift, the assistant at their own desk on the left as you step out, a round table, a reading corner",
+    "LIBRARY": "the founder's library, where the founder's notes hang in a row in front of the shelves",
+    "LOUNGE": "a lounge: a curved sofa round a stone table, a picture over a sideboard",
+    "LIFT AND STAIRS": "between floors: the way down to every other floor"
+  },
+  "furnish": {"LIBRARY": "OFFICE LIBRARY"},
+  "styled": ["OFFICE", "LIBRARY", "LOUNGE"],
+  "closed_doors": "every door into a room that is not styled stays shut",
+  "sun": {
+    "about": "The same moment as the floors below (out/sun.json)."
+  },
+  "subjects": {},
+  "moment": {
+    "about": "Mid-afternoon at the top of the building: the assistant at their desk, the founder out.",
+    "company": "sample/company.json",
+    "work": "sample/work.json",
+    "OFFICE": {"assistant": true, "turn": 0, "look": 10, "hands": "table"}
+  },
+  "finish": {
+    "about": "The walls' and ceiling's hand-finished plaster: its tone wanders this much either way (materials.plaster).",
+    "plaster_mottle": 0.018
+  }
+}

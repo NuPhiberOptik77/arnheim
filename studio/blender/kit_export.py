@@ -61,6 +61,12 @@ def book(col):
     return {"body": [P.rbox("book", (-0.015, -0.09, 0.0), (0.015, 0.09, 0.24), col, M.matte("#F2EEE6", 0.7), 0.002)]}
 
 
+def server_rack(col):
+    parts = P.server_rack(col, lit=False, seed=1)
+    lights = [o for o in parts if o.name.startswith("status light")]
+    return {"body": [o for o in parts if o not in lights], "lights": lights}
+
+
 PIECES = {
     "desk": desk,
     "desk chair": desk_chair,
@@ -77,8 +83,9 @@ PIECES = {
     "notebook": lambda col: {"body": P.notebook(col, "#F2EEE6")},
     "desk lamp": lambda col: {"body": P.task_lamp(col)},
     "laptop": lambda col: {"body": P.laptop(col, open_=False)},
+    "server rack": server_rack,
 }
-LIVE_PARTS = {"screen", "page"}
+LIVE_PARTS = {"screen", "page", "lights"}
 
 
 def mesh_data(ob):

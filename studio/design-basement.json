@@ -1,0 +1,62 @@
+{
+ "about": "The basement's choices the drawing leaves open, as design.json is for the project floor: heights, which rooms are styled, what each room is for and how it meets the street. The plan itself (walls, openings, rooms) comes only from the traced data file.",
+ "plan": "out/plan-basement.json",
+ "site": {
+  "name": "a made-up street in London",
+  "latitude": 51.5
+ },
+ "floor": {
+  "about": "Under the lobby (D89): the shared machines and the library, a storey below the street.",
+  "level": -1,
+  "floor_to_floor": 3.6
+ },
+ "heights": {
+  "ceiling": 3.0,
+  "door_head": 2.2,
+  "window_sill": 1.75,
+  "window_head": 2.75,
+  "small_window_sill": 1.75
+ },
+ "small_window_max_width": 1.5,
+ "light_wells": {
+  "about": "Dug down along the street sides, so the high windows see the sky: 2.4 m across, their floors under the sills.",
+  "sides": [
+   "south",
+   "west"
+  ],
+  "width": 2.4,
+  "floor": 1.5
+ },
+ "rooms": {
+  "LIBRARY": "library: a book on the shelves for each piece of third-party code the company uses or has looked at; nothing here installs or runs it",
+  "WEST MACHINE ROOM": "machine: one shared machine in its rack, lit when it is on and busy when a job runs",
+  "MIDDLE MACHINE ROOM": "machine: another shared machine",
+  "EAST MACHINE ROOM": "machine: another shared machine",
+  "LIFT AND STAIRS": "between floors: the way up to the lobby and every project's floor",
+  "CORRIDOR": "between rooms"
+ },
+ "styled": [
+  "LIBRARY",
+  "WEST MACHINE ROOM",
+  "MIDDLE MACHINE ROOM",
+  "EAST MACHINE ROOM"
+ ],
+ "closed_doors": "every door into a room that is not styled stays shut",
+ "sun": {
+  "about": "The same moment as the floors above (out/sun.json). Below the street the low sun reaches only the tops of the high windows; the rooms are lit by their own lamps."
+ },
+ "subjects": {},
+ "moment": {
+  "about": "Mid-afternoon, nobody down here: the machines at work on their own.",
+  "company": "sample/company.json",
+  "work": "sample/work.json"
+ },
+ "finish": {
+  "about": "The walls' and ceiling's hand-finished plaster: its tone wanders this much either way (materials.plaster).",
+  "plaster_mottle": 0.018
+ },
+ "lit": {
+  "CORRIDOR": "downlights on",
+  "LIFT AND STAIRS": "downlights on"
+ }
+}

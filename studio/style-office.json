@@ -1,0 +1,19 @@
+{
+  "about": "How the founder's office's rooms are dressed and photographed, as style.json is for the project floor.",
+  "OFFICE": {
+    "floor": "oak",
+    "floor_tone": "#B8A086",
+    "cameras": [{"at": [10.6, 10.0], "look": [6.4, 2.2], "lens": 20, "height": 1.4, "exposure": -1.4, "shift_y": 0.0, "wb": 5400,
+                 "about": "from beside the lift doors: the founder's desk against the glass, the assistant's desk at the edge of the frame"}]
+  },
+  "LIBRARY": {
+    "floor": "oak",
+    "floor_tone": "#B8A086",
+    "cameras": [{"at": [5.3, 6.6], "look": [2.2, 15.2], "lens": 20, "height": 1.4, "exposure": -1.2, "shift_y": 0.0, "wb": 5400}]
+  },
+  "LOUNGE": {
+    "floor": "oak",
+    "floor_tone": "#B8A086",
+    "cameras": [{"at": [17.6, 9.9], "look": [21.6, 2.6], "lens": 20, "height": 1.4, "exposure": -1.4, "shift_y": 0.0, "wb": 5400}]
+  }
+}

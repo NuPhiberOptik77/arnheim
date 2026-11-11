@@ -10,7 +10,7 @@ import shutil
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "out")
 DEST = os.path.join(os.path.dirname(HERE), "baked")
-SHELLS = {"floor": "studio-shell", "lobby": "lobby-shell"}  # every project floor is the one baked studio floor
+SHELLS = {"floor": "studio-shell", "lobby": "lobby-shell", "basement": "basement-shell", "office": "office-shell", "site": "site"}  # every project floor is the one baked studio floor; the founder's office only the walk loads
 
 
 def copy_tree(name):

@@ -33,7 +33,11 @@ const SHELL_ROOM = {
   goals: 'GOALS', work: 'WORK', conversations: 'CONVERSATIONS', code: 'CODE', company: 'COMPANY',
   websites: 'RECEPTION', email: 'EMAIL', social: 'SOCIAL MEDIA', domains: 'DOMAINS',
 };
+const MACHINE_ROOMS = ['WEST MACHINE ROOM', 'MIDDLE MACHINE ROOM', 'EAST MACHINE ROOM', 'LIBRARY'];
 const PASSAGES = new Set(['CORRIDOR', 'LIFT AND STAIRS']);
+const SITE_LEVEL = 0.8;
+const BASEMENT_DROP = 3.6; // studio/design-basement.json: floor to floor under the lobby
+const ROOF_SLAB = 0.35; // studio/blender/street.py: the baked roof's slab under its top
 const KIND_ORDER = { goals: 0, code: 1, conversations: 2, work: 3 };
 
 // A room's light, as a colour over its bake.
@@ -93,6 +97,9 @@ export function createPhotoBuilding(canvas, org, { base, onPick, onHover, onStat
   let walker = null; // a first-person walk, while one is going (walk.js)
   let walkStart = null;
   const shells = {};
+  const siteMeshes = []; // the baked outside's meshes, once the building is built
+  let buildingIndex = null; // building.json: which baked floor serves which part of the building
+  let officeTick = null; // the assistant's breathing, in the founder's office while you walk there
   const storeys = [];
   const rooms = new Map();
   let signHit = null;
@@ -188,8 +195,10 @@ export function createPhotoBuilding(canvas, org, { base, onPick, onHover, onStat
         byName.set(m.name, copy);
       }
       const used = new Set();
+      // the basement's machines take its machine rooms in turn, west to east
+      const machineRoom = () => MACHINE_ROOMS.find((n) => n !== 'LIBRARY' && !used.has(n) && shell.rooms.has(n));
       for (const r of ordered) {
-        const name = SHELL_ROOM[kinds(r)];
+        const name = role === 'basement' ? (kinds(r) === 'library' ? 'LIBRARY' : machineRoom()) : SHELL_ROOM[kinds(r)];
         const baked = name && shell.rooms.get(name);
         if (!baked?.outline) { console.warn(`Arnheim: the photo-real ${role} has no room for "${r.label}" yet.`); continue; }
         used.add(name);
@@ -233,7 +242,8 @@ export function createPhotoBuilding(canvas, org, { base, onPick, onHover, onStat
     const basement = storeys.find((s) => s.role === 'basement');
     let y = lobby ? lobby.height : 0;
     if (lobby) lobby.y = 0;
-    if (basement) basement.y = -basement.height - 0.35;
+    // a baked basement stands a storey down (3.6 m), its light wells meeting the baked street; a drawn one under the ground
+    if (basement) basement.y = basement.shell ? -BASEMENT_DROP : -basement.height - 0.35;
     for (const s of storeys.filter((x) => x.role === 'floor').reverse()) { s.y = y; y += s.height; }
     return y;
   }
@@ -248,14 +258,43 @@ export function createPhotoBuilding(canvas, org, { base, onPick, onHover, onStat
     const trim = new THREE.MeshStandardMaterial({ color: '#d9d3c7', roughness: 0.8 });
     const paving = new THREE.MeshStandardMaterial({ color: '#a39b8f', roughness: 0.95 });
     const earth = new THREE.MeshStandardMaterial({ color: '#4a3b2c', roughness: 1 });
-    const slab = new THREE.Mesh(new THREE.BoxGeometry(w, 0.3, d), roof);
-    slab.position.set(cx, roofY + 0.15, cz);
-    const parapet = new THREE.Mesh(new THREE.BoxGeometry(w, 0.4, 0.14), trim);
-    parapet.position.set(cx, roofY + 0.5, box3.z1 + 0.18);
-    const ground = new THREE.Mesh(new THREE.BoxGeometry(w + 6, 0.35, d + 3), paving);
-    ground.position.set(cx, -0.175, cz + 1);
-    outer.add(slab, parapet, ground);
-    if (storeys.some((s) => s.role === 'basement')) {
+    if (shells.site) {
+      // the baked outside: the streets, pavements, light wells and trees round the ground floor, the roof on top
+      for (const m of shells.site.group.children) {
+        const mesh = new THREE.Mesh(m.geometry, m.material);
+        mesh.name = `outside ${m.name}`;
+        mesh.position.y = m.name === 'ROOF' ? roofY + ROOF_SLAB : 0; // the outer group already stands where the building does
+        outer.add(mesh);
+        siteMeshes.push(mesh);
+      }
+      tintSite();
+      // the earth the basement is dug into, round it and its light wells, so the cut-away shows soil
+      const b = storeys.find((x) => x.role === 'basement');
+      if (b) {
+        const soil = new THREE.MeshStandardMaterial({ color: '#4a3b2c', roughness: 1, side: THREE.DoubleSide });
+        const top = -0.45;
+        const bottom = b.y - 0.6;
+        const h = top - bottom;
+        const add = (x0, x1, z0, z1) => {
+          const block = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, h, z1 - z0), soil);
+          block.position.set((x0 + x1) / 2, bottom + h / 2, (z0 + z1) / 2);
+          outer.add(block);
+        };
+        add(-9, -2.7, -24, 6.4);       // west of the west light well, out to the street
+        add(24, 31, -24, 6.4);         // east of the building
+        add(-2.7, 24, -24, -16);       // north of it
+        add(10.09, 24, -16, -10.72);   // under the notch in its north side
+      }
+    } else {
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(w, 0.3, d), roof);
+      slab.position.set(cx, roofY + 0.15, cz);
+      const parapet = new THREE.Mesh(new THREE.BoxGeometry(w, 0.4, 0.14), trim);
+      parapet.position.set(cx, roofY + 0.5, box3.z1 + 0.18);
+      const ground = new THREE.Mesh(new THREE.BoxGeometry(w + 6, 0.35, d + 3), paving);
+      ground.position.set(cx, -0.175, cz + 1);
+      outer.add(slab, parapet, ground);
+    }
+    if (!shells.site && storeys.some((s) => s.role === 'basement')) {
       const b = storeys.find((s) => s.role === 'basement');
       const block = new THREE.Mesh(new THREE.BoxGeometry(w + 6, b.height + 0.4, 0.6), earth);
       block.position.set(cx, b.y + b.height / 2 - 0.2, box3.z0 - 0.5);
@@ -477,7 +516,14 @@ export function createPhotoBuilding(canvas, org, { base, onPick, onHover, onStat
     renderer.toneMappingExposure = T.exposure;
     applyPalette();
     for (const room of rooms.values()) tintRoom(room);
+    tintSite();
     wake(3);
+  }
+
+  // the baked outside dims with the theme, as the rooms do
+  // the street in full sun was baked for the rooms' exposure, so it is taken down a little to sit with them
+  function tintSite() {
+    for (const m of siteMeshes) m.material.color.setScalar(T.level * SITE_LEVEL);
   }
 
   function applyPalette() {
@@ -919,6 +965,10 @@ export function createPhotoBuilding(canvas, org, { base, onPick, onHover, onStat
       personRoom.person.tick(now / 1000);
       any = true;
     }
+    if (walker && officeTick && walker.info()?.floor === 'penthouse') {
+      officeTick(now / 1000);
+      any = true;
+    }
     if (now - lastActive < PULSE_MS) {
       for (const room of rooms.values()) if (room.mood === 'needs' && room.gain > 0.5 && room.storey.group.visible) { any = true; break; }
     }
@@ -1089,35 +1139,136 @@ export function createPhotoBuilding(canvas, org, { base, onPick, onHover, onStat
   const inside = (b, x, z, pad = 0) => x > b.x0 - pad && x < b.x1 + pad && z > b.z0 - pad && z < b.z1 + pad;
 
   // The walk's hall on a baked floor: the floor's own corridor, lift and reception, with nothing added
-  // but somewhere to tap the lift. Floors are in their own coordinates, as the walk wants them.
-  function hallFor(s) {
+  // but somewhere to tap the lift. Floors are in their own coordinates, as the walk wants them. The
+  // founder's office (opts.penthouse) is a floor only the walk has: its baked rooms come with the hall,
+  // the assistant at their desk, the founder's name over the lift and where the notes hang; with no
+  // baked office the walk draws its own.
+  function hallFor(s, opts = null) {
+    const office = opts?.penthouse ? shells.office : null;
+    if (opts?.penthouse && !office) return null;
+    const shell = office || s.shell;
     const group = new THREE.Group();
-    const liftRoom = s.shell?.rooms.get('LIFT AND STAIRS')?.outline;
-    const corridor = s.shell?.rooms.get('CORRIDOR')?.outline;
+    const extras = [];
+    if (office) {
+      for (const m of office.group.children) {
+        const copy = new THREE.Mesh(m.geometry, m.material.clone());
+        copy.name = m.name;
+        if (m.material.transparent) copy.userData.solid = true;
+        copy.matrixAutoUpdate = false;
+        copy.updateMatrix();
+        group.add(copy);
+        extras.push(copy.material);
+      }
+    }
+    const liftRoom = shell?.rooms.get('LIFT AND STAIRS')?.outline;
+    const corridor = shell?.rooms.get('CORRIDOR')?.outline;
     const lb = liftRoom ? boundsOf(liftRoom) : { x0: box3.x0 + 0.6, x1: box3.x0 + 2.0, z0: box3.z1 - 2.2, z1: box3.z1 - 0.8 };
     const cb = corridor ? boundsOf(corridor) : null;
     const lift = { x: (lb.x0 + lb.x1) / 2, z: (lb.z0 + lb.z1) / 2, open: 0 };
-    // out of the lift, facing the rooms across the corridor
-    const spot = cb ? { x: lift.x, z: (cb.z0 + cb.z1) / 2, yaw: Math.PI } : { x: lift.x + 2, z: lb.z1 - 0.7, yaw: Math.PI / 2 };
+    // out of the lift, facing the rooms across the corridor (in the office, facing the founder's desk)
+    // (below ground the rooms have solid walls, so you face down the corridor, toward its far end, instead)
+    const along = s.role === 'basement' && cb && cb.x1 - lift.x > lift.x - cb.x0 ? -Math.PI / 2 : s.role === 'basement' && cb ? Math.PI / 2 : null;
+    const spot = cb ? { x: lift.x, z: (cb.z0 + cb.z1) / 2, yaw: along ?? Math.PI } : office ? { x: lift.x, z: lb.z1 + 1.0, yaw: Math.PI } : { x: lift.x + 2, z: lb.z1 - 0.7, yaw: Math.PI / 2 };
     const tap = new THREE.Mesh(new THREE.BoxGeometry(lb.x1 - lb.x0, 2.2, lb.z1 - lb.z0), hitMaterial);
     tap.position.set(lift.x, 1.1, lift.z);
     tap.visible = false;
     tap.userData = { hit: true, lift: true, stay: true, title: 'The lift' };
     group.add(tap);
     const hall = {
-      baked: true, group, lift, spot, picks: [tap],
+      baked: true, group, lift, spot, picks: [tap], sky: shell?.sky || null,
       west: box3.x0, east: box3.x1, north: box3.z0, front: box3.z1,
-      setDoors() {}, inLift: (x, z) => inside(lb, x, z), dispose() { tap.geometry.dispose(); },
+      setDoors() {}, inLift: (x, z) => inside(lb, x, z),
+      dispose() { tap.geometry.dispose(); for (const m of extras) m.dispose?.(); },
     };
     if (s.role === 'lobby') {
       const door = s.shell?.slots.find((x) => x.kind === 'entrance');
       hall.entrance = door ? { x: door.at[0], z: door.at[2], yaw: 0 } : { x: (box3.x0 + box3.x1) / 2, z: box3.z1 - 1.0, yaw: 0 };
     }
-    if (personRoom?.storey === s) {
+    if (!office && personRoom?.storey === s) {
       const at = personRoom.spec.person.at;
       hall.poe = { x: at[0], z: at[2], turn: 0 };
     }
+    if (office) furnishOffice(hall, office, opts, extras);
     return hall;
+  }
+
+  // The founder's office's live part: the assistant at their desk (photo-real when exported, drawn
+  // otherwise) with the ring to talk to them, the founder's desk and name, and where the notes hang.
+  function furnishOffice(hall, office, { founder = null, assistant = null } = {}, extras) {
+    const { group } = hall;
+    const slot = (kind) => office.slots.find((x) => x.kind === kind);
+    const desk = slot('desk');
+    if (desk) {
+      const name = founder?.name || '';
+      const title = founder?.title || '';
+      const hit = new THREE.Mesh(new THREE.BoxGeometry(desk.w + 0.4, 1.3, desk.d + 1.2), hitMaterial);
+      hit.position.set(desk.at[0], 0.65, desk.at[2]);
+      hit.visible = false;
+      hit.userData = { hit: true, stay: true, title: name || "The founder's desk", sub: title };
+      group.add(hit);
+      hall.picks.push(hit);
+      hall.desk = { x: desk.at[0], z: desk.at[2] + 0.85, name, title };
+      const plate = slot('nameplate');
+      if (plate && name) {
+        const sign = nameSign(name.toUpperCase(), plate.w, plate.h, plate.color || '#C9A46A');
+        sign.position.set(plate.at[0], plate.at[1] + plate.h / 2, plate.at[2] + 0.012);
+        sign.rotation.y = plate.rot;
+        group.add(sign);
+        extras.push(sign.material.map, sign.material, sign.geometry);
+      }
+    }
+    const seat = slot('assistant');
+    if (seat && assistant?.name) {
+      const person = people?.make('assistant', { seed: 11 }) || buildPerson(receptionistSpec(assistant));
+      person.group.position.set(seat.at[0], 0, seat.at[2]);
+      person.group.rotation.y = seat.rot;
+      group.add(person.group);
+      if (people?.has('assistant')) {
+        const chair = kit.make('desk chair');
+        chair.position.set(seat.at[0] + Math.sin(seat.rot) * 0.045, 0, seat.at[2] + Math.cos(seat.rot) * 0.045);
+        chair.rotation.y = seat.rot;
+        group.add(chair);
+      }
+      const hit = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.85, 1.6), hitMaterial);
+      hit.position.set(seat.at[0] - 0.3, 0.92, seat.at[2]);
+      hit.visible = false;
+      hit.userData = { hit: true, stay: true, talk: true, title: assistant.name, sub: `${assistant.title || 'Assistant'}. Tap to talk.` };
+      group.add(hit);
+      hall.picks.push(hit);
+      const stand = seat.stand ? [seat.stand[0], seat.stand[2] ?? -seat.stand[1]] : [seat.at[0] - 1.75, seat.at[2]];
+      hall.assistant = {
+        x: seat.at[0], z: seat.at[2], stand, hit,
+        who: { title: assistant.name, sub: assistant.title || 'Assistant', href: assistant.href || '#/assistant', voice: assistant.voice || null, stay: true },
+      };
+      officeTick = person.tick ? (t) => person.tick(t) : null;
+    }
+    const notes = office.slots.filter((x) => x.kind === 'note');
+    if (notes.length) {
+      hall.notes = {
+        slots: notes.map((n) => ({ x: n.at[0], z: n.at[2], turn: n.rot })),
+        y: notes[0].at[1], high: office.height, where: 'in the library: step out of the lift and turn right',
+      };
+    }
+  }
+
+  // The founder's name in raised gold letters over the lift doors.
+  function nameSign(text, w, h, color) {
+    const c = document.createElement('canvas');
+    c.width = 1024;
+    c.height = Math.round((1024 * h) / w);
+    const g = c.getContext('2d');
+    g.clearRect(0, 0, c.width, c.height);
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.font = `600 ${Math.round(c.height * 0.62)}px "Helvetica Neue", Arial, sans-serif`;
+    g.fillStyle = 'rgba(0,0,0,0.35)';
+    g.fillText(text, c.width / 2 + 3, c.height / 2 + 4);
+    g.fillStyle = color;
+    g.fillText(text, c.width / 2, c.height / 2);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: 0.35, metalness: 0.6 }));
   }
 
   async function walk(on = true) {
@@ -1126,6 +1277,16 @@ export function createPhotoBuilding(canvas, org, { base, onPick, onHover, onStat
     walkStart ??= import('./walk.js');
     const { createWalk, loadStyle } = await walkStart;
     await loadStyle();
+    // the founder's office is only ever walked: its baked floor loads the first time someone walks
+    if (buildingIndex?.shells?.office && !shells.office) {
+      try {
+        const office = await loadShell(`${root}${buildingIndex.shells.office}`);
+        office.height = shellHeight(office);
+        shells.office = office;
+      } catch (error) {
+        console.warn("Arnheim: the founder's office did not load; the walk draws its own.", error);
+      }
+    }
     if (walker || disposed || contextLost) return !!walker;
     selected = null;
     onHover?.(null);
@@ -1146,6 +1307,8 @@ export function createPhotoBuilding(canvas, org, { base, onPick, onHover, onStat
       walker = createWalk({
         scene, camera, canvas, renderer, composer: { addPass() {}, removePass() {} }, photo: null, storeys, org, reduced, personRoom, start: view.floor,
         onPick, describe, infoText, roomWorld, wake, touched, version: () => version, talk, hallFor,
+        // each floor shows its own view out of the windows
+        entered(_s, hall) { scene.background = hall?.sky || (shells.lobby || shells.floor)?.sky || bgTexture; },
         notes: () => notes, onNotes,
         poeAwake() { personWake = performance.now(); },
         shadows() {},
@@ -1190,7 +1353,9 @@ export function createPhotoBuilding(canvas, org, { base, onPick, onHover, onStat
 
   async function load() {
     const index = await (await fetch(`${root}building.json`, { cache: 'no-cache' })).json();
+    buildingIndex = index;
     const roles = new Set(defs.map((d) => (d.id === org.basement?.id ? 'basement' : d.id === org.lobby?.id ? 'lobby' : 'floor')));
+    roles.add('site'); // the outside, when it has been baked
     const [k, folk, ...loaded] = await Promise.all([
       loadKit(`${root}${index.kit}`),
       index.people ? loadPeople(`${root}${index.people}`).catch((error) => { console.warn('Arnheim: the photo-real people did not load; the drawn ones stand in.', error); return null; }) : null,
