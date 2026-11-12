@@ -34,8 +34,12 @@ export function historyAsked(text, now = new Date(), project = null) {
 }
 
 // A file named in the question: "who changed src/walk.js?", "when was notes.md last changed?"
+// A name with spaces in it goes in quotes: who changed "My File.txt"?
 export function fileAsked(text) {
-  const m = /(?:^|[\s"'`(])((?:[\w.-]+\/)*[\w-]+\.[A-Za-z][A-Za-z0-9]{0,7})(?=$|[\s"'`?),!:;]|\.(?:\s|$))/.exec(String(text || ''));
+  const said = String(text || '');
+  const quoted = /["'“‘`]([^"'”’`]*[^\s"'”’`/]\.\p{L}[\p{L}\p{N}]{0,7})["'”’`]/u.exec(said);
+  if (quoted) return quoted[1];
+  const m = /(?:^|[\s(])((?:[\p{L}\p{N}_.-]+\/)*[\p{L}\p{N}_-]+\.\p{L}[\p{L}\p{N}]{0,7})(?=$|[\s?),!:;]|\.(?:\s|$))/u.exec(said);
   return m ? m[1] : null;
 }
 

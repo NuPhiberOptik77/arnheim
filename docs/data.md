@@ -166,7 +166,7 @@ floor's `label`), and each `id` is unique within its list.
 | `jobs` | `id`, `name`, `machine` (a basement room's `id`) and `state`: `queued`, `running` or `done`. |
 | `routines` | Written by connect/routines.py (docs/connect.md, "Routines"): `id`, `project`, `label`, `when` (its schedule in words), `kind` (`command` or `agent`), `next`, and `last`: `{"state": "all clear", "at": ..., "tail": ...}` (state `starting`, `running`, `all clear`, `needs you`, `failed`, `timeout` or `error`). |
 | `library` | `id`, `name`, and `status` in your own words. The sample uses Using, Copied from, Considered, Dropped and Not looked at. |
-| `restore` | Written by connect/restore.py (docs/connect.md, "Restore points"): `id`, `project`, `key` (its conversation), `title`, `why`, `by` (`agent`, or `you` for one taken before going back), `files` (how many weren't committed then), and `at`. The sample gives `ago`, in seconds, instead of `at`. |
+| `restore` | Written by connect/restore.py (docs/connect.md, "Restore points"): `id`, `commit`, `repo` (the repository's folder, from the floor's), `scope` (the floor's folder within the repository, or `.` for the whole of it), `project`, `key` (its conversation), `title`, `why`, `by` (`agent`, or `you` for one taken before going back), `files` (how many weren't committed then), and `at`. The sample gives `ago`, in seconds, instead of `at`. |
 
 `says` is what the person at a desk or in a seat answers when you talk to them on a walk, with no
 AI: `{ "now": "...", "next": "...", "when": "...", "needs": "..." }`, each a sentence or two. `now`

@@ -42,7 +42,7 @@ export function wentBack(out) {
   const left = Array.isArray(out?.left) ? out.left : [];
   const more = Number(out?.more) || 0;
   const made = left.length
-    ? ` ${plural(left.length + more, 'file made since then was', 'files made since then were')} left as ${left.length + more === 1 ? 'it is' : 'they are'}: ${left.join(', ')}${more ? ` and ${more} more` : ''}.`
+    ? ` ${plural(left.length + more, "file that wasn't there then was", "files that weren't there then were")} left as ${left.length + more === 1 ? 'it is' : 'they are'}: ${left.join(', ')}${more ? ` and ${more} more` : ''}.`
     : '';
   return `The files are back as they were.${made}${out?.kept ? ' How they were a moment ago is kept as a restore point too.' : ''}`;
 }

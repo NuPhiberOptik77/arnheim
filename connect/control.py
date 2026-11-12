@@ -578,17 +578,19 @@ class Control:
     # ---------- restore points ----------
 
     def restore(self, pid):
-        """Puts a project's files back as they were at a restore point (connect/restore.py), unless an agent is
-        at work on that floor. A restore point of how they are now is taken first, so this can be undone too."""
+        """Puts a floor's files back as they were at a restore point (connect/restore.py), unless an agent sharing
+        that folder is at work or waiting on you mid-turn. A restore point of how they are now is taken first, so
+        this can be undone too."""
         if not isinstance(pid, str) or not restore.POINT.match(pid):
             raise Refused("That isn't a restore point.")
         point = next((p for p in restore.read_points(self.data) if p.get("id") == pid), None)
         if not point:
             raise Refused("That restore point isn't kept any more.")
-        project = str(point.get("project") or "")
         feed = read(os.path.join(self.data, "feeds", "claude-code.json")) or {}
-        if any(isinstance(c, dict) and c.get("project") == project and c.get("working") for c in feed.get("conversations") or []):
-            raise Refused(f"An agent is at work on {project or 'that floor'}. Stop it first, then go back.")
+        asking = {row.get("key") for row in self.box.asks()}
+        held = restore.busy(point, feed.get("conversations") or [], asking, self.data)
+        if held:
+            raise Refused(f"An agent on {' and '.join(held)} is at work or waiting on you, in the same folder. Let it finish or stop it first, then go back.")
         if not self.going_back.acquire(blocking=False):
             raise Refused("Going back to another restore point is under way. Try again in a moment.")
         try:

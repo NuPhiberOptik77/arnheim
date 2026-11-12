@@ -142,7 +142,125 @@ class RestoreTest(unittest.TestCase):
         self.hook(hook_event_name="UserPromptSubmit", prompt="More")
         code, _, said, _ = ask("restore", {"id": point["id"]})
         self.assertEqual(code, 400)
-        self.assertIn("at work on Lantern", json.loads(said)["error"])
+        self.assertIn("An agent on Lantern is at work or waiting on you", json.loads(said)["error"])
+
+    def control(self):
+        c = control.Control(self.data)
+        return c, lambda body: c.handle("POST", "restore", json.dumps(body).encode(), c.token)
+
+    def test_waiting_on_you_mid_turn_is_refused_too(self):
+        self.hook(hook_event_name="UserPromptSubmit", prompt="Tidy the app")
+        self.hook(hook_event_name="PreToolUse", tool_name="Edit", tool_input={"file_path": "app.py"})
+        self.hook(hook_event_name="Notification", notification_type="permission_prompt", message="Claude needs your permission to use Bash")
+        self.assertFalse(next(c for c in self.feed()["conversations"] if c["id"] == KEY)["working"])
+        _, ask = self.control()
+        code, _, said, _ = ask({"id": self.points()[0]["id"]})
+        self.assertEqual(code, 400)
+        self.assertIn("waiting on you", json.loads(said)["error"])
+
+    def test_files_added_since_are_kept(self):
+        self.hook(hook_event_name="UserPromptSubmit", prompt="Add things")
+        self.hook(hook_event_name="PreToolUse", tool_name="Edit", tool_input={"file_path": "app.py"})
+        point = self.points()[0]
+        self.write("staged.py", "staged\n")
+        self.write("committed.py", "committed\n")
+        git(self.lantern, "add", "committed.py")
+        git(self.lantern, "commit", "-qm", "later")
+        git(self.lantern, "add", "staged.py")
+        self.write("app.py", "print('changed')\n")
+        self.hook(hook_event_name="Stop", last_assistant_message="Done.")
+        _, ask = self.control()
+        code, _, out, _ = ask({"id": point["id"]})
+        out = json.loads(out)
+        self.assertEqual(code, 200, out)
+        self.assertEqual(self.read("app.py"), "print('one')\n")
+        self.assertEqual((self.read("staged.py"), self.read("committed.py")), ("staged\n", "committed\n"))  # made since: left
+        self.assertEqual(sorted(out["left"]), ["committed.py", "staged.py"])
+
+    def test_secrets_are_never_saved(self):
+        self.write(".env", "KEY=one\n")
+        self.write("config/server.pem", "pem\n")
+        self.write("tokenizer.py", "ordinary\n")  # a name with "token" in it is ordinary code
+        point = restore.take(self.lantern, "before", project="Lantern", data=self.data)
+        held = git(self.lantern, "ls-tree", "-r", "--name-only", point["commit"]).split("\n")
+        self.assertNotIn(".env", held)
+        self.assertNotIn("config/server.pem", held)
+        self.assertIn("tokenizer.py", held)
+        self.write(".env", "KEY=two\n")
+        self.write("tokenizer.py", "broken\n")
+        out = restore.go_back(point, self.data)
+        self.assertEqual(self.read(".env"), "KEY=two\n")  # never in a point, so left as it is
+        self.assertEqual(self.read("tokenizer.py"), "ordinary\n")
+        self.assertNotIn(".env", out["left"])
+
+    def test_a_repository_with_nothing_added_yet(self):
+        fresh = os.path.join(self.base, "code", "fresh")
+        os.makedirs(fresh)
+        git(fresh, "init", "-q")
+        self.set_floors([{"id": "fresh", "label": "Fresh", "folder": fresh}])
+        with open(os.path.join(fresh, "a.txt"), "w", encoding="utf-8") as handle:
+            handle.write("a\n")
+        point = restore.take(fresh, "before", project="Fresh", data=self.data)
+        self.assertIsNotNone(point)
+        self.assertEqual(point["files"], 1)
+        with open(os.path.join(fresh, "a.txt"), "w", encoding="utf-8") as handle:
+            handle.write("broken\n")
+        restore.go_back(point, self.data)
+        with open(os.path.join(fresh, "a.txt"), encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), "a\n")
+
+    def set_floors(self, floors):
+        with open(os.path.join(self.data, "company.json"), "w", encoding="utf-8") as handle:
+            json.dump({"company": "Example Studio", "floors": floors, "feeds": ["feeds/claude-code.json", "feeds/restore.json"]}, handle)
+
+    def test_a_floor_in_a_subfolder_covers_only_its_folder(self):
+        self.write("web/page.html", "<p>one</p>\n")
+        git(self.lantern, "add", "-A")
+        git(self.lantern, "commit", "-qm", "web")
+        web = os.path.join(self.lantern, "web")
+        self.set_floors([{"id": "web", "label": "Web", "folder": web}, {"id": "lantern", "label": "Lantern", "folder": self.lantern}])
+        point = restore.take(web, "before", project="Web", data=self.data)
+        self.assertEqual((point["scope"], point["repo"]), ("web", ".."))
+        self.write("web/page.html", "<p>broken</p>\n")
+        self.write("app.py", "print('the other floor')\n")
+        restore.go_back(point, self.data)
+        self.assertEqual(self.read("web/page.html"), "<p>one</p>\n")
+        self.assertEqual(self.read("app.py"), "print('the other floor')\n")  # outside the floor's folder: untouched
+        # An agent at work on a floor whose folder holds this one: going back waits for it.
+        busy = restore.busy(point, [{"id": "cc-x", "project": "Lantern", "working": True}], data=self.data)
+        self.assertEqual(busy, ["Lantern"])
+        self.assertEqual(restore.busy(point, [{"id": "cc-x", "project": "Lantern", "working": False}], data=self.data), [])
+
+    def test_slow_folders_wait_and_old_refs_go(self):
+        git(self.lantern, "update-ref", "refs/arnheim/restore/1234", git(self.lantern, "rev-parse", "HEAD"))  # from a renamed floor
+        point = restore.take(self.lantern, "before", project="Lantern", data=self.data)
+        refs = git(self.lantern, "for-each-ref", "--format=%(refname)", "refs/arnheim/restore/").split()
+        self.assertEqual(refs, ["refs/arnheim/restore/" + point["commit"]])  # named by its commit; the stray one let go
+        # A file captured, then ignored: let go of on the next save.
+        self.write("debug.log", "noise\n")
+        restore.take(self.lantern, "again", project="Lantern", data=self.data, now=2000)
+        self.write(".gitignore", "build/\n*.log\n")
+        last = restore.take(self.lantern, "ignored now", project="Lantern", data=self.data, now=3000)
+        self.assertNotIn("debug.log", git(self.lantern, "ls-tree", "-r", "--name-only", last["commit"]).split("\n"))
+        # Too slow to save: no restore points for a while, so the agent isn't held up each time.
+        snapshot = restore.snapshot
+
+        def too_slow(*_args, **_kwargs):
+            raise restore.TooSlow()
+        restore.snapshot = too_slow
+        try:
+            self.assertIsNone(restore.take(self.lantern, "too slow", project="Lantern", data=self.data))
+        finally:
+            restore.snapshot = snapshot
+        gitdir = git(self.lantern, "rev-parse", "--absolute-git-dir")
+        slow = os.path.join(gitdir, "arnheim-restore", "slow")
+        self.assertTrue(os.path.exists(slow))
+        self.assertIsNone(restore.take(self.lantern, "still slow", project="Lantern", data=self.data))  # waits a while
+        os.remove(slow)
+        # A save stopped mid-way leaves git's lock behind: the next one clears it and goes on.
+        for folder in os.listdir(os.path.join(gitdir, "arnheim-restore")):
+            open(os.path.join(gitdir, "arnheim-restore", folder, "index.lock"), "w").close()
+        self.assertIsNotNone(restore.take(self.lantern, "fine again", project="Lantern", data=self.data, now=4000))
 
     def test_not_in_git_or_not_the_company(self):
         plain = os.path.join(self.base, "code", "plain")
@@ -168,9 +286,11 @@ class RestoreTest(unittest.TestCase):
     def test_risky_commands(self):
         for command in ("rm -rf build", "rm -r x", "git reset --hard HEAD~1", "git clean -fdx", "git checkout -- app.py",
                         "git checkout .", "git restore app.py", "git stash", "find . -name '*.pyc' -delete", "a && rm -fr y",
-                        "git switch -f main", "truncate -s 0 log.txt"):
+                        "git switch -f main", "truncate -s 0 log.txt", "rm -f -r build", "rm -v -rf build", "/bin/rm -rf build",
+                        "git -C sub reset --hard", "rsync -a --delete src/ dst/", "git stash push -u", "git restore --staged --worktree x"):
             self.assertTrue(restore.risky(command), command)
-        for command in ("ls -la", "rm file.txt", "git status", "git checkout main", "python3 -m unittest", "grep -r x ."):
+        for command in ("ls -la", "rm file.txt", "git status", "git checkout main", "python3 -m unittest", "grep -r x .",
+                        "git stash list", "git stash show", "git restore --staged app.py", "rm -f notes.txt"):
             self.assertFalse(restore.risky(command), command)
 
 
@@ -209,9 +329,9 @@ class RestoreWordsTest(unittest.TestCase):
         self.assertEqual(out["line"], 't100, before changing files for "Fix". 2 files not yet committed then')
         self.assertIn("no restore points yet", out["none"])
         self.assertTrue(out["some"].startswith("3 restore points are kept. The latest: LANTERN at t300, before: rm -rf build; TIDEPOOL at t200"))
-        self.assertEqual(out["back"], "The files are back as they were. 3 files made since then were left as they are: a.py, b.py and 1 more. "
+        self.assertEqual(out["back"], "The files are back as they were. 3 files that weren't there then were left as they are: a.py, b.py and 1 more. "
                                       "How they were a moment ago is kept as a restore point too.")
-        self.assertEqual(out["backOne"], "The files are back as they were. 1 file made since then was left as it is: a.py.")
+        self.assertEqual(out["backOne"], "The files are back as they were. 1 file that wasn't there then was left as it is: a.py.")
         self.assertEqual(out["backNone"], "The files are back as they were. How they were a moment ago is kept as a restore point too.")
         self.assertEqual(out["asked"], [True, True, True, True, True, False])
 

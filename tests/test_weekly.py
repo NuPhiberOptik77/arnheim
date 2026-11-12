@@ -32,6 +32,9 @@ const days = [
   { day: '2026-11-11', moments: [] },
 ];
 const report = r.weekReport(days, 2000);
+const open = [{ day: '2026-11-12', moments: [{ at: 100, key: 'q', project: 'Lab', title: 'Asks', kind: 'asked', what: '?' }] }];
+const dropped = r.weekReport(open, 500000);
+const waiting = r.weekReport(open, 500, new Set(['q']));
 const empty = r.weekReport([], 2000);
 console.log(JSON.stringify({
   from: report.from, to: report.to, busiest: report.busiest,
@@ -41,6 +44,7 @@ console.log(JSON.stringify({
   said: r.sayWeek(report, (p) => p.toUpperCase()),
   none: r.sayWeek(empty),
   text: r.weekText(report, (p) => p.toUpperCase(), 'Example Studio'),
+  dropped: [dropped.total.waits, dropped.total.waited], waiting: [waiting.total.waits, waiting.total.waited],
   asked: ['How was the week?', 'weekly report please', 'sum up the week', 'the week in review', 'what happened yesterday'].map((q) => r.WEEKLY_ASKED.test(q)),
 }));
 """
@@ -64,6 +68,8 @@ class WeeklyWordsTest(unittest.TestCase):
         self.assertIn("\nLAB: 1 conversation, 1 instruction, 0 files changed, 0 finished, 1 stopped. 3 thousand tokens.\n", out["text"])
         self.assertIn("\n\nIn all: 2 conversations", out["text"])
         self.assertEqual(out["asked"], [True, True, True, True, False])
+        self.assertEqual(out["dropped"], [0, 0])  # a wait that never ended, by one not waiting now: left out
+        self.assertEqual(out["waiting"], [1, 400])  # one waiting now: counted up to now
 
 
 if __name__ == "__main__":

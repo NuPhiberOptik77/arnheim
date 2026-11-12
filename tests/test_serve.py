@@ -180,9 +180,10 @@ class ShareServeTest(unittest.TestCase):
     def setUpClass(cls):
         cls.base = tempfile.TemporaryDirectory()
         base = cls.base.name
-        for name, text in (("index.html", "<!doctype html><title>Arnheim</title>"), ("data/company.json", '{"company": "Example Studio"}'),
+        for name, text in (("index.html", "<!doctype html><title>Arnheim</title>"),
+                           ("data/company.json", '{"company": "Example Studio", "howtos": [{"id": "ship", "title": "Ship it", "file": "howtos/ship.md"}]}'),
                            ("data/notes.json", '{"notes": ["private"]}'), ("data/control/box.json", '{"mail": "private"}'),
-                           ("data/howtos/ship.md", "# Ship it\n")):
+                           ("data/howtos/ship.md", "# Ship it\n"), ("data/private.md", "private plans\n")):
             os.makedirs(os.path.dirname(os.path.join(base, name)), exist_ok=True)
             with open(os.path.join(base, name), "w", encoding="utf-8") as handle:
                 handle.write(text)
@@ -226,10 +227,13 @@ class ShareServeTest(unittest.TestCase):
         for path in ("/", "/data/company.json", "/data/howtos/ship.md"):
             self.assertEqual(self.ask(path, viewer)[0], 200, path)
         self.assertEqual(self.ask("/data/howtos/ship.md", viewer)[1]["Content-Type"], "text/markdown; charset=utf-8")
-        for path in ("/data/notes.json", "/data/control/box.json", "/control/token", "/brain/status", "/voice/status"):
-            status, _, body = self.ask(path, viewer)
-            self.assertEqual(status, 404, path)
-            self.assertNotIn(b"private", body)
+        for path in ("/data/notes.json", "/data/Notes.json", "/data/NOTES.json", "/data/control/box.json", "/data/Control/box.json",
+                     "/data/CONTROL/box.json", "/data/%6Eotes.json", "/data/private.md", "/control/token", "/brain/status", "/voice/status",
+                     "/Control/token"):
+            for method in ("GET", "HEAD"):
+                status, _, body = self.ask(path, viewer, method)
+                self.assertEqual(status, 404, (path, method))
+                self.assertNotIn(b"private", body)
         self.assertEqual(self.ask("/voice/say", viewer, "POST", b"{}")[0], 403)  # nothing it sends is acted on
         # This computer needs no link, and sees the notes.
         self.assertEqual(self.ask("/")[0], 200)
@@ -240,8 +244,11 @@ class ShareServeTest(unittest.TestCase):
         try:
             away = {"X-Test-From": "away"}
             self.assertEqual(self.ask("/data/company.json", away)[0], 200)
-            self.assertEqual(self.ask("/data/control/box.json", away)[0], 404)
+            for path in ("/data/control/box.json", "/data/Control/box.json", "/data/CONTROL/box.json"):
+                self.assertEqual(self.ask(path, away)[0], 404, path)
             self.assertEqual(self.ask("/data/control/box.json")[0], 200)
+            self.assertEqual(self.ask("/data/howtos/ship.md", away)[0], 200)  # a listed how-to
+            self.assertEqual(self.ask("/data/private.md")[0], 404)  # Markdown in data/ only if it is a listed how-to
         finally:
             self.server.share = self.KEY
 
@@ -254,6 +261,9 @@ class ShareServeTest(unittest.TestCase):
                 self.assertRegex(first, serve.KEY)
                 self.assertEqual(serve.share_key(), first)
                 self.assertEqual(os.stat(serve.SHARE_KEY).st_mode & 0o777, 0o600)
+                os.chmod(serve.SHARE_KEY, 0o644)
+                self.assertEqual(serve.share_key(), first)
+                self.assertEqual(os.stat(serve.SHARE_KEY).st_mode & 0o777, 0o600)  # put right when read
                 self.assertNotEqual(serve.share_key(new=True), first)
             finally:
                 serve.SHARE_KEY = kept

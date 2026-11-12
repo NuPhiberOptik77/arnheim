@@ -357,13 +357,13 @@ function setupDesk() {
   const waited = {
     id: 'waited',
     answer: (c) => WAITED_ASKED.test(c.text) && {
-      lines: [sayWaited(waits(history, Date.now() / 1000, new Set(waitingNow().map((i) => i.key).filter(Boolean))), waitingNow(), label)],
+      lines: [sayWaited(waits(history, Date.now() / 1000, heldNow()), waitingNow(), label)],
       go: c.go('#/', 'Show me'),
     },
   };
   const weekly = {
     id: 'weekly',
-    answer: (c) => !c.floor && WEEKLY_ASKED.test(c.text) && { lines: [sayWeek(weekReport(weekDays(), Date.now() / 1000), label)], go: c.go('#/', 'Show me') },
+    answer: (c) => !c.floor && WEEKLY_ASKED.test(c.text) && { lines: [sayWeek(weekReport(weekDays(), Date.now() / 1000, heldNow()), label)], go: c.go('#/', 'Show me') },
   };
   const shelf = {
     id: 'howto',
@@ -790,7 +790,7 @@ function restoreCard(points, { titles = false } = {}) {
       if (canGo) li.append(h('div.control-row', btn('Go back to here', () => go(p))));
       return li;
     })),
-    h('p.small.muted', canGo ? 'Going back puts the files as they were then. Files made since stay where they are.'
+    h('p.small.muted', canGo ? "Going back puts the floor's files as they were then. Files that weren't there then stay where they are."
       : dir === 'data' ? 'With control on, you can put the files back to one of these.'
         : 'Made up, like the rest of the sample. With your own company and control on, you can put the files back to one of these.'),
     canGo && controlNote && h('p.small.muted', { role: 'status' }, controlNote));
@@ -893,7 +893,7 @@ function replayCard() {
 // The weekly report (weekly.js): the last seven days floor by floor, and the whole of it as text to copy.
 let weekNote = '';
 function weekCard() {
-  const report = weekReport(weekDays(), Date.now() / 1000);
+  const report = weekReport(weekDays(), Date.now() / 1000, heldNow());
   if (!report.total.talks) return null;
   const label = (p) => floorOf(p)?.label || p;
   const copy = () => {
@@ -1014,13 +1014,15 @@ function waitingList(items) {
     controlNote && h('p.small.muted', { role: 'status' }, controlNote));
 }
 
+// The agents held up waiting on you now (a permission or a question), by conversation.
+const heldNow = (items = waitingNow()) => new Set(items.filter((i) => i.kind === 'permission' || i.kind === 'question').map((i) => i.key).filter(Boolean));
+
 // The waiting-time meter (waiting.js): it fills as the longest an agent has been held up grows, amber past five
 // minutes and red past fifteen, and under it how long agents waited on you today. tick() keeps it moving.
 function waitMeter(items) {
   const now = Date.now() / 1000;
   const m = meter(items, now);
-  const held = new Set(items.filter((i) => i.kind === 'permission' || i.kind === 'question').map((i) => i.key).filter(Boolean));
-  const sum = waitedSum(waits(history, now, held));
+  const sum = waitedSum(waits(history, now, heldNow(items)));
   if (!m && !sum.count) return null;
   return h('div.wait-meter',
     m && h('div.meter', { role: 'meter', 'aria-label': 'How long the longest wait on you has been, in minutes', 'aria-valuemin': 0, 'aria-valuemax': LONG / 60,

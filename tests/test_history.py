@@ -32,7 +32,8 @@ const say = (q, project = null) => r.sayHistory(week, r.historyAsked(q, now, pro
 console.log(JSON.stringify({
   days: ['what happened today?', 'What happened yesterday?', 'what did they do on Tuesday?', 'What happened this week?', 'what did the agents do on thursday', 'history']
     .map((q) => { const a = r.historyAsked(q, now); return [a.label, a.days.length, a.days[0]]; }),
-  files: ['who changed till/total.py?', 'when was notes.md last changed?', 'who touched the README.md.', 'what happened today?', 'who changed v1.2 today'].map(r.fileAsked),
+  files: ['who changed till/total.py?', 'when was notes.md last changed?', 'who touched the README.md.', 'what happened today?', 'who changed v1.2 today',
+    'who changed café.js?', 'who changed "My File.txt"?', 'who changed src/über/straße.md'].map(r.fileAsked),
   today: say('what happened today?'),
   yesterday: say('What happened yesterday?'),
   file: say('Who changed till/total.py?'),
@@ -54,7 +55,7 @@ class HistoryWordsTest(unittest.TestCase):
         out = json.loads(done.stdout)
         self.assertEqual(out["days"], [["today", 1, "2026-11-12"], ["yesterday", 1, "2026-11-11"], ["on Tuesday", 1, "2026-11-10"],
                                        ["this week", 7, "2026-11-12"], ["today", 1, "2026-11-12"], ["today", 1, "2026-11-12"]])
-        self.assertEqual(out["files"], ["till/total.py", "notes.md", "README.md", None, None])
+        self.assertEqual(out["files"], ["till/total.py", "notes.md", "README.md", None, None, "café.js", "My File.txt", "src/über/straße.md"])
         self.assertEqual(out["today"], 'Today: On SHOP, 1 conversation worked: "Fix the till" changed 1 file and finished at 10:00.')
         self.assertEqual(out["yesterday"], 'Yesterday: On LAB, 1 conversation worked: "New menu" changed 2 files and stopped at 15:00.')
         self.assertEqual(out["file"], 'till/total.py was changed 2 times this week: last by "Fix the till" on SHOP at 09:30, '

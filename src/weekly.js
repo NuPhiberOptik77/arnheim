@@ -17,8 +17,9 @@ const dayName = (day) => DAY_NAMES[new Date(`${day}T12:00:00`).getDay()];
 // days: [{ day: 'YYYY-MM-DD', moments, spent: { project: tokens } }], any order. Gives { from, to, floors,
 // total, busiest } where each floor (and total) is { project, talks, asked, files, finished, stopped, waited,
 // waits, spent }: conversations, instructions you gave, files changed, finished and stopped, time and times
-// waited on you, and tokens.
-export function weekReport(days, now = Date.now() / 1000) {
+// waited on you, and tokens. stillWaiting: the conversations waiting on you now; a wait that never ended for
+// any other (its terminal was closed, say) can't be timed, so it is left out.
+export function weekReport(days, now = Date.now() / 1000, stillWaiting = new Set()) {
   const list = (Array.isArray(days) ? days : []).filter((d) => d && typeof d.day === 'string').sort((a, b) => (a.day < b.day ? -1 : 1));
   const floors = new Map();
   const blank = (project) => ({ project, talks: new Set(), asked: 0, files: new Set(), finished: 0, stopped: 0, waited: 0, waits: 0, spent: 0 });
@@ -35,7 +36,7 @@ export function weekReport(days, now = Date.now() / 1000) {
     if (m.kind === 'finished') f.finished += 1;
     if (m.kind === 'stopped') f.stopped += 1;
   }
-  for (const w of waits(all, now)) {
+  for (const w of waits(all, now, stillWaiting)) {
     const f = of(w.project || '');
     f.waited += w.seconds;
     f.waits += 1;

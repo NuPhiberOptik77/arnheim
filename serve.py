@@ -59,6 +59,26 @@ VIEW = "arnheim_view"  # the cookie a view-only link leaves, so the page's own f
 KEY = re.compile(r"^[A-Za-z0-9_-]{20,64}$")
 NEVER_AWAY = ("/data/control/",)  # control's mail with Claude Code: never to another computer, link or not
 NOT_SHARED = ("/data/notes.json",)  # the founder's notes: never through a view-only link
+# Both are checked by spelling in lower case, and again by what the file is on disk: a Mac's disk takes
+# /data/Notes.json for /data/notes.json.
+
+
+def same_file(a, b):
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return False
+
+
+def howto_files():
+    """The how-tos data/company.json lists (docs/data.md, "How-tos"): the only Markdown in data/ the page gets."""
+    try:
+        with open(os.path.join(ROOT, "data", "company.json"), encoding="utf-8-sig") as handle:
+            company = json.load(handle)
+    except (OSError, ValueError):
+        return []
+    listed = company.get("howtos") if isinstance(company, dict) else None
+    return [os.path.join(ROOT, "data", *str(x["file"]).split("/")) for x in listed or [] if isinstance(x, dict) and isinstance(x.get("file"), str)]
 
 
 def share_key(new=False):
@@ -68,6 +88,7 @@ def share_key(new=False):
             with open(SHARE_KEY, encoding="utf-8") as handle:
                 key = handle.read().strip()
             if KEY.match(key):
+                os.chmod(SHARE_KEY, 0o600)  # only you, even if the file was made some other way
                 return key
         except OSError:
             pass
@@ -145,7 +166,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         """With --share, for another computer: a request with the link's key in the address leaves the cookie and
         goes on to the page; one without the key, or asking for what a viewer never gets, is refused. True when
         the request may go on; otherwise the answer has been sent."""
-        if not self.here() and path.startswith(NEVER_AWAY):
+        low = path.lower()
+        if not self.here() and low.startswith(NEVER_AWAY):
             self.send_error(404)
             return False
         if not self.server.share or self.here():
@@ -161,10 +183,27 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if not self.has_key():
             self.send_error(403, "This building opens only through its view-only link. Ask for the link again: it may have changed.")
             return False
-        if self.command == "POST" or path.startswith(("/voice/", "/control/", "/brain/")) or path in NOT_SHARED:
+        if self.command == "POST" or low.startswith(("/voice/", "/control/", "/brain/")) or low in NOT_SHARED:
             self.send_error(403 if self.command == "POST" else 404, "A view-only link can look, not change anything.")
             return False
         return True
+
+    def kept_back(self, full):
+        """Whether a file is one this request never gets, by what it is on disk, however it was spelled: control's
+        mail never goes to another computer, the founder's notes never through a view-only link, and Markdown
+        in data/ only if it is a how-to company.json lists."""
+        data = os.path.join(ROOT, "data")
+        if not self.here():
+            folder = os.path.dirname(full)
+            while folder.startswith(ROOT + os.sep):
+                if same_file(folder, os.path.join(data, "control")):
+                    return True
+                folder = os.path.dirname(folder)
+            if self.server.share and same_file(full, os.path.join(data, "notes.json")):
+                return True
+        if full.lower().endswith(".md") and full.lower().startswith(data.lower() + os.sep):
+            return not any(same_file(full, listed) for listed in howto_files())
+        return False
 
     def allowed(self):
         """A name this server answers to, and on a POST its own page (the Origin)."""
@@ -284,7 +323,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return None
         full = os.path.realpath(os.path.join(ROOT, *path.split("/")[1:]))
         kind = TYPES.get(os.path.splitext(full)[1])
-        if not kind or not full.startswith(ROOT + os.sep) or not os.path.isfile(full):
+        if not kind or not full.startswith(ROOT + os.sep) or not os.path.isfile(full) or self.kept_back(full):
             self.send_error(404)
             return None
         company = os.path.join(ROOT, "data", "company.json")
