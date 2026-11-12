@@ -5,6 +5,7 @@
 // something to see. Nothing is saved anywhere: a reload reads the files again.
 import { createBrain } from './brain.js';
 import { agentControls, agentReply, createControl, deskControls, deskStart } from './control.js';
+import { allowReadsAsked, sayWaiting, together, waitingOnYou } from './queue.js';
 import { icon } from './icons.js';
 import { createPoe, has, insertAfter, needWord, norm, poeBadge } from './poe-desk.js';
 
@@ -108,6 +109,17 @@ const byProject = (list) => [...list].sort((a, b) => rank(a.project) - rank(b.pr
 const openTasks = () => byProject(work.tasks.filter((t) => !CLOSED.has(t.status)));
 const kindOf = (floor, room) => room.kind || (floor === org.basement ? (room.id === 'library' ? 'library' : 'machine') : room.id);
 const machineLabel = (id) => org.basement?.rooms.find((r) => r.id === id)?.label || id;
+// Everything waiting on you, from every agent and the work, most urgent first (queue.js).
+const waitingNow = () => {
+  const { asks, runs } = control.on ? control.state() : { asks: [], runs: [] };
+  return waitingOnYou({ asks: asks.filter((a) => !answered.has(a.id)), runs, conversations: work.conversations, tasks: openTasks() });
+};
+// Permissions answered here, left out of the list before the next look at control catches up.
+const answered = new Set();
+const answerAsk = (id, behavior) => {
+  answered.add(id);
+  return control.answer(id, behavior).catch((error) => { answered.delete(id); throw error; });
+};
 const moodOf = (t) => (t.status === 'needs_you' ? 'needs' : t.status === 'working' ? 'working' : 'quiet');
 const taskHref = (t) => `#/${floorOf(t.project)?.id}/work/${enc(t.id)}`;
 const goalHref = (g) => `#/${floorOf(g.project)?.id}/goals/${enc(g.id)}`;
@@ -220,14 +232,15 @@ function poeFacts() {
   const open = openTasks();
   const link = (t) => ({ title: t.title, sub: t.project, href: taskHref(t) });
   const convo = (c) => ({ title: c.title, sub: c.project, href: convoHref(c) });
-  const needs = open.filter((t) => t.status === 'needs_you');
+  const needs = waitingNow(); // the one list: permissions, questions, your tasks and agents just finished
+  const finished = new Set(needs.filter((i) => i.kind === 'turn').map((i) => i.key)); // already in it
   const machines = org.basement ? org.basement.rooms.filter((r) => kindOf(org.basement, r) === 'machine').map((r) => ({ id: r.id, label: r.label, ...roomModel(org.basement, r) })) : [];
   return {
-    needs: needs.map((t) => ({ ...link(t), mood: 'needs' })),
-    needsBy: Object.fromEntries(org.floors.map((f) => [f.project, needs.filter((t) => t.project === f.project).length])),
+    needs: needs.map(waitingLink),
+    needsBy: Object.fromEntries(org.floors.map((f) => [f.project, needs.filter((i) => i.project === f.project).length])),
     openBy: Object.fromEntries(org.floors.map((f) => [f.project, open.filter((t) => t.project === f.project).length])),
     later: 0,
-    toCheck: byProject(work.conversations.filter((c) => c.check)).map(convo),
+    toCheck: byProject(work.conversations.filter((c) => c.check && !finished.has(c.id))).map(convo),
     withHelper: [],
     waiting: open.filter((t) => t.status === 'waiting').map(link),
     tasks: open.map(link),
@@ -265,11 +278,20 @@ async function dropTask(id) {
 
 // What the rules answer even with the brain on: at once, and nothing Claude could be talked into
 // instead. A refusal stays a refusal.
-const RULED = new Set(['refuse', 'greeting', 'tour']);
+const RULED = new Set(['refuse', 'greeting', 'tour', 'waiting']);
 const ruledBy = (t) => (RULED.has(t.id) ? { ...t, answer: (c) => { const a = t.answer(c); return a && { ...a, ruled: t.id }; } } : t);
 
 function setupDesk() {
   const called = deskName() || 'The receptionist';
+  // "What's waiting on me?", "what needs me?" for the whole building: the one list, said as on a walk.
+  // For one floor, the rules' own answer, from the same list.
+  const waiting = {
+    id: 'waiting',
+    answer: (c) => !c.floor && WAITING.test(c.text) && {
+      lines: [sayWaiting(waitingNow(), (p) => floorOf(p)?.label || p)],
+      go: c.go('#/', 'Show me the list'),
+    },
+  };
   const real = {
     id: 'sample',
     answer: (c) => has(c.q, ['real', 'made up', 'fake', 'sample', 'demo', 'invented', 'pretend']) && {
@@ -307,10 +329,16 @@ function setupDesk() {
     },
     topics: (list) => {
       const all = insertAfter(insertAfter(list, 'thanks', [real]), 'tour', [howTo]);
+      all.splice(Math.max(0, all.findIndex((t) => t.id === 'needs')), 0, waiting);
       return brain.on ? all.map(ruledBy) : all;
     },
     // A typed question at the desk: Claude's answer as it comes, with the brain on.
-    think: (text, a) => (brain.on && !a.ruled && !a.offer ? claudeSays('receptionist', text) : null),
+    // "Allow all the reads", with control on: done, then said.
+    think: (text, a) => {
+      const reads = control.on ? allowReadsAsked(text, waitingNow()) : null;
+      if (reads) return (async function* allowed() { yield await allowReads(reads); })();
+      return brain.on && !a.ruled && !a.offer ? claudeSays('receptionist', text) : null;
+    },
   });
 }
 
@@ -356,6 +384,7 @@ function brainFacts() {
     'Arnheim is free and open, and named after Edgar Allan Poe\'s story "The Domain of Arnheim", about a man who shapes a landscape into a world of its own.',
     `Floors, top to bottom: ${[org.founder && "the founder's office", ...org.floors.map((f) => f.label)].filter(Boolean).join(', ')}${org.lobby ? `, then ${org.lobby.label} (the lobby)` : ''}${org.basement ? `, and ${org.basement.label} (the basement)` : ''}. A lift joins them.`,
   ]);
+  add('Waiting on you, as one list (agents and tasks)', [sayWaiting(waitingNow(), label)]);
   add('Needs you', [
     needs.length ? [`${needWord(needs.length)}, in this order:`, some(needs, (t) => `- ${q(t.title)}, on ${label(t.project)}`)] : 'Nothing needs you right now.',
     checks.length > 0 && [`${count(checks.length, 'conversation has', 'conversations have')} something for you to check:`, some(checks, (c) => `- ${q(c.title)}, on ${label(c.project)}`)],
@@ -509,6 +538,8 @@ function sampleReply(item, text) {
 }
 
 // The founder's assistant (org.assistant), in their office: in the sample they answer as the receptionist does.
+// "What's waiting on me?", "what needs me?": the receptionist reads out the one list (queue.js).
+const WAITING = /\b(?:wait(?:s|ing)? (?:on|for) (?:me|you)|needs? me|need anything from me|my queue|what(?:'s| is) (?:on|in) my (?:plate|queue))\b/i;
 const isAide = (who) => !!org.assistant && who.href === (org.assistant.href || '#/assistant');
 
 const talk = {
@@ -534,6 +565,10 @@ const talk = {
   },
   answer(who, text) {
     if (who.href === DESK) {
+      const waiting = waitingNow();
+      const reads = control.on ? allowReadsAsked(text, waiting) : null;
+      if (reads) return allowReads(reads);
+      if (WAITING.test(String(text || ''))) return sayWaiting(waiting, (p) => floorOf(p)?.label || p);
       const start = deskStart(control, text, starting);
       if (start) {
         starting = start.pending;
@@ -596,6 +631,63 @@ function convoControls(c) {
     controlNote && h('p.small.muted', { role: 'status' }, controlNote));
 }
 
+// Everything waiting on you (queue.js), each with its answer: Allow and Deny for a permission, a reply for
+// an agent that asked something or finished (with control on), and a link to look closer. Reads waiting
+// together can be allowed together.
+function waitingList(items) {
+  if (!items.length) return empty('Nothing is waiting on you right now.');
+  const reads = control.on ? together(items) : null;
+  const allowAll = (ids) => controlDone(allowReads(ids), (said) => said);
+  return h('div.waiting',
+    reads && h('div.control-row', btn(reads.label, () => allowAll(reads.ids), '.primary')),
+    h('ul.list', items.map(waitingItem)),
+    controlNote && h('p.small.muted', { role: 'status' }, controlNote));
+}
+
+// A conversation control can pass a message to: one the Claude Code feed names (connect/control.py, KEY).
+const REACHABLE = /^cc-[A-Za-z0-9]{1,12}$/;
+const waitingHead = (i) => ({ permission: `${i.title} wants your permission`, question: `${i.title} is asking`, task: i.title, turn: `${i.title} has finished` })[i.kind];
+const waitingHref = (i) => (i.key && i.project ? convoHref({ id: i.key, project: i.project }) : i.task ? taskHref(i.task) : null);
+const waitingLink = (i) => ({ title: waitingHead(i), sub: i.project, href: waitingHref(i), mood: i.kind === 'turn' ? 'check' : 'needs' });
+
+// Allows every waiting read at once ("allow all the reads"): what to say when it's done.
+const allowReads = (ids) => (!ids.length ? Promise.resolve('Nothing is waiting to read right now.')
+  : Promise.allSettled(ids.map((id) => answerAsk(id, 'allow'))).then((out) => {
+    const done = out.filter((o) => o.status === 'fulfilled').length;
+    if (!done) return out[0].reason?.message || "They couldn't be allowed.";
+    const gone = ids.length - done ? ` ${ids.length - done} of them had stopped waiting.` : '';
+    return `Allowed ${count(done, 'read', 'reads')}, just this once.${gone} They carry on now.`;
+  }));
+
+function waitingItem(i) {
+  const where = i.project ? (floorOf(i.project)?.label || i.project) : '';
+  const href = waitingHref(i);
+  const head = waitingHead(i);
+  const what = i.kind === 'task' ? null : i.kind === 'permission' ? `It wants ${i.what}` : i.what;
+  const sub = [what, where].filter(Boolean).map((part, n, all) => (n < all.length - 1 && !/[.?!]$/.test(part) ? `${part}.` : part)).join(' ');
+  const li = row(href, head, sub, i.kind === 'turn' ? 'check' : 'needs');
+  if (i.kind === 'permission' && control.on) {
+    li.append(h('div.control-row.waiting-do',
+      btn('Allow', () => controlDone(answerAsk(i.ask.id, 'allow'), () => 'Allowed, just this once.'), '.primary'),
+      btn('Deny', () => controlDone(answerAsk(i.ask.id, 'deny'), () => 'Denied.'))));
+  } else if ((i.kind === 'question' || i.kind === 'turn') && control.on && (REACHABLE.test(i.key) || control.run(i.key))) {
+    const send = (event) => {
+      event.preventDefault();
+      const input = event.currentTarget.elements.text;
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = '';
+      input.blur();
+      controlDone(control.say(i.key, text), (r) => (r.sent === 'resumed' ? 'Sent. It is answering now.'
+        : 'Sent. It is waiting for you in Claude Code, so it sees this the next time you send it something there.'));
+    };
+    li.append(h('form.control-say.waiting-do', { onsubmit: send },
+      h('input', { name: 'text', type: 'text', maxlength: 2000, autocomplete: 'off', placeholder: i.kind === 'question' ? 'Answer it' : 'What next?', 'aria-label': `A reply to ${i.title}` }),
+      h('button.btn', { type: 'submit' }, 'Send')));
+  }
+  return li;
+}
+
 // A floor's Conversations room: start an agent on its project, in its folder.
 function startForm(floor) {
   const p = control.projects().find((x) => x.project === floor.project);
@@ -628,7 +720,7 @@ function crumbsFor(floor, room, last) {
 }
 
 function viewOverview() {
-  const needs = openTasks().filter((t) => t.status === 'needs_you');
+  const waiting = waitingNow();
   const talking = byProject(work.conversations.filter((c) => c.working));
   const jobs = work.jobs.filter((j) => j.state === 'running');
   const tile = (glyph, mood, n, label) => h(`div.stat.glow.glow-${n ? mood : 'quiet'}`, h('span.stat-top', h('span.tile-icon', icon(glyph, 20)), h('span.stat-num', String(n))), h('span.stat-label', label));
@@ -640,10 +732,10 @@ function viewOverview() {
         title(madeUp() ? `${org.company}, a company that is made up` : org.company),
         madeUp() ? h('p', sampleLine()) : org.about && h('p', org.about),
         h('p.small.muted', `Arnheim shows a company as a building. Each floor is a project and each room holds one kind of thing. Tap a floor to bring it out, then a room to look inside. Press Walk to go in and talk to the people at work, and to ${deskName() || 'the receptionist'} at the front desk.`)),
-      h('div.stats', tile('bell-ring', 'needs', needs.length, 'Need you'), tile('messages-square', 'working', talking.length, 'Working now'), tile('server', 'working', jobs.length, 'Jobs running')),
+      h('div.stats', tile('bell-ring', 'needs', waiting.length, 'Need you'), tile('messages-square', 'working', talking.length, 'Working now'), tile('server', 'working', jobs.length, 'Jobs running')),
       h('section.panel-card',
-        sectHead('bell', 'Needs you'),
-        needs.length ? h('ul.list', needs.map((t) => row(taskHref(t), t.title, t.project, 'needs'))) : empty('Nothing needs you right now.')),
+        sectHead('bell', 'Waiting on you'),
+        waitingList(waiting)),
       h('section.panel-card',
         sectHead('zap', 'Working now'),
         talking.length || jobs.length

@@ -254,3 +254,7 @@ a.floor-card:hover, a.room-tile:hover { transform: translateY(-1px); }
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important; transition: none !important; }
 }
+
+/* What waits on you (queue.js): each answer sits under its row. */
+.list li > .waiting-do { margin: 4px 0 12px 22px; }
+.waiting > .control-row { margin-bottom: 10px; }

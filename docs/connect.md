@@ -124,6 +124,13 @@ Optional, and off unless you switch it on. Then the person at this computer can:
   can also say "allow" or "deny". An answer is for that one request only. A request waits in the
   building only while you are using it (walking, or you touched it in the last two minutes), and for
   two minutes at most. Otherwise Claude Code asks as it always does.
+- **See everything waiting on you in one list.** The Overview's "Waiting on you" puts together every
+  agent's permission requests (the one whose wait runs out first at the top), the questions agents
+  stopped to ask, your own tasks marked as needing you, and agents that finished in the last two
+  hours and wait for your next step. Each has its answer beside it: Allow and Deny, or a box to reply.
+  When two or more requests only read or search, "Allow all" answers them together. Ask the
+  receptionist "what's waiting on me?" to hear it, and say "allow all the reads" to let those go
+  ahead. Commands and changes are never allowed together: each needs its own answer.
 - **Stop it.** Stop on its card, or say "stop": it stops at its next step.
 - **Start one.** In a floor's Conversations room, or by asking the receptionist ("start an agent on
   Lantern to fix the login page", then "start it"). It runs in the floor's folder with your own
