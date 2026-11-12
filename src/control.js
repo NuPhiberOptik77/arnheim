@@ -186,24 +186,64 @@ const CANCEL = /^(?:no|nope|cancel|don'?t|never ?mind|stop)\b/i;
 // The receptionist, asked to start an agent ("start an agent on Lantern to fix the login page"):
 // they check the project has a folder here and ask you to say "start it", or tap Start. `pending`
 // holds what waits for that, between calls. Gives { reply, pending } or null if it wasn't about this.
+// "Get someone to fix the login bug on Lantern", "have an agent on Lantern tidy the tests", "ask Claude to
+// fix the login": work handed out in everyday words. The floor can come at the end, after "on", "for" or
+// "in", or not at all, and then the receptionist asks which.
+const HAND_OUT = /^(?:please\s+|can you\s+|could you\s+)?(?:get|have|ask|send|find)\s+(?:someone|somebody|an?\s+(?:new\s+)?agent|claude)\s+(?:(?:on|from|for)\s+(?:the\s+)?(.+?)(?:\s+(?:floor|project))?\s+)?(?:to\s+)?(.+)$/i;
+
+// The floor a name means, among those control can start agents on.
+const projectNamed = (list, name) => {
+  const asked = String(name || '').trim().toLowerCase().replace(/^the\s+/, '').replace(/\s+(?:floor|project)$/, '').replace(/[.!?]+$/, '');
+  return list.find((x) => x.label.toLowerCase() === asked || x.project.toLowerCase() === asked)
+    || list.find((x) => asked && (x.label.toLowerCase().startsWith(asked) || asked.startsWith(x.label.toLowerCase()))) || null;
+};
+
+// The job and its floor from handed-out words: the floor is the last "on/for/in <a floor's name>".
+export function handedOut(words, list) {
+  const m = HAND_OUT.exec(String(words || '').trim());
+  if (!m) return null;
+  if (m[1]) return { project: projectNamed(list, m[1]), job: m[2], named: m[1] };
+  const job = m[2];
+  const at = [...job.matchAll(/\s(?:on|for|in)\s+(?:the\s+)?/gi)].reverse();
+  for (const cut of at) {
+    const p = projectNamed(list, job.slice(cut.index + cut[0].length));
+    if (p) return { project: p, job: job.slice(0, cut.index) };
+  }
+  return { project: null, job };
+}
+
+const offer = (p, job) => ({ pending: { project: p.project, label: p.label, text: job, check: p.check || null },
+  reply: `Start an agent on ${p.label} to ${job}?${p.check ? ` When it says it's done, Arnheim runs ${p.check.replace(/^The /, 'the ')} on its work.` : ''} Say "start it", or tap Start.` });
+
 export function deskStart(control, text, pending) {
   if (!control?.on) return null;
   const words = String(text || '').trim();
-  if (pending && GO.test(words)) {
+  if (pending?.project && GO.test(words)) {
     return {
       pending: null,
+      started: pending,
       reply: control.begin(pending.project, pending.text).then(
-        () => `Started. The new agent is on ${pending.label}, and shows in its Conversations room once it begins.`,
+        () => `Started. The new agent is on ${pending.label}, with your brief and the company's memory. Watch it sit down in ${pending.label}'s Conversations room.`,
         (error) => error.message),
     };
   }
   if (pending && CANCEL.test(words)) return { pending: null, reply: "All right, I won't start it." };
+  const list = control.projects();
+  if (pending && !pending.project) { // which floor, asked for last time
+    const p = projectNamed(list, words.replace(/^(?:on|for|in)\s+/i, ''));
+    if (p) return offer(p, pending.text);
+  }
+  const given = handedOut(words, list);
+  if (given && given.job.trim().length > 2) {
+    const job = given.job.trim().replace(/[.!]+$/, '');
+    if (given.project) return offer(given.project, job);
+    if (!list.length) return { pending: null, reply: "I can't start agents yet: no floor names its project's folder in company.json." };
+    if (list.length === 1) return offer(list[0], job);
+    return { pending: { project: null, text: job }, reply: `On which floor? ${list.map((x) => x.label).join(', ')}.` };
+  }
   const m = START.exec(words);
   if (!m) return pending ? { pending, reply: null } : null;
-  const asked = m[1].trim().toLowerCase();
-  const list = control.projects();
-  const p = list.find((x) => x.label.toLowerCase() === asked || x.project.toLowerCase() === asked)
-    || list.find((x) => x.label.toLowerCase().startsWith(asked) || asked.startsWith(x.label.toLowerCase()));
+  const p = projectNamed(list, m[1]);
   if (!p) {
     return {
       pending: null,
@@ -212,13 +252,12 @@ export function deskStart(control, text, pending) {
         : "I can't start agents yet: no floor names its project's folder in company.json.",
     };
   }
-  const job = m[2].trim().replace(/[.!]+$/, '');
-  return { pending: { project: p.project, label: p.label, text: job }, reply: `Start an agent on ${p.label} to ${job}? Say "start it", or tap Start.` };
+  return offer(p, m[2].trim().replace(/[.!]+$/, ''));
 }
 
 // The receptionist's card while a start waits for your word.
 export function deskControls(pending, confirm, cancel) {
-  if (!pending) return null;
+  if (!pending?.project) return null;
   return {
     note: `New agent on ${pending.label}: ${pending.text}`,
     buttons: [{ label: 'Start', run: confirm }, { label: 'Cancel', run: cancel }],

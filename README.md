@@ -98,6 +98,9 @@ below).
 - **Show me round**: in the panel, they take you round the building, floor by floor.
 - **"Remind me to ..."** adds a task. The page Arnheim comes with keeps it in that browser tab
   only.
+- **"Get someone to fix the login bug on Lantern"** (with control on) starts an agent on that floor,
+  once you say "start it", with a brief that says what counts as done; with no floor named, they ask
+  which. The building turns to the room where it sits down.
 - **"Remember that ..."** adds a decision to the company's memory, which every agent is told as it
   starts ("Connect your agents", below). **"What have we decided?"** reads it back.
 - **"What's waiting on me?"** reads out everything that waits on you, from every agent and your own

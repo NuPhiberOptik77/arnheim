@@ -457,8 +457,21 @@ class Control:
         key = "cc-" + sid.replace("-", "")[:12]
         run = {"key": key, "sid": sid, "project": floor["project"], "folder": floor["folder"], "title": one_line(text[:1].upper() + text[1:], 70), "said": "", "at": time.time()}
         with self.lock:
-            self.spawn(run, ["--session-id", sid], text)
+            self.spawn(run, ["--session-id", sid], self.brief(text, floor))
         return {"key": key, "project": floor["project"]}
+
+    def brief(self, text, floor):
+        """What a new agent is handed: the job in your words, where it was started from, and what counts as done.
+        The company's memory reaches it through the hook as it starts."""
+        company = read(os.path.join(self.data, "company.json")) or {}
+        check = check_for(floor["project"], self.data)
+        done = (f"When you finish, Arnheim runs {check['label'][:1].lower() + check['label'][1:] if check['label'][1:2].islower() else check['label']} "
+                f"({' '.join(check['run'])}) on your work, and it only counts as done if that passes, so run it yourself first. "
+                if check else "")
+        return (f"{text[:1].upper() + text[1:]}\n\n"
+                f"You were started from Arnheim, the building that shows {one_line(company.get('company') or 'the company', 60)}'s work, "
+                f"by the person you work for, on the {floor['label']} floor, in its folder. {done}"
+                "When you have finished, say plainly what you did and how you checked it.")
 
     def stop(self, key):
         key = self.conversation(key)

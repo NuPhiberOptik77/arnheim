@@ -369,6 +369,16 @@ function setupDesk() {
       if (reads) return (async function* allowed() { yield await allowReads(reads); })();
       const decision = rememberAsked(text);
       if (decision) return (async function* remembered() { yield await rememberIt(decision); })();
+      // Work handed out in words: "get someone to fix the login bug on Lantern", then "start it".
+      const start = control.on ? deskStart(control, text, starting) : null;
+      if (start && start.reply != null) {
+        starting = start.pending;
+        return (async function* started() {
+          const said = await start.reply;
+          if (start.started) watchStart(start.started);
+          yield said;
+        })();
+      }
       return brain.on && !a.ruled && !a.offer ? claudeSays('receptionist', text) : null;
     },
   });
@@ -830,6 +840,13 @@ function forgetIt(r) {
   if (i >= 0) { mineMemory.splice(i, 1); refresh(); return; }
   if (!memoryWrites()) return;
   controlDone(control.forget(r.id).then((out) => { forgotten.add(r.id); return out; }), () => 'Forgotten. Agents that start from now won\'t be told it.');
+}
+
+// After an agent is started from the panel: the building turns to the room where it sits down.
+function watchStart(p) {
+  const floor = org.floors.find((f) => f.project === p.project);
+  const room = floor && roomsOf(floor).find((r) => kindOf(floor, r) === 'conversations');
+  if (room && !building?.walking?.()) location.hash = `#/${floor.id}/${room.id}`;
 }
 
 // Allows every waiting read at once ("allow all the reads"): what to say when it's done.

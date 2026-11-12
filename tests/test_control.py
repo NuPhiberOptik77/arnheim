@@ -239,7 +239,10 @@ class ControlTest(unittest.TestCase):
         sid = self.control.runs[key]["sid"]
         self.assertEqual(key, "cc-" + sid.replace("-", "")[:12])  # the key the hook gives the same conversation
         self.assertEqual(run["title"], "Fix the login page")  # as a title; Claude Code is given the words as said
-        self.assertEqual(run["said"], f"started {sid} in {self.lantern}: fix the login page")
+        # handed the job with a brief: where it was started from, and what counts as done
+        self.assertTrue(run["said"].startswith(f"started {sid} in {self.lantern}: Fix the login page You were started from Arnheim"), run["said"])
+        self.assertIn("on the Lantern floor, in its folder.", run["said"])
+        self.assertTrue(run["said"].endswith("say plainly what you did and how you checked it."))
         code, sent = self.call("POST", "say", {"key": key, "text": "And the logout page"})
         self.assertEqual((code, sent["sent"]), (200, "resumed"))
         run = self.until(lambda: (self.run_of(key) or {}).get("answered") == sent["id"] and self.run_of(key))
