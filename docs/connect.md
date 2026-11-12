@@ -382,6 +382,23 @@ it missed. Ask the receptionist "what routines are there?" to hear them.
 `python3 connect/routines.py --list` says each one and when it runs next, and `--run <id>` runs one
 now and waits for it.
 
+## 14. Project health
+
+Each floor says at a glance whether it is well, from what the building already knows. A floor needs
+looking at while:
+
+- an agent's work there failed its check (step 5), and the agent isn't back at work on it,
+- work failed the review line (step 12),
+- a routine needs you (step 13).
+
+It has a warning while a pull request that isn't a draft has waited a week or more since it was last
+updated (step 3). The floor shows a chip ("One thing to fix", "A pull request waiting"), its page
+lists each thing in words, and the Overview's "Project health" card, after "Waiting on you", puts
+every floor together. With control on, each thing has "Send an agent", which starts one on the floor
+with a brief that says what is wrong and asks it to fix it, or, for a pull request, to say what it
+needs without merging or closing it. Ask the receptionist "is anything broken?" or "how are the
+projects doing?" to hear it.
+
 ## What is kept, and where
 
 The connectors write `data/feeds/claude-code.json` and `data/feeds/projects.json`. From Claude Code

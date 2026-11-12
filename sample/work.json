@@ -44,10 +44,10 @@
     { "id": "ck2", "project": "Kitefield", "title": "Template wish list" }
   ],
   "pullRequests": [
-    { "number": 39, "project": "Lantern", "title": "Open the app faster" },
+    { "number": 39, "project": "Lantern", "title": "Open the app faster", "waited": 12 },
     { "number": 41, "project": "Lantern", "title": "Keep the bookmark when the screen turns" },
     { "number": 42, "project": "Lantern", "title": "Dark mode for the library view", "draft": true },
-    { "number": 7, "project": "Tidepool", "title": "Read the wind sensor twice a second" },
+    { "number": 7, "project": "Tidepool", "title": "Read the wind sensor twice a second", "waited": 2 },
     { "number": 16, "project": "Kitefield", "title": "Save a design as a PDF" },
     { "number": 18, "project": "Kitefield", "title": "Stunt kite template", "draft": true }
   ],

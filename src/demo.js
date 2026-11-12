@@ -9,6 +9,7 @@ import { allowReadsAsked, sayWaiting, together, waitingOnYou } from './queue.js'
 import { inner, proofMood, proofOf } from './proof.js';
 import { reviewMood, reviewOf, reviewSaid } from './review.js';
 import { ROUTINES_ASKED, routineNow, sayRoutines, timesOf } from './routines.js';
+import { HEALTH_ASKED, healthChip, healthOf, sayHealth } from './health.js';
 import { MEMORY_ASKED, decidedFor, rememberAsked, sayMemory } from './memory.js';
 import { floorSpend, localDay } from './budget.js';
 import { clashesOf, sayClash, waitWords } from './clashes.js';
@@ -239,6 +240,8 @@ function floorLines(floor) {
     return [down ? { text: `${down} not answering`, kind: 'failed' } : { text: `${count(work.presence.length, 'place', 'places')} listed`, kind: 'quiet' }];
   }
   const lines = [];
+  const health = healthChip(healthOf(floor.project, work));
+  if (health) lines.push(health);
   if (openTasks().some((t) => t.project === floor.project && t.status === 'needs_you')) lines.push({ text: 'Needs you', kind: 'needs' });
   if (work.conversations.some((c) => c.project === floor.project && c.working)) lines.push({ text: 'Working now', kind: 'working' });
   if (clashesOf(work.conversations).some((c) => c.project === floor.project)) lines.push({ text: 'Two agents on the same files', kind: 'failed' });
@@ -308,7 +311,7 @@ async function dropTask(id) {
 
 // What the rules answer even with the brain on: at once, and nothing Claude could be talked into
 // instead. A refusal stays a refusal.
-const RULED = new Set(['refuse', 'greeting', 'tour', 'waiting', 'memory', 'routines']);
+const RULED = new Set(['refuse', 'greeting', 'tour', 'waiting', 'memory', 'routines', 'health']);
 const ruledBy = (t) => (RULED.has(t.id) ? { ...t, answer: (c) => { const a = t.answer(c); return a && { ...a, ruled: t.id }; } } : t);
 
 function setupDesk() {
@@ -319,6 +322,10 @@ function setupDesk() {
   const memory = {
     id: 'memory',
     answer: (c) => MEMORY_ASKED.test(c.text) && { lines: [sayMemory(memoryNow())], go: c.go('#/company', 'Show me') },
+  };
+  const health = {
+    id: 'health',
+    answer: (c) => !c.floor && HEALTH_ASKED.test(c.text) && { lines: [sayHealth(org.floors, work)], go: c.go('#/', 'Show me') },
   };
   const routines = {
     id: 'routines',
@@ -369,6 +376,8 @@ function setupDesk() {
     topics: (list) => {
       const all = insertAfter(insertAfter(list, 'thanks', [real]), 'tour', [howTo]);
       all.splice(Math.max(0, all.findIndex((t) => t.id === 'needs')), 0, waiting, memory, routines);
+      // Before "what's running", which would take "how are the projects doing?" for itself.
+      all.splice(Math.max(0, all.findIndex((t) => t.id === 'happening')), 0, health);
       return brain.on ? all.map(ruledBy) : all;
     },
     // A typed question at the desk: Claude's answer as it comes, with the brain on.
@@ -638,6 +647,7 @@ const talk = {
       if (decision) return rememberIt(decision);
       if (MEMORY_ASKED.test(String(text || ''))) return sayMemory(memoryNow());
       if (ROUTINES_ASKED.test(String(text || ''))) return sayRoutines(routinesNow(), (p) => floorOf(p)?.label || p);
+      if (HEALTH_ASKED.test(String(text || ''))) return sayHealth(org.floors, work);
       const start = deskStart(control, text, starting);
       if (start) {
         starting = start.pending;
@@ -799,6 +809,36 @@ function spendCard() {
       h('span.row-main', h('span.row-title', f.label), h('span.row-sub', s.text[0].toUpperCase() + s.text.slice(1)),
         s.share != null && h('span.spend-bar', { 'aria-hidden': 'true' }, h(`span${s.over ? '.over' : ''}`, { style: `width: ${Math.round(s.share * 100)}%` }))))))),
     h('p.small.muted', 'New tokens: what Claude read fresh and wrote. Re-reading its cache is left out.'));
+}
+
+// Project health (health.js): what is wrong on each floor, each with a button that sends an agent to fix it
+// when control is on for your own company. The Overview lists every floor that needs looking at; a floor's
+// page lists its own.
+function healthItems(floor, hh) {
+  return hh.problems.map((p) => {
+    const li = row(null, p.line, p.kind === 'pr' ? 'Waiting too long' : p.kind === 'routine' ? 'A routine' : p.kind === 'review' ? 'The review line' : 'A check', p.kind === 'pr' ? 'needs' : 'failed');
+    if (control.on && dir === 'data') {
+      li.append(h('div.control-row.waiting-do', btn('Send an agent', () => {
+        controlDone(control.begin(floor.project, p.job), () => `An agent is on its way to ${floor.label} to see to it. Watch it sit down in the Conversations room.`);
+        watchStart({ project: floor.project });
+      })));
+    }
+    return li;
+  });
+}
+function healthCard() {
+  const each = org.floors.map((f) => ({ f, h: healthOf(f.project, work) }));
+  const unwell = each.filter((x) => x.h.state !== 'good');
+  const well = each.filter((x) => x.h.state === 'good').map((x) => x.f.label);
+  return h('section.panel-card',
+    sectHead('heart-pulse', 'Project health'),
+    unwell.length ? unwell.map(({ f, h: hh }) => [h('p.health-floor', h('a', { href: `#/${f.id}` }, f.label)), h('ul.list', healthItems(f, hh))]) : empty('Every floor looks healthy.'),
+    unwell.length && well.length ? h('p.small.muted', `Healthy: ${well.join(', ')}.`) : null);
+}
+function floorHealth(floor) {
+  const hh = healthOf(floor.project, work);
+  if (hh.state === 'good') return null;
+  return h('section.panel-card', sectHead('heart-pulse', 'Health'), h('ul.list', healthItems(floor, hh)));
 }
 
 // Routines (routines.js): each, its schedule and what its last run came to, with "Run it now" when control is
@@ -994,6 +1034,7 @@ function viewOverview() {
       h('section.panel-card',
         sectHead('bell', 'Waiting on you'),
         waitingList(waiting)),
+      healthCard(),
       replayCard(),
       spendCard(),
       routinesCard(),
@@ -1073,6 +1114,7 @@ function viewFloor(floor) {
       title(floor.label),
       floor === org.lobby && pauseCard(),
       h('p.states', floorLines(floor).map(chip)),
+      org.floors.includes(floor) && floorHealth(floor),
       floor.about && h('p', floor.about),
       floor.story && h('p.muted', floor.story),
       h('ul.room-list', roomsOf(floor).map((room) => {
@@ -1604,6 +1646,7 @@ async function readWork() {
     for (const key of LISTS) if (Array.isArray(feed[key])) now[key].push(...feed[key].filter((x) => x && typeof x === 'object'));
   }
   now.memory = await readMemory();
+  if (dir !== 'data') now.pullRequests = now.pullRequests.map((p) => (p.waited ? { ...p, updated: OPENED - p.waited * 86400 } : p)); // the sample's: days waited
   if (dir !== 'data') { // the sample's routines: their times from their schedules, as if each last ran on time
     now.routines = now.routines.map((r) => {
       const t = timesOf(r, OPENED);

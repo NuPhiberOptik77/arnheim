@@ -12,6 +12,7 @@ which the page reads every few seconds (docs/connect.md). It only reads: it neve
 repository. Standard library only; git, and gh if you want pull requests.
 """
 import argparse
+import datetime
 import json
 import os
 import subprocess
@@ -46,6 +47,14 @@ def floors():
     return out
 
 
+def when(stamp):
+    """GitHub's time (2026-11-12T09:30:00Z) in seconds, or None."""
+    try:
+        return round(datetime.datetime.fromisoformat(str(stamp).replace("Z", "+00:00")).timestamp())
+    except (TypeError, ValueError):
+        return None
+
+
 def look(github=True):
     copies, prs, notes = [], [], []
     found = floors()
@@ -65,7 +74,7 @@ def look(github=True):
         if changes:
             copies.append({"id": f"git-{floor_id}-{name}", "project": project, "name": f"{name} on {branch}" if branch else name, "changes": changes})
         if github:
-            listed = run(["gh", "pr", "list", "--json", "number,title,isDraft", "--limit", "30"], folder)
+            listed = run(["gh", "pr", "list", "--json", "number,title,isDraft,updatedAt", "--limit", "30"], folder)
             if listed is None:
                 notes.append(f"{name}: no pull requests (gh is missing, signed out, or the repository isn't on GitHub)")
                 continue
@@ -75,7 +84,8 @@ def look(github=True):
                 listed = []
             for pr in listed if isinstance(listed, list) else []:
                 if isinstance(pr, dict) and "number" in pr:
-                    prs.append({"number": pr["number"], "project": project, "title": str(pr.get("title") or ""), "draft": bool(pr.get("isDraft"))})
+                    prs.append({"number": pr["number"], "project": project, "title": str(pr.get("title") or ""), "draft": bool(pr.get("isDraft")),
+                                **({"updated": when(pr["updatedAt"])} if when(pr.get("updatedAt")) else {})})
     return {"copies": copies, "pullRequests": prs}, notes
 
 
