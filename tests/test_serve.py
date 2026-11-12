@@ -112,18 +112,23 @@ class CompanyServeTest(unittest.TestCase):
             server = serve.Server(("127.0.0.1", 0), serve.Handler)
             threading.Thread(target=server.serve_forever, daemon=True).start()
             try:
-                conn = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=10)
-                conn.request("GET", "/data/company.json", headers={"Host": f"127.0.0.1:{server.server_address[1]}"})
-                reply = conn.getresponse()
-                body = reply.read()
-                conn.close()
+                replies = []
+                for name in ("company.json", "Company.json", "COMPANY.JSON", "./company.json"):
+                    conn = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=10)
+                    conn.request("GET", f"/data/{name}", headers={"Host": f"127.0.0.1:{server.server_address[1]}"})
+                    got = conn.getresponse()
+                    replies.append((got.status, got.read()))
+                    conn.close()
             finally:
                 serve.ROOT = root
                 server.shutdown()
                 server.server_close()
-        self.assertEqual(reply.status, 200)
+        status, body = replies[0]
+        self.assertEqual(status, 200)
         self.assertNotIn(b"secret", body)
         self.assertEqual(json.loads(body)["company"], "Example Studio")
+        for status, body in replies[1:]:  # another spelling, on a disk that ignores case: never the topic either
+            self.assertNotIn(b"secret", body)
 
 
 class ControlServeTest(ServeTest):

@@ -7,11 +7,12 @@
 import { proofOf } from './proof.js';
 import { reviewOf } from './review.js';
 
-// Tools that only look: reading files and searching. Reads inside a project's folder never ask, so the ones
-// that do reach outside it: "allow all the reads" lets them go ahead together, but never a read of anything
-// that looks like a key, a password or a credentials file (SECRET), which you answer one at a time.
-export const READS = new Set(['Read', 'Glob', 'Grep', 'LS', 'NotebookRead']);
-export const SECRET = /(?:^|[\/\s~.])(?:\.env\b|\.ssh\b|\.aws\b|\.gnupg\b|\.netrc\b|\.npmrc\b|\.pypirc\b|\.docker\b|\.kube\b|\.git-credentials\b|keychains?\b|id_(?:rsa|dsa|ecdsa|ed25519)\b|[^\s\/]*\.(?:pem|key|p12|pfx|keystore)\b|[^\s\/]*(?:credential|secret|password|passwd|token)s?\b)/i;
+// Reading one file. Reads inside a project's folder never ask, so the ones that do reach outside it: "allow all
+// the reads" lets them go ahead together, but never a search (Grep, Glob, LS can sweep whole folders) and never
+// a read of anything that looks like a key, a password, a token or a credentials file (SECRET). Those, like
+// commands and changes, each need their own answer.
+export const READS = new Set(['Read', 'NotebookRead']);
+export const SECRET = /(?:^|[\\/\s~])(?:[^\\/\s]*\.env\w*|\.ssh|\.aws|\.gnupg|\.netrc|\.npmrc|\.pypirc|\.pgpass|\.docker|\.kube|\.git-credentials|\.config[\\/]gh|keychains?|id_(?:rsa|dsa|ecdsa|ed25519)|[^\\/\s]*\.(?:pem|key|p8|p12|pfx|keystore|jks)\b|[^\\/\s]*(?:credential|secret|password|passwd|token|api[_-]?key|service[_-]?account)|[^\\/\s]*_history\b)/i;
 const RANK = { permission: 0, question: 1, task: 2, turn: 3 };
 const RECENT = 2 * 3600; // seconds: an agent that finished longer ago than this is no longer waiting on you
 

@@ -89,7 +89,7 @@ class HealthTest(unittest.TestCase):
         self.assertEqual(jobs, [
             'The picture sizes check failed on the work in "Pictures for the app store". Find out why and fix it, so the picture sizes check passes again. '
             'It ended with: "1 of 5 pictures is the wrong size.".' + data,
-            'Fix what the review line found in the work on "The blue button": The settings page is still red.',
+            'Fix what the review line found in the work on "The blue button": "The settings page is still red.".' + data,
             'The routine "Sensor readings" (every day at 07:00) last ended with: "Sensor 3 sent nothing.". Find out why, and fix it if you can.' + data,
             'Look at pull request #39 "Open the app faster", which has waited 12 days, and say what it needs before it can be merged or closed. '
             "Don't merge or close it yourself." + data,

@@ -201,7 +201,7 @@ const projectNamed = (list, name) => {
 };
 
 // A question to pass on, not work to hand out: "ask Claude what is waiting on me", "ask an agent how it's going".
-const ASKS = /^(?:what|what's|how|how's|whether|if|where|when|why|who|whom|which|about|is|are|was|were)\b/i;
+const ASKS = /^(?:what|what's|whats|how|how's|whether|if|where|when|why|who|whom|which|about|is|are|was|were|did|does|has|can|could|should|would|will)\b/i;
 
 // The job and its floor from handed-out words: the floor is the last "on/for/in <a floor's name>".
 export function handedOut(words, list) {

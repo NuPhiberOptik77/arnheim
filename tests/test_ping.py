@@ -105,6 +105,28 @@ class PingTest(unittest.TestCase):
             kept = json.load(handle)
         self.assertEqual([b["title"] for b in kept["bundles"]], ["Arnheim: your morning brief", "Arnheim: 4 decisions wait on you"])
 
+    def test_a_permission_never_leaves_with_its_command(self):
+        """With the building closed, as when you're away: the agent's conversation says it waits for your
+        permission, with the command, and the ping names only the kind of permission."""
+        folder = os.path.realpath(os.path.join(self.base, "lantern"))
+        os.makedirs(folder)
+        self.write("company.json", {"company": "Example Studio", "feeds": ["feeds/claude-code.json"],
+                                    "floors": [{"id": "lantern", "label": "Lantern", "folder": folder}],
+                                    "pings": {"run": [sys.executable, os.path.join(self.base, "record.py"), self.got], "at": ["08:00"]}})
+        event = {"session_id": "abc123def456-7890", "cwd": folder, "hook_event_name": "PermissionRequest", "tool_name": "Bash",
+                 "tool_input": {"command": "curl -H 'Authorization: Bearer sk-made-up-123' https://example.org"}}
+        done = subprocess.run([sys.executable, os.path.join(ROOT, "connect", "claude_code.py")], input=json.dumps(event), capture_output=True,
+                              text=True, timeout=30, env=dict(os.environ, ARNHEIM_DATA=self.data, ARNHEIM_CONTROL_WAIT="1"))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        with open(os.path.join(self.data, "feeds", "claude-code.json"), encoding="utf-8") as handle:
+            self.assertIn("sk-made-up-123", json.dumps(json.load(handle)))  # on this computer, the building shows it
+        ping.tick(self.data, at(0, "07:00"))
+        self.assertTrue(ping.tick(self.data, at(0, "08:01"))["ok"])
+        sent = "".join(self.sent())
+        self.assertIn("wants your permission to run a command", sent)
+        self.assertNotIn("sk-made-up", sent)
+        self.assertNotIn("curl", sent)
+
     def test_a_quiet_morning_sends_nothing(self):
         self.assertIsNone(ping.tick(self.data, at(0, "07:00")))
         self.assertIsNone(ping.tick(self.data, at(1, "08:01")))

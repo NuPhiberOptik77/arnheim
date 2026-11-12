@@ -147,8 +147,13 @@ def decisions(data, work=None):
         asking.add(a.get("key"))
         out.append({"id": f"ask:{a.get('id')}", "line": f"{on(c.get('title'), c.get('project'))} wants your permission to {permission(a.get('tool'))}"})
     for c in talks.values():
-        needs = (c.get("says") or {}).get("needs") if isinstance(c.get("says"), dict) else None
-        if needs and not c.get("working") and c.get("id") not in asking:
+        says = c.get("says") if isinstance(c.get("says"), dict) else {}
+        needs = says.get("needs")
+        if not needs or c.get("working") or c.get("id") in asking:
+            continue
+        if "permission" in says or str(needs).startswith("I'm waiting for your permission"):  # its command stays here
+            out.append({"id": f"talk:{c['id']}", "line": f"{on(c.get('title'), c.get('project'))} wants your permission to {permission(says.get('permission'))}"})
+        else:
             out.append({"id": f"talk:{c['id']}", "line": f"{on(c.get('title'), c.get('project'))} asks: {control.one_line(needs, 160)}"})
     for t in work["tasks"]:
         if t.get("status") == "needs_you" and not (t.get("session") and t.get("session") in talks):

@@ -44,7 +44,7 @@ def task(tid, title, status="needs_you", project="Shop", **more):
 BUSY = {
     "now": NOW,
     "asks": [ask("a1", "c1", "Bash", "npm test", until=NOW + 170), ask("a2", "c2", "Read", "notes.md", until=NOW + 40),
-             ask("a3", "r9", "Grep", "TODO")],
+             ask("a3", "r9", "Read", "TODO.md")],
     "runs": [{"key": "r9", "project": "Site", "title": "Tidy the site"}],
     "conversations": [
         talk("c1", "Fix the till", working=True), talk("c2", "Price list"),
@@ -72,7 +72,7 @@ class QueueTest(unittest.TestCase):
         self.assertEqual(got, [
             # permissions first, the one whose wait runs out first at the top
             ["permission", "c2", "Price list", "to read notes.md", True],
-            ["permission", "r9", "Tidy the site", "to search for TODO", True],  # named from the run the page started
+            ["permission", "r9", "Tidy the site", "to read TODO.md", True],  # named from the run the page started
             ["permission", "c1", "Fix the till", "to run npm test", False],
             # then questions (an agent at work isn't waiting on you), then your tasks, longest waiting first
             ["question", "c3", "New menu", "Which font?", False],
@@ -97,7 +97,7 @@ class QueueTest(unittest.TestCase):
         self.assertEqual(got[1], "One thing is waiting on you. New menu on the Shop floor is asking: Which font?")
         self.assertEqual(got[3], 'One thing is waiting on you. Your task "Sign the lease" on the Shop floor.')
         self.assertEqual(got[2], "8 things are waiting on you. Price list on the Shop floor wants your permission to read notes.md. "
-                                 "Tidy the site on the Site floor wants your permission to search for TODO. And 6 more in the panel. "
+                                 "Tidy the site on the Site floor wants your permission to read TODO.md. And 6 more in the panel. "
                                  'Say "allow all the reads" to let the 2 that only read go ahead.')
 
     def test_what_it_wants(self):
@@ -126,8 +126,11 @@ class QueueTest(unittest.TestCase):
     def test_never_a_secret_read_together(self):
         secrets = ["~/.ssh/id_rsa", "/Users/x/.aws/credentials", ".env", "/srv/app/.env.local", "deploy.pem", "~/.netrc",
                    "notes/passwords.txt", "api_token", "Library/Keychains/login.keychain-db", "~/.git-credentials"]
-        plain = ["notes.md", "../other/README.md", "/srv/app/main.py", "TODO", "docs/tokenizer-notes.md"]
+        secrets += ["~/.config/gh/hosts.yml", "~/keys/id_rsa_work", "AuthKey_ABC123.p8", ".envrc", "deploy/production.env",
+                    "gcp/service-account.json", "api_key.txt", "~/.pgpass", "~/.zsh_history", "C:\\Users\\x\\.ssh\\id_rsa"]
+        plain = ["notes.md", "../other/README.md", "/srv/app/main.py", "TODO", "C:\\work\\plan.txt"]
         asks = [ask(f"s{i}", "c2", "Read", w) for i, w in enumerate(secrets)] + [ask(f"p{i}", "c2", "Read", w) for i, w in enumerate(plain)]
+        asks += [ask("g1", "c2", "Grep", "/Users/x"), ask("g2", "c2", "Glob", "**/*.md"), ask("g3", "c2", "LS", "/")]  # searches: one at a time
         (got,) = self.run_js([["allow", {"now": NOW, "asks": asks, "conversations": [talk("c2", "Price list")]}, "allow all the reads"]])
         self.assertEqual(sorted(got), sorted(f"p{i}" for i in range(len(plain))))
 

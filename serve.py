@@ -22,7 +22,6 @@ import argparse
 import errno
 import http.server
 import io
-import io
 import ipaddress
 import json
 import os
@@ -218,7 +217,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if not kind or not full.startswith(ROOT + os.sep) or not os.path.isfile(full):
             self.send_error(404)
             return None
-        if full == os.path.realpath(os.path.join(ROOT, "data", "company.json")):
+        company = os.path.join(ROOT, "data", "company.json")
+        if os.path.basename(full).lower() == "company.json" and os.path.isfile(company) and os.path.samefile(full, company):  # any spelling of it
             with open(full, "rb") as handle:
                 body = without_pings(handle.read())
             self.send_response(200)

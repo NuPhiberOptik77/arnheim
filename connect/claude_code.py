@@ -226,13 +226,17 @@ def change(event, feed, project, now, extra=None):
             message = line(event.get("message") or "Claude is waiting for you.", 90)
             talk.update(working=False, check=True)
             talk["says"] = {**talk.get("says", {}), "needs": f"{message}."}
+            if kind == "permission_prompt":  # a permission, not a question: pings name only its kind (connect/ping.py)
+                talk["says"].setdefault("permission", "")
+            else:
+                talk["says"].pop("permission", None)
             task(ask, title=f"{talk['title']}: {message}", status="needs_you", note=message)
         elif kind == "idle_prompt":
             talk.update(working=False, check=True)
     elif name == "PermissionRequest":
         message = line(f"I'm waiting for your permission: {extra.get('asking') or event.get('tool_name') or 'a tool'}", 140)
         talk.update(working=False, check=True)
-        talk["says"] = {**talk.get("says", {}), "needs": f"{message}."}
+        talk["says"] = {**talk.get("says", {}), "needs": f"{message}.", "permission": str(event.get("tool_name") or "")}
         task(ask, title=line(f"{talk['title']}: {message}", 120), status="needs_you", note=message)
     elif name == "Stop" and extra.get("going_on"):  # it has your message to answer first
         said = sentences(event.get("last_assistant_message"))
