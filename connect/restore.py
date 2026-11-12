@@ -7,23 +7,25 @@ you send it, and before any command that deletes or overwrites files in bulk (rm
 git clean and the like). Each is a git commit of the files in the floor's folder that git doesn't ignore,
 saved under refs/arnheim/restore/ in the project's repository: your branch, what you have staged and
 your files are left as they are, and `git log` shows nothing new unless you ask for --all. Files that look
-like keys, passwords or tokens (SECRETS) are never saved in one. The last 40 are kept; older ones are let
+like keys, passwords or tokens by their names (SECRETS) are never saved in one, even ones git tracks; that
+is by name only, so .gitignore is what really keeps a secret out. The last 40 are kept; older ones are let
 go, and git tidies them away in its own time.
 
 Going back (from the building, with control on: connect/control.py) puts every file the point holds as it
 was then: the ones changed since are put back and the ones deleted since come back. Files that weren't
 there then, made or added since, are left where they are, and listed. It takes a restore point of how
-things are first, so going back can be undone too. It refuses while an agent on that folder is at work
-or waiting on you.
+things are first, so going back can be undone too, and doesn't go back if that can't be kept. It refuses
+while an agent on that folder is at work or waiting on you. Secret-looking files are left as they are.
 
 Saving keeps an index of its own for each floor, so after the first, only files that changed are read
-again. A folder too big to save within WAIT seconds gets no restore points for SLOW_FOR, so it doesn't
-hold its agents up each time; keep big folders in .gitignore.
+again. A floor's folder too big to save within WAIT seconds (TOTAL in all) gets no restore points for
+SLOW_FOR, so it doesn't hold its agents up each time; keep big folders in .gitignore.
 
 Nothing here runs a command built from what an agent did: every git call is a fixed list of arguments,
 and the only things that come from outside are a commit this file made and paths git itself lists, passed
 as literal paths. Standard library only. A folder that isn't in git gets no restore points.
 """
+import fnmatch
 import hashlib
 import json
 import os
@@ -39,6 +41,7 @@ KEEP = 40  # restore points kept, across the company
 POINT = re.compile(r"^rp-[0-9a-f]{12}$")
 COMMIT = re.compile(r"^[0-9a-f]{40}([0-9a-f]{24})?$")  # sha-1, or sha-256
 WAIT = 20  # seconds a git call may take at most: past that, no restore point, and the agent goes on
+TOTAL = 40  # seconds a restore point may take in all, well inside Claude Code's own limit for a hook
 SLOW_FOR = 6 * 3600  # seconds a folder too big to save in time goes without restore points
 # Commands that delete or overwrite many files at once: a restore point first, every time.
 _PATH = r"(?:\S*/)?"  # rm, or /bin/rm
@@ -57,12 +60,16 @@ RISKY = re.compile(
     + r"|truncate\s"
     + r")")
 # Never saved in a restore point, so never in the project's git unless it is there already: files that hold keys,
-# passwords or tokens by their kind or name. Going back leaves them as they are.
-SECRETS = (".env", ".env.*", "*.env", "*.pem", "*.key", "*.p8", "*.p12", "*.pfx", "*.keystore", "*.jks", "*.kdbx", "*.ovpn", "*.ppk",
-           "id_rsa*", "id_dsa*", "id_ecdsa*", "id_ed25519*", ".netrc", ".npmrc", ".pypirc", ".pgpass", ".git-credentials",
-           "credentials", "credentials.*", "*-credentials.*", "*_credentials.*", "secrets.*", "*.secret", "*.secrets",
-           "client_secret*", "service-account*.json", "*service_account*.json", ".ssh/**", ".aws/**", ".gnupg/**")
+# passwords or tokens by their kind or name, even ones git tracks. Going back leaves them as they are. By name only:
+# .gitignore is what really keeps a secret out.
+SECRETS = (".env", ".env.*", "*.env", ".envrc", "*.pem", "*.key", "*.p8", "*.p12", "*.pfx", "*.keystore", "*.jks", "*.kdbx", "*.ovpn",
+           "*.ppk", "*.keychain", "*.keychain-db", "id_rsa*", "id_dsa*", "id_ecdsa*", "id_ed25519*", ".netrc", ".npmrc", ".pypirc",
+           ".pgpass", ".htpasswd", ".git-credentials", "credentials", "credentials.*", "*-credentials.*", "*_credentials.*",
+           "secrets.*", "*.secret", "*.secrets", "client_secret*", "service-account*.json", "*service_account*.json",
+           "token.json", "*.token", "api_key*", "api-key*", "apikey*", "auth.json", "*.tfvars", "*.tfvars.json", "*.tfstate",
+           "*.tfstate.*", "settings.local.json", ".docker/config.json", ".ssh/**", ".aws/**", ".gnupg/**", ".kube/**")
 NOT_SECRETS = [f":(top,exclude,glob,icase)**/{p}" for p in SECRETS]
+ONLY_SECRETS = [f":(top,glob,icase)**/{p}" for p in SECRETS]
 GIT_ENV = {  # who the restore points' commits are by: never the person's own name
     "GIT_AUTHOR_NAME": "Arnheim restore point", "GIT_AUTHOR_EMAIL": "restore@arnheim.invalid",
     "GIT_COMMITTER_NAME": "Arnheim restore point", "GIT_COMMITTER_EMAIL": "restore@arnheim.invalid",
@@ -94,12 +101,18 @@ class TooSlow(Exception):
     pass
 
 
+_until = [None]  # when the restore point being taken must be done by (time.monotonic()), if one is
+
+
 def git(repo, *args, env=None, data=False, given=None):
     """Runs git in repo with fixed arguments: its output as text (bytes with data=True), or None if it failed.
-    Raises TooSlow past WAIT seconds."""
+    Raises TooSlow past WAIT seconds, or past the time left for the restore point being taken."""
+    wait = WAIT if _until[0] is None else min(WAIT, _until[0] - time.monotonic())
+    if wait <= 0:
+        raise TooSlow()
     try:
         done = subprocess.run(["git", "-C", repo, *args], capture_output=True, input=given, stdin=None if given is not None else subprocess.DEVNULL,
-                              timeout=WAIT, env={**os.environ, **GIT_ENV, **(env or {})})
+                              timeout=wait, env={**os.environ, **GIT_ENV, **(env or {})})
     except subprocess.TimeoutExpired as error:
         raise TooSlow() from error
     except (OSError, subprocess.SubprocessError):
@@ -185,15 +198,26 @@ def read_points(data=DATA):
     return [row for row in rows if isinstance(row, dict) and POINT.match(str(row.get("id") or ""))] if isinstance(rows, list) else []
 
 
+def own_dir(repo, scope):
+    """Arnheim's own folder for one floor's restore points, inside the repository's git folder, or None."""
+    gitdir = git(repo, "rev-parse", "--absolute-git-dir")
+    return os.path.join(gitdir, "arnheim-restore", hashlib.sha1(scope.encode()).hexdigest()[:12]) if gitdir else None
+
+
+def drop_from(repo, env, paths):
+    """Lets go of paths in the index env names. Only the index: the files themselves are never touched."""
+    if paths:
+        git(repo, "update-index", "-z", "--force-remove", "--stdin", env=env, given=b"\0".join(p.encode("utf-8", "surrogateescape") for p in paths))
+
+
 def snapshot(repo, scope, message):
     """The files of scope that git doesn't ignore, secrets left out, as a commit on top of HEAD: (commit, how many
     files of scope differ from HEAD), or None. Made through an index of Arnheim's own for that scope, so the real
     one is untouched and, after the first time, only changed files are read again. Raises TooSlow."""
-    gitdir = git(repo, "rev-parse", "--absolute-git-dir")
-    if not gitdir:
+    mine = own_dir(repo, scope)
+    if not mine:
         return None
     head = git(repo, "rev-parse", "-q", "--verify", "HEAD^{commit}")
-    mine = os.path.join(gitdir, "arnheim-restore", hashlib.sha1(scope.encode()).hexdigest()[:12])
     os.makedirs(mine, exist_ok=True)
     index = os.path.join(mine, "index")
     env = {"GIT_INDEX_FILE": index}
@@ -208,12 +232,12 @@ def snapshot(repo, scope, message):
             ignored = names(git(repo, "ls-files", "-z", "--cached", "--ignored", "--exclude-standard", "--", scope_spec(scope), env=env, data=True))
             if ignored:
                 tracked = set(names(git(repo, "ls-files", "-z", "--cached", "--", scope_spec(scope), data=True)))
-                drop = [p for p in ignored if p not in tracked]
-                if drop:
-                    git(repo, "rm", "-r", "--cached", "-q", "--ignore-unmatch", "--pathspec-from-file=-", "--pathspec-file-nul",
-                        env={**env, "GIT_LITERAL_PATHSPECS": "1"}, given=b"\0".join(p.encode("utf-8", "surrogateescape") for p in drop))
+                drop_from(repo, env, [p for p in ignored if p not in tracked])
             if git(repo, "add", "-A", "--", scope_spec(scope), *NOT_SECRETS, env=env) is None:
                 return None
+            # Secret-looking files git tracks came in with the real index: let go of them too, so none is ever saved,
+            # and going back never puts one back.
+            drop_from(repo, env, names(git(repo, "ls-files", "-z", "--cached", "--", *ONLY_SECRETS, env=env, data=True)))
             tree = git(repo, "write-tree", env=env)
         except TooSlow:
             if os.path.exists(index + ".lock"):  # git was stopped mid-way: it leaves its lock
@@ -225,27 +249,39 @@ def snapshot(repo, scope, message):
     if not commit or not COMMIT.match(commit):
         return None
     where = [] if scope == "." else ["--", scope]
-    changed = (git(repo, "diff", "--name-only", "-z", head, tree, *where, data=True) if head
+    changed = (git(repo, "diff", "--name-only", "-z", head, tree, "--", scope_spec(scope), *NOT_SECRETS, data=True) if head
                else git(repo, "ls-tree", "-r", "--name-only", "-z", "--full-tree", tree, *where, data=True))
     return commit, len([p for p in (changed or b"").split(b"\0") if p])
 
 
-def slow_mark(repo):
-    gitdir = git(repo, "rev-parse", "--absolute-git-dir")
-    return os.path.join(gitdir, "arnheim-restore", "slow") if gitdir else None
+def slow_mark(repo, scope):
+    """The file that says a floor's folder was too big to save in time, lately."""
+    mine = own_dir(repo, scope)
+    return os.path.join(mine, "slow") if mine else None
 
 
-def take(folder, why, key="", project="", title="", by="agent", data=DATA, now=None):
+def take(folder, why, key="", project="", title="", by="agent", data=DATA, now=None, force=False):
     """A restore point of the floor's folder that holds folder, kept in data/feeds/restore.json: the point, or None
-    (not in git, git missing, too slow lately, or the folder in none of the floor's folders)."""
-    now = now or time.time()
+    (not in git, git missing, too slow, or the folder in none of the floor's folders). force: even if the floor
+    was too slow to save lately (going back, which waits on it)."""
+    before = _until[0]
+    _until[0] = time.monotonic() + TOTAL if before is None else before
+    try:
+        return _take(folder, why, key, project, title, by, data, now or time.time(), force)
+    except TooSlow:
+        return None
+    finally:
+        _until[0] = before
+
+
+def _take(folder, why, key, project, title, by, data, now, force):
     where = placed(folder, project, data)
     if not where:
         return None
     repo, floor, scope = where
-    mark = slow_mark(repo)
+    mark = slow_mark(repo, scope)
     try:
-        if mark and now - os.path.getmtime(mark) < SLOW_FOR:
+        if mark and not force and now - os.path.getmtime(mark) < SLOW_FOR:
             return None  # too big to save in time, lately: the agent isn't held up again
     except OSError:
         pass
@@ -253,6 +289,7 @@ def take(folder, why, key="", project="", title="", by="agent", data=DATA, now=N
         made = snapshot(repo, scope, f"Arnheim restore point: {why}")
     except TooSlow:
         if mark:
+            os.makedirs(os.path.dirname(mark), exist_ok=True)
             with open(mark, "w", encoding="utf-8") as handle:
                 handle.write(f"No restore points until {time.ctime(now + SLOW_FOR)}: saving took over {WAIT} seconds.\n")
         return None
@@ -283,13 +320,30 @@ def take(folder, why, key="", project="", title="", by="agent", data=DATA, now=N
                 if target not in kept and name.startswith(REF):
                     git(repo, "update-ref", "-d", name)
         except TooSlow:
-            return None
+            pass  # the point is kept and listed; older ones are let go of next time
     return point
 
 
 def risky(command):
     """Whether a shell command deletes or overwrites files in bulk."""
     return bool(RISKY.search(" " + str(command or "")))
+
+
+def looks_secret(path):
+    """Whether a path's name is one SECRETS matches, as git's own matching does (for restore points from before
+    secrets git tracks were left out)."""
+    parts = path.lower().split("/")
+    for pattern in SECRETS:
+        pattern = pattern.lower()
+        if pattern.endswith("/**"):
+            if pattern[:-3] in parts[:-1]:
+                return True
+        elif "/" in pattern:
+            if "/".join(parts[-pattern.count("/") - 1:]) == pattern:
+                return True
+        elif fnmatch.fnmatchcase(parts[-1], pattern):
+            return True
+    return False
 
 
 def names(raw):
@@ -337,9 +391,11 @@ def go_back(point, data=DATA, now=None):
             raise ValueError("That restore point has gone from its project's git.")
         clock = time.strftime("%H:%M", time.localtime(point.get("at") or 0))
         kept = take(covered, f"before going back to {clock}", key="", project=point.get("project") or "", title="You, from the building",
-                    by="you", data=data, now=now)
+                    by="you", data=data, now=now, force=True)
+        if not kept:
+            raise ValueError("It couldn't keep how the files are now first, so it didn't go back, and nothing was changed.")
         where = [] if scope == "." else ["--", scope]
-        held = names(git(repo, "ls-tree", "-r", "--name-only", "-z", "--full-tree", commit, *where, data=True))
+        held = [p for p in names(git(repo, "ls-tree", "-r", "--name-only", "-z", "--full-tree", commit, *where, data=True)) if not looks_secret(p)]
         if held and git(repo, "restore", f"--source={commit}", "--worktree", "--pathspec-from-file=-", "--pathspec-file-nul",
                         env={"GIT_LITERAL_PATHSPECS": "1"}, given=b"\0".join(p.encode("utf-8", "surrogateescape") for p in held)) is None:
             raise ValueError("Git couldn't put the files back. Look in the project's folder: how they were a moment ago is a restore point too.")
@@ -348,4 +404,4 @@ def go_back(point, data=DATA, now=None):
         made = [p for p in now_there if p not in then and os.path.lexists(os.path.join(repo, p))]
     except TooSlow:
         raise ValueError(f"Git took over {WAIT} seconds, so it stopped. Look in the project's folder: how it was a moment ago is a restore point too.")
-    return {"kept": kept and kept["id"], "left": made[:10], "more": max(0, len(made) - 10)}
+    return {"kept": kept["id"], "left": made[:10], "more": max(0, len(made) - 10)}

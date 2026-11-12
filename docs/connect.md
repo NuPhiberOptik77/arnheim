@@ -467,20 +467,22 @@ after each message you send it, and before any command that deletes or overwrite
 -r`, `git reset --hard`, `git clean -f`, `git checkout -- ...`, `git stash` and the like), the hook
 saves the floor's files as a restore point: every file in the floor's own folder that git doesn't
 ignore, and nothing outside it, even when that folder sits inside a bigger repository. Files that look
-like secrets (`.env` files, keys, certificates, credentials and the like) are never saved. It uses git,
-beside the project's own history: your branch, what you have staged and your files are left as they
-are, and `git log` shows nothing new unless you ask it for `--all`. A folder that isn't in git gets
-none. The hook keeps a list of its own for each floor inside the repository's `.git` folder, so after
-the first restore point the next ones are quick. A folder so big that saving takes longer than 20
-seconds gets no restore points for six hours, so its agents aren't held up.
+like secrets (`.env` files, keys, certificates, credentials and the like) are never saved, even ones
+git tracks. It knows them by their names only, so keep anything private in `.gitignore` as well: that
+is what really keeps it out. It uses git, beside the project's own history: your branch, what you have
+staged and your files are left as they are, and `git log` shows nothing new unless you ask it for
+`--all`. A folder that isn't in git gets none. The hook keeps a list of its own for each floor inside
+the repository's `.git` folder, so after the first restore point the next ones are quick. A floor's
+folder so big that saving takes longer than 20 seconds gets no restore points for six hours, so its
+agents aren't held up.
 
-Each conversation's page and each floor's page list its restore points. With control on (step 4),
-**Go back to here** puts the floor's files as they were then: those changed since are put back and
-those deleted since come back. Files that weren't there then, made or committed since, are left where
-they are, and listed, and so are the secret-looking files it never saved. It keeps how things are
-first, as a restore point of its own, so going back can be undone too. It won't while an agent working
-in the same folder is at work or waiting on you: let it finish, or stop it, first. The last 40 restore
-points are kept; git tidies older ones away in its own time.
+Each conversation's page and each floor's page list its restore points. With control on (step 4), **Go
+back to here** puts the floor's files as they were then: those changed since are put back and those
+deleted since come back. Files that weren't there then, made or committed since, are left where they
+are, and listed. Secret-looking files are left as they are. It keeps how things are first, as a restore
+point of its own, so going back can be undone too, and if it can't keep that, it doesn't go back. It
+won't while an agent working in the same folder is at work or waiting on you: let it finish, or stop
+it, first. The last 40 restore points are kept; git tidies older ones away in its own time.
 
 ## 17. A shelf of how-tos
 

@@ -193,6 +193,85 @@ class RestoreTest(unittest.TestCase):
         self.assertEqual(self.read("tokenizer.py"), "ordinary\n")
         self.assertNotIn(".env", out["left"])
 
+    def test_which_names_look_secret(self):
+        secret = [".envrc", "infra/prod.tfvars", "terraform.tfstate", "terraform.tfstate.backup", ".htpasswd", "token.json",
+                  "home/.docker/config.json", ".claude/settings.local.json", "api_key.txt", "keys/API-KEY.json", "sub/.SSH/known",
+                  "Server.PEM", "deploy/.env.production"]
+        ordinary = ["tokenizer.py", "reset_password.py", "design-tokens.json", "keys.py", "docker/config.json", "settings.json",
+                    "environment.md", "src/env.ts"]
+        for name in secret + ordinary:
+            self.write(name, "x\n")
+        point = restore.take(self.lantern, "before", project="Lantern", data=self.data)
+        held = set(git(self.lantern, "ls-tree", "-r", "--name-only", point["commit"]).split("\n"))
+        for name in secret:
+            self.assertNotIn(name, held)
+            self.assertTrue(restore.looks_secret(name), name)  # the same answer as git's
+        for name in ordinary:
+            self.assertIn(name, held)
+            self.assertFalse(restore.looks_secret(name), name)
+
+    def test_secrets_git_tracks_are_left_alone_too(self):
+        self.write(".env", "KEY=one\n")
+        self.write(".env.example", "KEY=\n")
+        git(self.lantern, "add", "-A")
+        git(self.lantern, "commit", "-qm", "settings")
+        restore.take(self.lantern, "first", project="Lantern", data=self.data, now=1000)  # Arnheim's own index starts here
+        self.write(".env", "KEY=edited\n")  # an edit not committed
+        self.write(".env.example", "KEY=example\n")
+        git(self.lantern, "commit", "-qam", "example again")  # .env.example committed again, .env.example only
+        self.write(".env", "KEY=edited\n")
+        point = restore.take(self.lantern, "before", project="Lantern", data=self.data, now=2000)
+        held = git(self.lantern, "ls-tree", "-r", "--name-only", point["commit"]).split("\n")
+        self.assertNotIn(".env", held)
+        self.assertNotIn(".env.example", held)
+        self.assertEqual(point["files"], 0)  # a secret left out isn't a file changed
+        self.write("app.py", "print('broken')\n")
+        restore.go_back(point, self.data)
+        self.assertEqual(self.read("app.py"), "print('one')\n")
+        self.assertEqual(self.read(".env"), "KEY=edited\n")  # never in a point, so left as it is
+        self.assertEqual(self.read(".env.example"), "KEY=example\n")
+
+    def slow(self, folder, project):
+        """Makes the next save of folder too slow, so its floor gets no restore points for a while."""
+        snapshot = restore.snapshot
+
+        def too_slow(*_args, **_kwargs):
+            raise restore.TooSlow()
+        restore.snapshot = too_slow
+        try:
+            self.assertIsNone(restore.take(folder, "too slow", project=project, data=self.data))
+        finally:
+            restore.snapshot = snapshot
+
+    def test_going_back_always_keeps_how_things_are_first(self):
+        point = restore.take(self.lantern, "before", project="Lantern", data=self.data, now=1000)
+        self.slow(self.lantern, "Lantern")
+        self.assertIsNone(restore.take(self.lantern, "slow now", project="Lantern", data=self.data))
+        self.write("app.py", "print('worth keeping')\n")
+        out = restore.go_back(point, self.data)
+        self.assertTrue(out["kept"])  # going back saves first, slow or not: it can be undone
+        kept = next(p for p in self.points() if p["id"] == out["kept"])
+        self.assertEqual(git(self.lantern, "show", f"{kept['commit']}:app.py"), "print('worth keeping')")
+        self.assertEqual(self.read("app.py"), "print('one')\n")
+        # If how things are can't be kept, it doesn't go back at all.
+        self.write("app.py", "print('worth keeping too')\n")
+        snapshot = restore.snapshot
+        restore.snapshot = lambda *_args, **_kwargs: None
+        try:
+            with self.assertRaises(ValueError):
+                restore.go_back(point, self.data)
+        finally:
+            restore.snapshot = snapshot
+        self.assertEqual(self.read("app.py"), "print('worth keeping too')\n")
+
+    def test_one_slow_floor_doesnt_stop_another(self):
+        self.write("web/page.html", "<p>one</p>\n")
+        web = os.path.join(self.lantern, "web")
+        self.set_floors([{"id": "web", "label": "Web", "folder": web}, {"id": "lantern", "label": "Lantern", "folder": self.lantern}])
+        self.slow(self.lantern, "Lantern")
+        self.assertIsNone(restore.take(self.lantern, "slow now", project="Lantern", data=self.data))
+        self.assertIsNotNone(restore.take(web, "before", project="Web", data=self.data))
+
     def test_a_repository_with_nothing_added_yet(self):
         fresh = os.path.join(self.base, "code", "fresh")
         os.makedirs(fresh)
@@ -243,17 +322,9 @@ class RestoreTest(unittest.TestCase):
         last = restore.take(self.lantern, "ignored now", project="Lantern", data=self.data, now=3000)
         self.assertNotIn("debug.log", git(self.lantern, "ls-tree", "-r", "--name-only", last["commit"]).split("\n"))
         # Too slow to save: no restore points for a while, so the agent isn't held up each time.
-        snapshot = restore.snapshot
-
-        def too_slow(*_args, **_kwargs):
-            raise restore.TooSlow()
-        restore.snapshot = too_slow
-        try:
-            self.assertIsNone(restore.take(self.lantern, "too slow", project="Lantern", data=self.data))
-        finally:
-            restore.snapshot = snapshot
+        self.slow(self.lantern, "Lantern")
         gitdir = git(self.lantern, "rev-parse", "--absolute-git-dir")
-        slow = os.path.join(gitdir, "arnheim-restore", "slow")
+        slow = restore.slow_mark(self.lantern, ".")
         self.assertTrue(os.path.exists(slow))
         self.assertIsNone(restore.take(self.lantern, "still slow", project="Lantern", data=self.data))  # waits a while
         os.remove(slow)
