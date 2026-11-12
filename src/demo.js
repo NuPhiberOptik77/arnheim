@@ -7,6 +7,7 @@ import { createBrain } from './brain.js';
 import { agentControls, agentReply, createControl, deskControls, deskStart } from './control.js';
 import { allowReadsAsked, sayWaiting, together, waitingOnYou } from './queue.js';
 import { inner, proofMood, proofOf } from './proof.js';
+import { MEMORY_ASKED, decidedFor, rememberAsked, sayMemory } from './memory.js';
 import { icon } from './icons.js';
 import { createPoe, has, insertAfter, needWord, norm, poeBadge } from './poe-desk.js';
 
@@ -48,6 +49,8 @@ const lastFeed = new Map();
 let workSig = ''; // the work as last read, to tell when it has changed
 const mine = []; // tasks the receptionist took down in this tab, kept through each fresh read
 const dropped = new Set(); // and the ones dropped in it
+const mineMemory = []; // decisions remembered in this tab, for a made-up company
+const forgotten = new Set(); // and the ones forgotten in it
 const FOLLOW_MS = 4000;
 let poe = null;
 let building = null;
@@ -290,13 +293,18 @@ async function dropTask(id) {
 
 // What the rules answer even with the brain on: at once, and nothing Claude could be talked into
 // instead. A refusal stays a refusal.
-const RULED = new Set(['refuse', 'greeting', 'tour', 'waiting']);
+const RULED = new Set(['refuse', 'greeting', 'tour', 'waiting', 'memory']);
 const ruledBy = (t) => (RULED.has(t.id) ? { ...t, answer: (c) => { const a = t.answer(c); return a && { ...a, ruled: t.id }; } } : t);
 
 function setupDesk() {
   const called = deskName() || 'The receptionist';
   // "What's waiting on me?", "what needs me?" for the whole building: the one list, said as on a walk.
   // For one floor, the rules' own answer, from the same list.
+  // "What have we decided?": the company's memory.
+  const memory = {
+    id: 'memory',
+    answer: (c) => MEMORY_ASKED.test(c.text) && { lines: [sayMemory(memoryNow())], go: c.go('#/company', 'Show me') },
+  };
   const waiting = {
     id: 'waiting',
     answer: (c) => !c.floor && WAITING.test(c.text) && {
@@ -335,13 +343,13 @@ function setupDesk() {
         'I can also take a message: say "remind me to ..." and I will add it as a task.',
       ] : undefined,
       unknown: `I don't know that, and I won't guess. I only know what ${madeUp() ? 'the sample company holds' : `${org.company}'s files hold`}.`,
-      note: `${brain.on ? `${called} answers with Claude, through Claude Code on this computer and on your own Claude plan: your questions go there, with the building's facts. Greetings, refusals and tasks stay with the building's own rules. ` : ''}${called} can add a task and undo it, in this tab only. Nothing is saved. ${called} never merges, publishes, runs jobs or signs in.`,
+      note: `${brain.on ? `${called} answers with Claude, through Claude Code on this computer and on your own Claude plan: your questions go there, with the building's facts. Greetings, refusals and tasks stay with the building's own rules. ` : ''}${called} can add a task and undo it, in this tab only. ${dir === 'data' ? `What you ask ${called} to remember is kept for every agent while control is on. ` : 'Nothing is saved. '}${called} never merges, publishes, runs jobs or signs in.`,
       added: 'It is in the Work room now, in this tab only.',
       keys: `1 Overview, 2 Company, 3 ${deskTab()}. Esc goes back. Arrow keys turn the building, plus and minus zoom. They do nothing while you are typing.`,
     },
     topics: (list) => {
       const all = insertAfter(insertAfter(list, 'thanks', [real]), 'tour', [howTo]);
-      all.splice(Math.max(0, all.findIndex((t) => t.id === 'needs')), 0, waiting);
+      all.splice(Math.max(0, all.findIndex((t) => t.id === 'needs')), 0, waiting, memory);
       return brain.on ? all.map(ruledBy) : all;
     },
     // A typed question at the desk: Claude's answer as it comes, with the brain on.
@@ -349,6 +357,8 @@ function setupDesk() {
     think: (text, a) => {
       const reads = control.on ? allowReadsAsked(text, waitingNow()) : null;
       if (reads) return (async function* allowed() { yield await allowReads(reads); })();
+      const decision = rememberAsked(text);
+      if (decision) return (async function* remembered() { yield await rememberIt(decision); })();
       return brain.on && !a.ruled && !a.offer ? claudeSays('receptionist', text) : null;
     },
   });
@@ -397,6 +407,7 @@ function brainFacts() {
     `Floors, top to bottom: ${[org.founder && "the founder's office", ...org.floors.map((f) => f.label)].filter(Boolean).join(', ')}${org.lobby ? `, then ${org.lobby.label} (the lobby)` : ''}${org.basement ? `, and ${org.basement.label} (the basement)` : ''}. A lift joins them.`,
   ]);
   add('Waiting on you, as one list (agents and tasks)', [sayWaiting(waitingNow(), label)]);
+  add('Company memory: what every agent is told as it starts', memoryNow().length ? memoryNow().map((r) => `- ${r.text}`) : ['Nothing is remembered yet.']);
   add('Needs you', [
     needs.length ? [`${needWord(needs.length)}, in this order:`, some(needs, (t) => `- ${q(t.title)}, on ${label(t.project)}`)] : 'Nothing needs you right now.',
     checks.length > 0 && [`${count(checks.length, 'conversation has', 'conversations have')} something for you to check:`, some(checks, (c) => `- ${q(c.title)}, on ${label(c.project)}`)],
@@ -582,6 +593,9 @@ const talk = {
       const reads = control.on ? allowReadsAsked(text, waiting) : null;
       if (reads) return allowReads(reads);
       if (WAITING.test(String(text || ''))) return sayWaiting(waiting, (p) => floorOf(p)?.label || p);
+      const decision = rememberAsked(text);
+      if (decision) return rememberIt(decision);
+      if (MEMORY_ASKED.test(String(text || ''))) return sayMemory(memoryNow());
       const start = deskStart(control, text, starting);
       if (start) {
         starting = start.pending;
@@ -674,6 +688,35 @@ const waitingHead = (i) => ({ permission: `${i.title} wants your permission`, qu
 const waitingHref = (i) => (i.key && i.project ? convoHref({ id: i.key, project: i.project }) : i.task ? taskHref(i.task) : null);
 const waitingLink = (i) => ({ title: waitingHead(i), sub: i.project, href: waitingHref(i), mood: i.kind === 'turn' ? 'check' : 'needs' });
 
+// The company's memory as it stands in this tab, and adding to it or taking from it: through control for
+// your own company, in this tab only for a made-up one.
+const memoryNow = () => [...(work.memory || []).filter((r) => !forgotten.has(r.id)), ...mineMemory];
+const memoryWrites = () => dir === 'data' && control.on;
+async function rememberIt(text) {
+  if (dir === 'data' && !control.on) return "I can't keep that from here while control is off. Add it to data/memory.json, or start Arnheim with --control.";
+  if (memoryNow().some((r) => r.text.toLowerCase() === text.toLowerCase())) return `That's remembered already: ${text}`;
+  if (memoryWrites()) {
+    try {
+      const row = await control.remember(text);
+      noMemoryUntil = 0; // the file is there now
+      work.memory = [...(work.memory || []), row];
+      refresh();
+      return `Remembered: ${row.text} Every agent hears it as it starts, and those at work with your next message to them.`;
+    } catch (error) {
+      return error.message;
+    }
+  }
+  mineMemory.push({ id: `tab-${mineMemory.length + 1}`, text, at: Date.now() / 1000 });
+  refresh();
+  return `Remembered, in this tab only, since this company is made up: ${text} With your own company, every agent would hear it as it starts.`;
+}
+function forgetIt(r) {
+  const i = mineMemory.indexOf(r);
+  if (i >= 0) { mineMemory.splice(i, 1); refresh(); return; }
+  if (!memoryWrites()) return;
+  controlDone(control.forget(r.id).then((out) => { forgotten.add(r.id); return out; }), () => 'Forgotten. Agents that start from now won\'t be told it.');
+}
+
 // Allows every waiting read at once ("allow all the reads"): what to say when it's done.
 const allowReads = (ids) => (!ids.length ? Promise.resolve('Nothing is waiting to read right now.')
   : Promise.allSettled(ids.map((id) => answerAsk(id, 'allow'))).then((out) => {
@@ -694,7 +737,16 @@ function waitingItem(i) {
     li.append(h('div.control-row.waiting-do',
       btn('Allow', () => controlDone(answerAsk(i.ask.id, 'allow'), () => 'Allowed, just this once.'), '.primary'),
       btn('Deny', () => controlDone(answerAsk(i.ask.id, 'deny'), () => 'Denied.'))));
-  } else if ((i.kind === 'question' || i.kind === 'turn') && control.on && (REACHABLE.test(i.key) || control.run(i.key))) {
+  }
+  const decided = i.kind === 'question' ? decidedFor(i.what, memoryNow()) : [];
+  const reachable = control.on && (REACHABLE.test(i.key) || control.run(i.key));
+  if (decided.length) {
+    li.append(h('div.waiting-do.decided',
+      h('p.small', h('span.muted', 'You decided before: '), decided.map((r) => r.text).join(' ')),
+      reachable && h('div.control-row', btn('Send it that', () => controlDone(control.say(i.key, `You decided this before: ${decided.map((r) => r.text).join(' ')}`),
+        () => 'Sent. It is waiting for you in Claude Code, so it sees this the next time you send it something there.'), '.primary'))));
+  }
+  if ((i.kind === 'question' || i.kind === 'turn') && reachable) {
     const send = (event) => {
       event.preventDefault();
       const input = event.currentTarget.elements.text;
@@ -796,8 +848,37 @@ function viewCompany() {
       org.mission && h('p.mission', h('span.muted', 'Mission: '), org.mission),
       org.about && h('p', org.about),
       h('ul.floor-list', floors().map(floorCard)),
+      memoryCard(),
     ],
   };
+}
+
+// What every agent is told: the company's memory, with a way to add to it and take from it.
+function memoryCard() {
+  const rows = memoryNow();
+  const canAdd = dir !== 'data' || control.on;
+  const add = (event) => {
+    event.preventDefault();
+    const input = event.currentTarget.elements.text;
+    const text = rememberAsked(`remember ${input.value}`);
+    if (!text) return;
+    input.value = '';
+    input.blur();
+    rememberIt(text).then((said) => { controlNote = said; render(); });
+  };
+  return h('section.panel-card.memory',
+    sectHead('archive', 'What every agent is told'),
+    h('p.small.muted', dir === 'data'
+      ? 'Decisions you asked the building to remember. Every Claude Code agent in the company\'s folders hears them as it starts, and one at work hears new ones with your next message.'
+      : 'Decisions the building remembers. With your own company, every Claude Code agent hears them as it starts. These are made up.'),
+    rows.length ? h('ul.list', rows.map((r) => h('li', h('div.row.memory-row', dot('quiet'), h('span.row-main', h('span.row-title', r.text)),
+      (memoryWrites() || mineMemory.includes(r)) && btn('Forget', () => forgetIt(r))))))
+      : empty('Nothing yet. Tell the receptionist "remember that ...".'),
+    canAdd ? h('form.control-say', { onsubmit: add },
+      h('input', { name: 'text', type: 'text', maxlength: 300, autocomplete: 'off', placeholder: 'We never push on a Friday', 'aria-label': 'Something every agent should be told' }),
+      h('button.btn', { type: 'submit' }, 'Remember'))
+      : h('p.small.muted', 'To add from here, start Arnheim with --control. Or edit data/memory.json.'),
+    controlNote && h('p.small.muted', { role: 'status' }, controlNote));
 }
 
 function viewFloor(floor) {
@@ -1336,7 +1417,26 @@ async function readWork() {
     lastFeed.set(path, feed);
     for (const key of LISTS) if (Array.isArray(feed[key])) now[key].push(...feed[key].filter((x) => x && typeof x === 'object'));
   }
+  now.memory = await readMemory();
   return now;
+}
+
+// The company's memory: memory.json beside company.json, written through control (docs/connect.md,
+// "Company memory"). None yet is an empty memory; one caught mid-change keeps what it said last time.
+let lastMemory = [];
+let noMemoryUntil = 0; // with no memory.json yet, look again every half a minute, not every few seconds
+async function readMemory() {
+  if (Date.now() < noMemoryUntil) return lastMemory;
+  try {
+    const m = await readJson(`${dir}/memory.json`);
+    lastMemory = (Array.isArray(m?.memory) ? m.memory : []).filter((r) => r && typeof r === 'object' && typeof r.text === 'string' && r.text.trim());
+  } catch (error) {
+    if (error.status === 404) {
+      lastMemory = [];
+      noMemoryUntil = Date.now() + 30000;
+    }
+  }
+  return lastMemory;
 }
 
 // Your own company's work is read again every few seconds, so the building follows it as it

@@ -187,6 +187,32 @@ time: turns that end meanwhile get one more run when it ends. Arnheim only notic
 Claude Code's own tools for editing files. With control on, "Check it again" on a conversation's page
 runs it once more. It needs only step 2's hooks.
 
+## 6. Company memory
+
+Every agent should know what you have already decided, without being told again in each
+conversation. Tell the receptionist, by typing or out loud:
+
+> Remember that we never push on a Friday.
+
+("Remember: ...", "from now on, ..." and "going forward, ..." work too.) Or type it under "What every
+agent is told" in the Company tab, where Forget takes one out again. Saving needs control on (step 4).
+The decisions are kept in `data/memory.json`, which you can also edit by hand:
+
+```json
+{ "memory": [{ "id": "m-1", "text": "We never push on a Friday." }] }
+```
+
+Then, through the hooks of step 2:
+
+- **Every conversation in the company's folders is told them as it starts**, and again if its
+  context is compacted. Conversations in other folders are told nothing.
+- **One already at work is told decisions made since**, with the next message you send it.
+- **When an agent asks you something you've decided before**, the list of what waits on you shows
+  your decision under its question, with "Send it that". Arnheim matches the words of the question
+  with your decisions, so it only suggests: nothing is sent until you press it.
+
+Ask the receptionist "what have we decided?" to hear the memory. With the brain on, they know it too.
+
 ## What is kept, and where
 
 The connectors write `data/feeds/claude-code.json` and `data/feeds/projects.json`. From Claude Code
@@ -196,7 +222,8 @@ for; and its task titles. Nothing else from the conversation is kept, and nothin
 computer, unless you serve Arnheim with `--lan`, when anyone on your network can open it.
 
 A floor's check keeps the last lines it printed beside each conversation it checked, and a lock and
-a note for its next run in `data/feeds/proof/`.
+a note for its next run in `data/feeds/proof/`. The company's memory is `data/memory.json`, and the
+feed notes when each conversation was last told it.
 
 With control on, your messages wait in `data/control/` until Claude takes them, a permission
 request and its answer are deleted once it is answered, and each agent started from the building

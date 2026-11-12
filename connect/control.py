@@ -8,7 +8,8 @@ Then, on a walk and in the panel:
   comes back to you;
 - a permission it asks for shows in the building, with Allow and Deny;
 - you can start an agent on a floor's project with a first instruction, and stop one at work;
-- you can have a floor's check run again on an agent's work (connect/prove.py).
+- you can have a floor's check run again on an agent's work (connect/prove.py);
+- you can add to the company's memory, the decisions every agent is told, and take them out again.
 
 The page and Claude Code meet in data/control/, on this computer. Control, below, answers the
 page's /control/ requests for serve.py, or for a server of your own. Box is the mail between them.
@@ -41,6 +42,8 @@ KEY = re.compile(r"^cc-[A-Za-z0-9]{1,12}$")  # a conversation, as the feed names
 ASK_ID = re.compile(r"^[A-Za-z0-9_-]{8,40}$")
 KEEP_RUNS = 30
 PROVE = os.path.join(HERE, "prove.py")
+MEMORY_MOST = 100  # decisions kept at most
+MEMORY_TEXT = 300  # characters in one
 
 
 def wait_seconds():
@@ -122,6 +125,20 @@ def prove_later(project, data=DATA, also=None):
     args = [sys.executable, PROVE, project] + (["--also", also] if also else [])
     return subprocess.Popen(args, cwd=HERE, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                             env=dict(os.environ, ARNHEIM_DATA=data), close_fds=True, start_new_session=hasattr(os, "setsid"))
+
+
+def memory(data=DATA):
+    """The company's memory, data/memory.json: the decisions every agent is told, oldest first."""
+    rows = (read(os.path.join(data, "memory.json")) or {}).get("memory")
+    return [row for row in rows if isinstance(row, dict) and str(row.get("text") or "").strip()] if isinstance(rows, list) else []
+
+
+def told(rows, new=False):
+    """The company's memory, as an agent is handed it."""
+    said = " ".join(f"({i}) {one_line(row['text'], MEMORY_TEXT)}" for i, row in enumerate(rows, 1))
+    when = "made new standing decisions since you started" if new else "keep standing decisions"
+    return (f"The people you work for {when}, in Arnheim, the building that shows their company's work. "
+            f"Follow them unless they tell you otherwise: {said}")
 
 
 def describe(tool, given):
@@ -353,6 +370,10 @@ class Control:
                 return answer(200, self.stop(given.get("key")))
             if name == "prove":
                 return answer(200, self.prove(given.get("key")))
+            if name == "remember":
+                return answer(200, self.remember(given.get("text")))
+            if name == "forget":
+                return answer(200, self.forget(given.get("id")))
         except Refused as why:
             return answer(400, {"error": str(why)})
         return answer(404, {"error": "No such request."})
@@ -425,6 +446,41 @@ class Control:
             raise Refused(f"The check didn't start ({error.strerror or error}).")
         threading.Thread(target=proc.wait, daemon=True).start()  # so it leaves nothing behind when it ends
         return {"ok": True, "check": check["label"]}
+
+    # ---------- the company's memory ----------
+
+    def remember(self, text):
+        """Adds a decision to data/memory.json. Every agent that starts from now is told it, and those at
+        work are told it with your next message to them (connect/claude_code.py)."""
+        text = " ".join(str(text or "").split())
+        if not text:
+            raise Refused("Say what to remember first.")
+        if len(text) > MEMORY_TEXT:
+            raise Refused(f"That's too long to remember: keep it under {MEMORY_TEXT} characters.")
+        with self.lock:
+            rows = memory(self.data)
+            if any(row["text"].strip().lower() == text.lower() for row in rows):
+                raise Refused("That's remembered already.")
+            if len(rows) >= MEMORY_MOST:
+                raise Refused(f"The memory holds {MEMORY_MOST} decisions. Forget one first.")
+            row = {"id": "m-" + secrets.token_hex(4), "text": text, "at": time.time()}
+            self.keep_memory(rows + [row])
+        return row
+
+    def forget(self, mid):
+        with self.lock:
+            rows = memory(self.data)
+            kept = [row for row in rows if row.get("id") != mid]
+            if len(kept) == len(rows):
+                raise Refused("That isn't in the memory any more.")
+            self.keep_memory(kept)
+        return {"ok": True}
+
+    def keep_memory(self, rows):
+        write(os.path.join(self.data, "memory.json"), {
+            "about": "The decisions every Claude Code agent in this company is told (docs/connect.md, \"Company memory\"). Yours to edit.",
+            "memory": rows,
+        })
 
     # ---------- the agents started here ----------
 

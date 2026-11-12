@@ -84,6 +84,9 @@ export function createControl({ base = BASE, headers = () => ({}), every = 3000,
     // Done means proven (connect/prove.py): the name of a floor's check, if it has one, and running it again.
     checkOf: (project) => state.projects.find((p) => p.project === project)?.check || null,
     prove: (key) => after(call('prove', { key })),
+    // The company's memory (connect/control.py): what every agent is told.
+    remember: (text) => after(call('remember', { text })),
+    forget: (id) => after(call('forget', { id })),
     refresh: poll,
   };
 }

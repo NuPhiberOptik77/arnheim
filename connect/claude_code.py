@@ -16,6 +16,10 @@ It keeps a title for each conversation (its own, or the first line of your first
 first sentences of the last thing Claude said, your latest message's first words and task titles,
 all in data/, on this computer. Any trouble goes to data/feeds/claude-code.log, and Claude carries on.
 
+It hands every conversation in the company's folders the company's memory as it starts (data/memory.json:
+the decisions you asked the building to remember), and one at work the decisions made since, with your
+next message to it.
+
 When a conversation changes files and its floor names a check (docs/connect.md, "Done means proven"), it
 starts that check in the background as the turn ends (connect/prove.py), and the building shows whether
 the work is proven.
@@ -217,6 +221,8 @@ def change(event, feed, project, now, extra=None):
         drop(f"{key}-t{event['task_id']}")
     if extra.get("heard"):
         talk["heard"] = extra["heard"]
+    if extra.get("memory_at"):
+        talk["memory_at"] = extra["memory_at"]
     return talks, tasks
 
 
@@ -306,6 +312,31 @@ def keep(event, extra=None):
         note(error)
 
 
+def remembered(event, name):
+    """The company's memory to hand this conversation now, as (words, when), or None: all of it as a
+    conversation in the company's folders starts (or starts again after its context was compacted), and
+    what was decided since it was last told when you send it a message."""
+    if name not in ("SessionStart", "UserPromptSubmit"):
+        return None
+    rows = control.memory(DATA)
+    if not rows:
+        return None
+    talk = next((c for c in read_feed().get("conversations") or [] if isinstance(c, dict) and c.get("id") == key_of(event)), None)
+    if not project_for(event.get("cwd")) and not talk:
+        return None  # not this company's work
+    now = time.time()
+    if name == "UserPromptSubmit":
+        try:
+            since = float((talk or {}).get("memory_at") or 0)
+        except (TypeError, ValueError):
+            since = 0
+        rows = [row for row in rows if isinstance(row.get("at"), (int, float)) and row["at"] > since] if since else rows
+        if not rows:
+            return None
+        return control.told(rows, new=bool(since)), now
+    return control.told(rows), now
+
+
 def respond(event):
     """Keeps the feed up to date, and gives what Claude Code should hear back, if anything: your
     messages from the building, your answer there to a permission, or your request to stop.
@@ -334,17 +365,25 @@ def respond(event):
         return {"continue": False, "stopReason": "Stopped from Arnheim, the building."}
     # A new message from you, or a turn that ends anyway, spends a request to stop.
     rows = box.take(key) if name in ("PostToolUse", "UserPromptSubmit") or (name == "Stop" and not stop) else []
+    try:
+        memo = remembered(event, name)
+    except Exception as error:  # the memory's trouble never costs Claude your message
+        note(error)
+        memo = None
+    told = {"memory_at": memo[1]} if memo else {}
     if not rows:
-        keep(event, {"started_here": os.path.exists(box.path("runs", key + ".json"))} if name == "SessionEnd" else None)
+        extra = {"started_here": os.path.exists(box.path("runs", key + ".json"))} if name == "SessionEnd" else {}
+        keep(event, {**extra, **told} or None)
         if name == "Stop":
             prove(event)
-        return None
+        return {"hookSpecificOutput": {"hookEventName": name, "additionalContext": memo[0]}} if memo else None
     heard = rows[-1].get("id")
     if name == "Stop":
         keep(event, {"heard": heard, "going_on": True})
         return {"decision": "block", "reason": control.message(rows, stopping=True)}
-    keep(event, {"heard": heard})
-    return {"hookSpecificOutput": {"hookEventName": name, "additionalContext": control.message(rows)}}
+    keep(event, {"heard": heard, **told})
+    words = control.message(rows) + (f"\n\n{memo[0]}" if memo else "")
+    return {"hookSpecificOutput": {"hookEventName": name, "additionalContext": words}}
 
 
 def main():

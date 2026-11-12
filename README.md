@@ -98,6 +98,11 @@ below).
 - **Show me round**: in the panel, they take you round the building, floor by floor.
 - **"Remind me to ..."** adds a task. The page Arnheim comes with keeps it in that browser tab
   only.
+- **"Remember that ..."** adds a decision to the company's memory, which every agent is told as it
+  starts ("Connect your agents", below). **"What have we decided?"** reads it back.
+- **"What's waiting on me?"** reads out everything that waits on you, from every agent and your own
+  tasks, most urgent first. With control on, **"allow all the reads"** lets every agent waiting to
+  read or search go ahead.
 - **Talk out loud** on a walk: with Voice on, just speak in their ring, and they answer aloud. In
   the panel, **Read aloud** has them speak their answers.
 
@@ -158,6 +163,19 @@ Then, if you like, switch on control: start Arnheim with `python3 serve.py --con
 the building you can talk to your agents for real, answer their permission requests with Allow or
 Deny, stop them, and start new ones on a project, by typing or out loud. It answers only the page on
 your computer ([docs/connect.md](docs/connect.md), step 4).
+
+Three things no single agent can do for itself:
+
+- **One list of what waits on you.** The Overview puts every agent's permission requests and
+  questions, your own tasks, and agents that have just finished in one list, most urgent first, each
+  with its answer beside it.
+- **Done means proven.** Give a floor a check, such as its tests, and Arnheim runs it each time an
+  agent there changes files. The work shows as proven in green, not proven in red with what failed,
+  or merely claimed ([docs/connect.md](docs/connect.md), step 5).
+- **A company memory.** Tell the receptionist "remember that we never push on a Friday", and every
+  agent in the company's folders is told it as it starts, and one already at work with your next
+  message. When an agent asks something you've decided before, the list shows your decision with a
+  button to send it ([docs/connect.md](docs/connect.md), step 6).
 
 Everything stays on your computer.
 

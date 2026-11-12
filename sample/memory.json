@@ -1,0 +1,8 @@
+{
+  "about": "Fernhollow's memory: the decisions every agent is told as it starts. Fernhollow is made up, and so are these.",
+  "memory": [
+    { "id": "m-sample1", "text": "We never ship an app update on a Friday." },
+    { "id": "m-sample2", "text": "Every kit goes out with a printed safety sheet." },
+    { "id": "m-sample3", "text": "The apps stay free. The kits pay for them." }
+  ]
+}
