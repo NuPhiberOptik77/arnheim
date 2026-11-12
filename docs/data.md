@@ -90,6 +90,7 @@ own files show every one of them in use.
 | `folder` | | The folder this project is in on your computer, such as `"~/code/lantern"`, or `folders` for several. The connectors use it to know which floor work belongs to ([docs/connect.md](connect.md)). |
 | `budget` | | What this floor's agents may spend in a day, in new tokens, such as `2000000`. The company can give every floor one with its own `budget`. When they pass it, the one at work stops at its next step and you are asked ([docs/connect.md](connect.md), "A budget per floor"). |
 | `check` | | The command that shows this project's work is sound, such as `["npm", "test"]`, or `{"run": [...], "label": "The tests", "timeout": 600}`. Arnheim runs it after an agent changes files here, and shows the work as proven or not ([docs/connect.md](connect.md), "Done means proven"). |
+| `routines` | | Jobs that run on a schedule: `[{"id": "outdated", "label": "Outdated packages", "every": "monday", "at": "09:00", "run": ["npm", "outdated"]}]`, or `"ask": "..."` for a job for a new agent instead of `run` ([docs/connect.md](connect.md), "Routines"). |
 | `review` | | `true` to check every change before it reaches you: the floor's `check`, then a second Claude Code that reads what changed. Work that isn't ready goes back to the agent with the reason. Or `{"read": false, "times": 2, "timeout": 300}` to leave the reader out, set how often work can be sent back, and the reader's time limit ([docs/connect.md](connect.md), "A review line"). |
 
 A floor holds up to five rooms. The fifth carries the back row on to the right, so no other room
@@ -161,6 +162,7 @@ floor's `label`), and each `id` is unique within its list.
 | `presence` | `id`, `type` (`website`, `email`, `social` or `domain`), `name`, `project`, and `status` in your own words, where `Live` lights it up. Optionally `link`, and `up`: `true` if the link answered when last checked, `false` if not. |
 | `machines` | `id`, the `id` of a room in the basement, and `online`: `true` or `false`. |
 | `jobs` | `id`, `name`, `machine` (a basement room's `id`) and `state`: `queued`, `running` or `done`. |
+| `routines` | Written by connect/routines.py (docs/connect.md, "Routines"): `id`, `project`, `label`, `when` (its schedule in words), `kind` (`command` or `agent`), `next`, and `last`: `{"state": "all clear", "at": ..., "tail": ...}` (state `starting`, `running`, `all clear`, `needs you`, `failed`, `timeout` or `error`). |
 | `library` | `id`, `name`, and `status` in your own words. The sample uses Using, Copied from, Considered, Dropped and Not looked at. |
 
 `says` is what the person at a desk or in a seat answers when you talk to them on a walk, with no

@@ -339,6 +339,49 @@ If the limit runs out first, the turn ends as usual and the building says the wo
 A conversation you stop from the building isn't reviewed. Agents other than Claude Code (step 9)
 aren't held, since the building only hears from them once they have finished.
 
+## 13. Routines
+
+Jobs that run on a schedule, such as a weekly look for outdated packages, a nightly security scan or
+a check that a release is ready. List them on their floor:
+
+```json
+{ "id": "lantern", "label": "Lantern", "folder": "~/code/lantern",
+  "routines": [
+    { "id": "outdated", "label": "Outdated packages", "every": "monday", "at": "09:00", "run": ["npm", "outdated"] },
+    { "id": "scan", "label": "Security scan", "every": "weekday", "at": "07:30",
+      "ask": "Look for secrets or unsafe code added since yesterday, and fix what you safely can." }
+  ] }
+```
+
+- `id`: a short name of its own on the floor (letters, numbers, `-` and `_`).
+- `every`: `hour`, `day`, `weekday` (Monday to Friday), a day's name such as `monday`, or `week` with
+  `"on": "saturday"`. `at` is the time of day on this computer's clock, 24-hour: 09:00 if left out.
+- `run`: a command, which runs as a floor's check does (step 5): in the floor's folder, with no shell,
+  and stopped after `timeout` seconds (ten minutes if left out). It is all clear if it succeeds.
+- `ask`: instead of a command, a job for a new Claude Code agent on the floor, which gets a brief as
+  in step 11 and is asked to end with "All clear" when nothing needs you. It can do what your Claude
+  Code settings let it do without asking, and is stopped after `timeout` seconds (an hour if left
+  out). Its conversation shows in the building as any other does.
+
+To run them, start Arnheim with `--routines`, which checks every minute while it runs:
+
+```bash
+python3 serve.py --routines
+```
+
+Or have your computer's own scheduler run `python3 /path/to/arnheim/connect/routines.py` every few
+minutes (cron or launchd), which starts the routines that are due and gives back at once. Add
+`"feeds/routines.json"` to `feeds` in `company.json` too.
+
+The Overview lists each routine, when it runs and what its last run came to. You only hear about one
+when it needs you: a command that fails or runs too long, or an agent that doesn't end all clear, puts
+a task in "Waiting on you", which goes when a later run is all clear. With control on, "Run it now"
+and "Run it again" run one at once. A new routine waits for its first time after Arnheim first sees
+it, and one missed while the computer slept runs once when it is next checked, not once for each time
+it missed. Ask the receptionist "what routines are there?" to hear them.
+`python3 connect/routines.py --list` says each one and when it runs next, and `--run <id>` runs one
+now and waits for it.
+
 ## What is kept, and where
 
 The connectors write `data/feeds/claude-code.json` and `data/feeds/projects.json`. From Claude Code
@@ -352,7 +395,9 @@ a note for its next run in `data/feeds/proof/`. The company's memory is `data/me
 feed notes when each conversation was last told it. For the budget, the feed keeps each conversation's
 new tokens for today and how far its transcript has been read; `data/control/` keeps a pause, and how
 far each floor was let go past its budget today. On a floor with a review line, the feed also
-keeps what the line made of each conversation's work. The replay's moments are kept a file a day in
+keeps what the line made of each conversation's work. Routines keep `data/feeds/routines.json`: each
+routine, when Arnheim first saw it, and its last run, with a command's last lines or an agent's last
+words. The replay's moments are kept a file a day in
 `data/feeds/history/`, for a week.
 
 With control on, your messages wait in `data/control/` until Claude takes them, a permission

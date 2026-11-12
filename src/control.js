@@ -84,6 +84,8 @@ export function createControl({ base = BASE, headers = () => ({}), every = 3000,
     // Done means proven (connect/prove.py): the name of a floor's check, if it has one, and running it again.
     checkOf: (project) => state.projects.find((p) => p.project === project)?.check || null,
     prove: (key) => after(call('prove', { key })),
+    // Routines (connect/routines.py): run one now.
+    runRoutine: (key) => after(call('run_routine', { key })),
     // The company's memory (connect/control.py): what every agent is told.
     remember: (text) => after(call('remember', { text })),
     // A budget per floor, and every agent paused at once (connect/budget.py).

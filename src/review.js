@@ -36,5 +36,19 @@ export function reviewOf(c, now = Date.now() / 1000) {
   return null;
 }
 
+// The same, as the agent says it of its own work on a walk.
+export function reviewSaid(c, now = Date.now() / 1000) {
+  const rv = reviewOf(c, now);
+  if (!rv) return null;
+  const r = c.review;
+  const times = Number(r.times) || 0;
+  const why = first(r.why) || "it wasn't ready";
+  if (rv.state === 'reviewing') return 'The review line is checking my work now, before it reaches you.';
+  if (rv.state === 'passed') return rv.line.replace(/^It passed/, 'My work passed');
+  if (rv.state === 'sent back') return end(`The review line sent my work back${NTH[times] ? ` a ${NTH[times]} time` : ''}, so I'm fixing it: ${why}`);
+  if (rv.state === 'failed') return end(`My work ${times ? `still failed the review line after being sent back ${timesSaid(times)}` : 'failed the review line'}, so it reached you anyway: ${why}`);
+  return "The review line couldn't finish, so my work reached you unchecked.";
+}
+
 // The mood a list or the building shows it in.
 export const reviewMood = (rv) => (rv?.state === 'passed' ? 'ok' : rv?.state === 'failed' ? 'failed' : null);

@@ -7,7 +7,8 @@ import { createBrain } from './brain.js';
 import { agentControls, agentReply, createControl, deskControls, deskStart } from './control.js';
 import { allowReadsAsked, sayWaiting, together, waitingOnYou } from './queue.js';
 import { inner, proofMood, proofOf } from './proof.js';
-import { reviewMood, reviewOf } from './review.js';
+import { reviewMood, reviewOf, reviewSaid } from './review.js';
+import { ROUTINES_ASKED, routineNow, sayRoutines, timesOf } from './routines.js';
 import { MEMORY_ASKED, decidedFor, rememberAsked, sayMemory } from './memory.js';
 import { floorSpend, localDay } from './budget.js';
 import { clashesOf, sayClash, waitWords } from './clashes.js';
@@ -307,7 +308,7 @@ async function dropTask(id) {
 
 // What the rules answer even with the brain on: at once, and nothing Claude could be talked into
 // instead. A refusal stays a refusal.
-const RULED = new Set(['refuse', 'greeting', 'tour', 'waiting', 'memory']);
+const RULED = new Set(['refuse', 'greeting', 'tour', 'waiting', 'memory', 'routines']);
 const ruledBy = (t) => (RULED.has(t.id) ? { ...t, answer: (c) => { const a = t.answer(c); return a && { ...a, ruled: t.id }; } } : t);
 
 function setupDesk() {
@@ -318,6 +319,10 @@ function setupDesk() {
   const memory = {
     id: 'memory',
     answer: (c) => MEMORY_ASKED.test(c.text) && { lines: [sayMemory(memoryNow())], go: c.go('#/company', 'Show me') },
+  };
+  const routines = {
+    id: 'routines',
+    answer: (c) => ROUTINES_ASKED.test(c.text) && { lines: [sayRoutines(routinesNow(), (p) => floorOf(p)?.label || p)], go: c.go('#/', 'Show me') },
   };
   const waiting = {
     id: 'waiting',
@@ -363,7 +368,7 @@ function setupDesk() {
     },
     topics: (list) => {
       const all = insertAfter(insertAfter(list, 'thanks', [real]), 'tour', [howTo]);
-      all.splice(Math.max(0, all.findIndex((t) => t.id === 'needs')), 0, waiting, memory);
+      all.splice(Math.max(0, all.findIndex((t) => t.id === 'needs')), 0, waiting, memory, routines);
       return brain.on ? all.map(ruledBy) : all;
     },
     // A typed question at the desk: Claude's answer as it comes, with the brain on.
@@ -585,7 +590,14 @@ function sampleReply(item, text) {
     return madeUp() ? "I'm a made-up agent in a sample, so I can't take new work. With real agents, what you say here goes to the agent doing the work."
       : "I can only tell you what the company's files say, so I can't take new work from here. With real agents, what you say here goes to the agent doing the work.";
   }
-  if (on(['need me', 'need anything', 'need you', 'stuck', 'blocked', 'help', 'problem', 'decide', 'decision'])) return says.needs || 'Nothing from you right now. I will ask if I need you.';
+  if (on(['pass', 'proven', 'proof', 'review', 'checked', 'check it', 'tests', 'failed', 'fail ', 'broken', 'does it work', 'did it work'])) {
+    const pr = proofOf(item);
+    const own = (line) => line.replace(/\bits\b/g, 'my').replace(/^It\b/, 'I');
+    return reviewSaid(item) || (pr && own(pr.line)) || (item.changed ? "I changed files, and nothing has checked them: my floor has no check or review line." : "I haven't changed any files, so there's nothing to check yet.");
+  }
+  if (on(['need me', 'need from me', 'want from me', 'need anything', 'need you', 'stuck', 'blocked', 'help', 'problem', 'decide', 'decision'])) {
+    return says.needs || (item.review?.state === 'failed' ? `Please look at my work. ${reviewSaid(item)}` : 'Nothing from you right now. I will ask if I need you.');
+  }
   if (on(['how long', 'when will', 'when did', 'started', 'finish', 'done by'])) return says.when || "I can't say exactly. I'll say when it's done.";
   return [says.now, says.next].filter(Boolean).join(' ') || `I'm working on "${item.title}".`;
 }
@@ -625,6 +637,7 @@ const talk = {
       const decision = rememberAsked(text);
       if (decision) return rememberIt(decision);
       if (MEMORY_ASKED.test(String(text || ''))) return sayMemory(memoryNow());
+      if (ROUTINES_ASKED.test(String(text || ''))) return sayRoutines(routinesNow(), (p) => floorOf(p)?.label || p);
       const start = deskStart(control, text, starting);
       if (start) {
         starting = start.pending;
@@ -788,6 +801,26 @@ function spendCard() {
     h('p.small.muted', 'New tokens: what Claude read fresh and wrote. Re-reading its cache is left out.'));
 }
 
+// Routines (routines.js): each, its schedule and what its last run came to, with "Run it now" when control is
+// on. Ones that need you are in "Waiting on you" too, as tasks.
+const routinesNow = () => work.routines.filter((r) => r && r.id && r.label);
+function routinesCard() {
+  const list = routinesNow();
+  if (!list.length) return null;
+  const mood = { running: 'working', clear: 'ok', needs: 'failed', waiting: 'quiet' };
+  return h('section.panel-card',
+    sectHead('clock', 'Routines'),
+    h('ul.list', list.map((r) => {
+      const now = routineNow(r);
+      const li = row(`#/${floorOf(r.project)?.id || ''}`, r.label, `${floorOf(r.project)?.label || r.project}. ${r.when || ''}. ${now.line}`, mood[now.state]);
+      if (control.on && dir === 'data' && now.state !== 'running') {
+        li.append(h('div.control-row.waiting-do', btn('Run it now', () => controlDone(control.runRoutine(r.id), (x) => `"${x.routine}" is running now.`))));
+      }
+      return li;
+    })),
+    h('p.small.muted', 'You only hear about a routine when it needs you.'));
+}
+
 // Done means proven (proof.js): the check's last lines when it didn't pass, and, with control on and a check
 // on its floor, a way to run it again.
 function proofPart(c, pr) {
@@ -877,6 +910,10 @@ function waitingItem(i) {
       btn('Allow', () => controlDone(answerAsk(i.ask.id, 'allow'), () => 'Allowed, just this once.'), '.primary'),
       btn('Deny', () => controlDone(answerAsk(i.ask.id, 'deny'), () => 'Denied.'))));
   }
+  if (i.kind === 'task' && i.task?.routine && control.on && dir === 'data') {
+    li.append(h('div.control-row.waiting-do',
+      btn('Run it again', () => controlDone(control.runRoutine(i.task.routine), (r) => `"${r.routine}" is running again.`), '.primary')));
+  }
   if (i.kind === 'task' && i.task?.budget && control.on && dir === 'data') {
     li.append(h('div.control-row.waiting-do',
       btn('Let them go on', () => controlDone(control.allowMore(i.task.budget), (r) => `${i.task.budget}'s agents may spend as much again today. Tell them to go on.`), '.primary')));
@@ -959,6 +996,7 @@ function viewOverview() {
         waitingList(waiting)),
       replayCard(),
       spendCard(),
+      routinesCard(),
       h('section.panel-card',
         sectHead('zap', 'Working now'),
         talking.length || jobs.length
@@ -1483,7 +1521,7 @@ function setupIcons() {
 
 /* ---------- reading the company's files ---------- */
 
-const LISTS = ['tasks', 'goals', 'conversations', 'pullRequests', 'copies', 'company', 'presence', 'machines', 'jobs', 'library', 'story'];
+const LISTS = ['tasks', 'goals', 'conversations', 'pullRequests', 'copies', 'company', 'presence', 'machines', 'jobs', 'library', 'story', 'routines'];
 const problem = (text, status) => Object.assign(new Error(text), { own: true, status });
 
 // One of the company's files, or an error that says which one and why.
@@ -1566,9 +1604,16 @@ async function readWork() {
     for (const key of LISTS) if (Array.isArray(feed[key])) now[key].push(...feed[key].filter((x) => x && typeof x === 'object'));
   }
   now.memory = await readMemory();
+  if (dir !== 'data') { // the sample's routines: their times from their schedules, as if each last ran on time
+    now.routines = now.routines.map((r) => {
+      const t = timesOf(r, OPENED);
+      return { ...r, next: t.next, last: r.last && t.last ? { ...r.last, at: t.last, done: t.last + (r.last.took || 0) } : r.last };
+    });
+  }
   history = await readHistory();
   return now;
 }
+const OPENED = Date.now() / 1000;
 
 // Today's moments, for the replay: data/feeds/history/<today>.json for your own company, or the sample's,
 // whose times count back from when the page opened.

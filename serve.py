@@ -27,7 +27,10 @@ import json
 import os
 import signal
 import socket
+import subprocess
 import sys
+import threading
+import time
 from urllib.parse import unquote
 
 from connect.brain import Brain
@@ -254,12 +257,26 @@ def company_note():
     return lines
 
 
+def routines_loop():
+    """Every minute, starts the routines that are due (connect/routines.py, which runs each in the background)."""
+    runner = os.path.join(ROOT, "connect", "routines.py")
+    while True:
+        try:
+            subprocess.run([sys.executable, runner], cwd=ROOT, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, timeout=60)
+        except (OSError, subprocess.SubprocessError):
+            pass
+        time.sleep(60 - time.time() % 60 + 1)  # just after each minute begins
+
+
 def main():
     parser = argparse.ArgumentParser(description="Shows Arnheim in a browser.")
     parser.add_argument("port", nargs="?", type=int, default=8740, help="the port to use (8740 if left out)")
     parser.add_argument("--lan", action="store_true", help="show it to phones and other computers on this network too")
     parser.add_argument("--control", action="store_true",
                         help="let the page on this computer talk to your Claude Code agents, answer their permission requests, and start and stop them")
+    parser.add_argument("--routines", action="store_true",
+                        help="run the routines in data/company.json when they are due, while this runs (connect/routines.py)")
     parser.add_argument("--brain", action="store_true",
                         help="let the receptionist and your assistant talk about anything, with Claude through your own Claude Code")
     args = parser.parse_args()
@@ -301,6 +318,10 @@ def main():
         print("Anyone on this network can open it while it runs, data/ included.", flush=True)
     for line in company_note():
         print(line, flush=True)
+    if args.routines:
+        threading.Thread(target=routines_loop, daemon=True).start()
+        print("Routines are on: each floor's routines in data/company.json run when they are due, while this runs "
+              "(docs/connect.md, \"Routines\").", flush=True)
     print("Ctrl-C stops it.", flush=True)
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))  # stopped by its process id: tidy up as for Ctrl-C
     try:

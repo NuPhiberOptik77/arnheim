@@ -51,6 +51,7 @@
       "palette": "terracotta",
       "icon": "building-2",
       "about": "The studio itself: its plans, its notes and how it runs.",
+      "routines": [{ "id": "scan", "label": "Security scan", "every": "friday", "at": "16:00", "ask": "Look for secrets or unsafe code added this week, and fix what you safely can." }],
       "review": true,
       "extraRooms": [
         {
@@ -67,6 +68,7 @@
       "palette": "harbour",
       "icon": "library",
       "about": "A reading app that remembers where you stopped, on every device.",
+      "routines": [{ "id": "outdated", "label": "Outdated packages", "every": "monday", "at": "09:00", "run": ["npm", "outdated"] }],
       "review": true
     },
     {
@@ -75,7 +77,8 @@
       "project": "Tidepool",
       "palette": "sage",
       "icon": "gauge",
-      "about": "A weather station you build yourself, and the app that reads it."
+      "about": "A weather station you build yourself, and the app that reads it.",
+      "routines": [{ "id": "sensors", "label": "Sensor readings", "every": "day", "at": "07:00", "run": ["python3", "tools/check_sensors.py"] }]
     },
     {
       "id": "kitefield",

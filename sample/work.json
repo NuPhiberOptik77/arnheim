@@ -4,6 +4,7 @@
     { "id": "s1", "project": "Studio", "title": "Write the plan for next year", "status": "open" },
     { "id": "s2", "project": "Studio", "title": "Renew the Lantern domain", "status": "needs_you", "note": "It runs out at the end of the month." },
     { "id": "budget-studio", "project": "Studio", "budget": "Studio", "title": "Studio's agents have used today's budget", "status": "needs_you", "note": "2.1 million new tokens of 2 million. Let them go on, or leave them until tomorrow." },
+    { "id": "rt-tidepool-sensors-needs", "project": "Tidepool", "routine": "rt-tidepool-sensors", "title": "The routine \"Sensor readings\" needs you", "status": "needs_you", "note": "It failed. Sensor 3 sent no readings for 6 hours." },
     { "id": "s3", "project": "Studio", "title": "Choose an accountant", "status": "waiting", "note": "Waiting on two replies." },
     { "id": "l1", "project": "Lantern", "title": "Fix the bookmark that jumps back a page", "status": "working", "says": {"now": "I'm fixing the bookmark that jumps back a page. The fix is written, and I'm testing it now.", "next": "Then it goes to the spare laptop for a last check."} },
     { "id": "l2", "project": "Lantern", "title": "Decide on the reading streak badge", "status": "needs_you", "note": "Two designs are ready. Pick one." },
@@ -97,6 +98,14 @@
     { "id": "b5", "name": "An old charting library", "status": "Dropped" },
     { "id": "b6", "name": "A paper on kite tails", "status": "Not looked at" },
     { "id": "b7", "name": "A weather data kit", "status": "Not looked at" }
+  ],
+  "routines": [
+    { "id": "rt-lantern-outdated", "project": "Lantern", "label": "Outdated packages", "when": "Every Monday at 09:00", "kind": "command",
+      "every": "monday", "at": "09:00", "last": { "state": "all clear", "took": 41 } },
+    { "id": "rt-tidepool-sensors", "project": "Tidepool", "label": "Sensor readings", "when": "Every day at 07:00", "kind": "command",
+      "every": "day", "at": "07:00", "last": { "state": "failed", "took": 12, "tail": "Sensors 1, 2 and 4: readings every minute\nSensor 3 sent no readings for 6 hours." } },
+    { "id": "rt-studio-scan", "project": "Studio", "label": "Security scan", "when": "Every Friday at 16:00", "kind": "agent",
+      "every": "friday", "at": "16:00", "last": { "state": "all clear", "took": 380, "said": "Nothing secret or unsafe was added this week. All clear." } }
   ],
   "every": 6,
   "story": [

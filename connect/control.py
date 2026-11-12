@@ -49,6 +49,8 @@ KEY = re.compile(r"^cc-[A-Za-z0-9]{1,12}$")  # a conversation, as the feed names
 ASK_ID = re.compile(r"^[A-Za-z0-9_-]{8,40}$")
 KEEP_RUNS = 30
 PROVE = os.path.join(HERE, "prove.py")
+ROUTINES = os.path.join(HERE, "routines.py")
+ROUTINE = re.compile(r"^rt-[a-z0-9-]{1,60}$")  # a routine, as connect/routines.py names it
 MEMORY_MOST = 100  # decisions kept at most
 MEMORY_TEXT = 300  # characters in one
 
@@ -125,6 +127,40 @@ def check_for(project, data=DATA):
         if isinstance(floor, dict) and project and str(floor.get("project") or floor.get("label") or "") == project:
             return check_of(floor)
     return None
+
+
+def brief(data, text, floor, more=""):
+    """What a new agent is handed: the job in your words, where it was started from, and what counts as done.
+    The company's memory reaches it through the hook as it starts."""
+    company = read(os.path.join(data, "company.json")) or {}
+    check = check_for(floor["project"], data)
+    done = (f"When you finish, Arnheim runs {check['label'][:1].lower() + check['label'][1:] if check['label'][1:2].islower() else check['label']} "
+            f"({' '.join(check['run'])}) on your work, and it only counts as done if that passes, so run it yourself first. "
+            if check else "")
+    return (f"{text[:1].upper() + text[1:]}\n\n"
+            f"You were started from Arnheim, the building that shows {one_line(company.get('company') or 'the company', 60)}'s work, "
+            f"{more or 'by the person you work for'}, on the {floor['label']} floor, in its folder. {done}"
+            "When you have finished, say plainly what you did and how you checked it.")
+
+
+def floors_of(data=DATA):
+    """Each floor that names a folder on this computer: its project, its label, and the folder an
+    agent starts in (its first)."""
+    company = read(os.path.join(data, "company.json")) or {}
+    out = []
+    for floor in company.get("floors") or []:
+        if not isinstance(floor, dict):
+            continue
+        folders = floor.get("folders") or ([floor["folder"]] if floor.get("folder") else [])
+        for folder in folders if isinstance(folders, list) else []:
+            path = os.path.realpath(os.path.expanduser(str(folder)))
+            if os.path.isdir(path):
+                project = str(floor.get("project") or floor.get("label") or floor.get("id") or "")
+                check = check_of(floor)
+                out.append({"project": project, "label": str(floor.get("label") or project), "floor": str(floor.get("id") or ""), "folder": path,
+                            "check": check and check["label"]})
+                break
+    return out
 
 
 def prove_later(project, data=DATA, also=None):
@@ -413,6 +449,8 @@ class Control:
                 return answer(200, self.remember(given.get("text")))
             if name == "forget":
                 return answer(200, self.forget(given.get("id")))
+            if name == "run_routine":
+                return answer(200, self.run_routine(given.get("key")))
         except Refused as why:
             return answer(400, {"error": str(why)})
         return answer(404, {"error": "No such request."})
@@ -461,17 +499,7 @@ class Control:
         return {"key": key, "project": floor["project"]}
 
     def brief(self, text, floor):
-        """What a new agent is handed: the job in your words, where it was started from, and what counts as done.
-        The company's memory reaches it through the hook as it starts."""
-        company = read(os.path.join(self.data, "company.json")) or {}
-        check = check_for(floor["project"], self.data)
-        done = (f"When you finish, Arnheim runs {check['label'][:1].lower() + check['label'][1:] if check['label'][1:2].islower() else check['label']} "
-                f"({' '.join(check['run'])}) on your work, and it only counts as done if that passes, so run it yourself first. "
-                if check else "")
-        return (f"{text[:1].upper() + text[1:]}\n\n"
-                f"You were started from Arnheim, the building that shows {one_line(company.get('company') or 'the company', 60)}'s work, "
-                f"by the person you work for, on the {floor['label']} floor, in its folder. {done}"
-                "When you have finished, say plainly what you did and how you checked it.")
+        return brief(self.data, text, floor)
 
     def stop(self, key):
         key = self.conversation(key)
@@ -483,6 +511,20 @@ class Control:
                 self.send(run, signal.SIGINT)
                 threading.Timer(6, self.send, args=(run, getattr(signal, "SIGTERM", signal.SIGINT))).start()
         return {"ok": True}
+
+    def run_routine(self, key):
+        """Runs one of the company's routines now, in the background (connect/routines.py)."""
+        rows = (read(os.path.join(self.data, "feeds", "routines.json")) or {}).get("routines") or []
+        row = next((r for r in rows if isinstance(r, dict) and isinstance(key, str) and ROUTINE.match(key) and r.get("id") == key), None)
+        if not row:
+            raise Refused("There's no such routine. Routines are listed under each floor in data/company.json.")
+        try:
+            subprocess.Popen([sys.executable, ROUTINES, "--run", key], cwd=HERE, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, env=dict(os.environ, ARNHEIM_DATA=self.data), close_fds=True,
+                             start_new_session=hasattr(os, "setsid"))
+        except OSError as error:
+            raise Refused(f"It didn't start ({error.strerror or error}).")
+        return {"ok": True, "routine": one_line(row.get("label") or key, 60)}
 
     def prove(self, key):
         """Runs the conversation's floor's check again on its work, in the background (connect/prove.py)."""
@@ -647,23 +689,7 @@ class Control:
     # ---------- what the requests may name ----------
 
     def floors(self):
-        """Each floor that names a folder on this computer: its project, its label, and the folder an
-        agent starts in (its first)."""
-        company = read(os.path.join(self.data, "company.json")) or {}
-        out = []
-        for floor in company.get("floors") or []:
-            if not isinstance(floor, dict):
-                continue
-            folders = floor.get("folders") or ([floor["folder"]] if floor.get("folder") else [])
-            for folder in folders if isinstance(folders, list) else []:
-                path = os.path.realpath(os.path.expanduser(str(folder)))
-                if os.path.isdir(path):
-                    project = str(floor.get("project") or floor.get("label") or floor.get("id") or "")
-                    check = check_of(floor)
-                    out.append({"project": project, "label": str(floor.get("label") or project), "floor": str(floor.get("id") or ""), "folder": path,
-                                "check": check and check["label"]})
-                    break
-        return out
+        return floors_of(self.data)
 
     def working(self, key):
         """Whether a conversation the building knows is at work now: one started here that is still
