@@ -1335,7 +1335,7 @@ def quote(col, text, by="", w=4.4, h=0.9, color="#2E2A26"):
             break
         except (RuntimeError, OSError):
             continue
-    lines = wrap(text, max(24, int(w / 0.1)))
+    lines = wrap(text, max(24, int(w / 0.075)))
     size = min(0.17, h / (len(lines) + 0.8) / 1.25)
     rows = [(line, size) for line in lines] + ([(by, size * 0.62)] if by else [])
     total = sum(s * 1.25 for _, s in rows)
