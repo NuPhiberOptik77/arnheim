@@ -1,0 +1,354 @@
+{
+  "about": "Fernhollow's last six days, for the weekly report and the receptionist's history. Made up, like the rest of Fernhollow. Each day is \"back\" days before the page opened, and each moment at its clock time that day.",
+  "days": [
+    {
+      "back": 1,
+      "spent": {
+        "Lantern": 1840000,
+        "Kitefield": 620000,
+        "Studio": 240000
+      },
+      "moments": [
+        {
+          "at": "09:10",
+          "key": "wl1",
+          "project": "Lantern",
+          "title": "Reading streak ideas",
+          "kind": "working",
+          "what": "You asked: \"Sketch three ways to show a reading streak\""
+        },
+        {
+          "at": "09:40",
+          "key": "wl1",
+          "project": "Lantern",
+          "title": "Reading streak ideas",
+          "kind": "changed",
+          "what": "notes/streaks.md"
+        },
+        {
+          "at": "10:05",
+          "key": "wl1",
+          "project": "Lantern",
+          "title": "Reading streak ideas",
+          "kind": "finished",
+          "what": "Three sketches are in notes/streaks.md."
+        },
+        {
+          "at": "11:20",
+          "key": "wl2",
+          "project": "Lantern",
+          "title": "Faster first page",
+          "kind": "working",
+          "what": "You asked: \"Make the first page open faster\""
+        },
+        {
+          "at": "11:50",
+          "key": "wl2",
+          "project": "Lantern",
+          "title": "Faster first page",
+          "kind": "changed",
+          "what": "reader/open.js"
+        },
+        {
+          "at": "12:15",
+          "key": "wl2",
+          "project": "Lantern",
+          "title": "Faster first page",
+          "kind": "asked",
+          "what": "May I drop the old page cache?"
+        },
+        {
+          "at": "12:40",
+          "key": "wl2",
+          "project": "Lantern",
+          "title": "Faster first page",
+          "kind": "answered",
+          "what": "It went on."
+        },
+        {
+          "at": "13:05",
+          "key": "wl2",
+          "project": "Lantern",
+          "title": "Faster first page",
+          "kind": "changed",
+          "what": "reader/cache.js"
+        },
+        {
+          "at": "13:30",
+          "key": "wl2",
+          "project": "Lantern",
+          "title": "Faster first page",
+          "kind": "finished",
+          "what": "The first page opens in half the time."
+        },
+        {
+          "at": "14:00",
+          "key": "wk1",
+          "project": "Kitefield",
+          "title": "Tail physics",
+          "kind": "working",
+          "what": "You asked: \"Check the tail against the field test\""
+        },
+        {
+          "at": "14:30",
+          "key": "wk1",
+          "project": "Kitefield",
+          "title": "Tail physics",
+          "kind": "changed",
+          "what": "sim/tail.js"
+        },
+        {
+          "at": "15:10",
+          "key": "wk1",
+          "project": "Kitefield",
+          "title": "Tail physics",
+          "kind": "stopped",
+          "what": "I stopped, as you asked."
+        },
+        {
+          "at": "16:00",
+          "key": "ws1",
+          "project": "Studio",
+          "title": "Invoices for October",
+          "kind": "working",
+          "what": "You asked: \"List October's invoices\""
+        },
+        {
+          "at": "16:25",
+          "key": "ws1",
+          "project": "Studio",
+          "title": "Invoices for October",
+          "kind": "finished",
+          "what": "Eleven invoices, two still unpaid."
+        }
+      ]
+    },
+    {
+      "back": 2,
+      "spent": {
+        "Tidepool": 980000,
+        "Lantern": 410000
+      },
+      "moments": [
+        {
+          "at": "08:45",
+          "key": "wt1",
+          "project": "Tidepool",
+          "title": "Rain gauge supplier",
+          "kind": "working",
+          "what": "You asked: \"Compare three rain gauge suppliers\""
+        },
+        {
+          "at": "09:30",
+          "key": "wt1",
+          "project": "Tidepool",
+          "title": "Rain gauge supplier",
+          "kind": "changed",
+          "what": "parts/suppliers.md"
+        },
+        {
+          "at": "09:55",
+          "key": "wt1",
+          "project": "Tidepool",
+          "title": "Rain gauge supplier",
+          "kind": "asked",
+          "what": "Which matters more: price or delivery time?"
+        },
+        {
+          "at": "11:10",
+          "key": "wt1",
+          "project": "Tidepool",
+          "title": "Rain gauge supplier",
+          "kind": "working",
+          "what": "You asked: \"Delivery time\""
+        },
+        {
+          "at": "11:40",
+          "key": "wt1",
+          "project": "Tidepool",
+          "title": "Rain gauge supplier",
+          "kind": "finished",
+          "what": "The second supplier delivers in four days."
+        },
+        {
+          "at": "15:00",
+          "key": "wl3",
+          "project": "Lantern",
+          "title": "Bookmark tests",
+          "kind": "working",
+          "what": "You asked: \"Add tests for the bookmark\""
+        },
+        {
+          "at": "15:20",
+          "key": "wl3",
+          "project": "Lantern",
+          "title": "Bookmark tests",
+          "kind": "changed",
+          "what": "tests/bookmark.test.js"
+        },
+        {
+          "at": "15:45",
+          "key": "wl3",
+          "project": "Lantern",
+          "title": "Bookmark tests",
+          "kind": "finished",
+          "what": "Six new tests, all passing."
+        }
+      ]
+    },
+    {
+      "back": 3,
+      "spent": {
+        "Kitefield": 1320000,
+        "Studio": 150000
+      },
+      "moments": [
+        {
+          "at": "10:00",
+          "key": "wk2",
+          "project": "Kitefield",
+          "title": "Template wish list",
+          "kind": "working",
+          "what": "You asked: \"Gather the template wishes from the forum\""
+        },
+        {
+          "at": "10:40",
+          "key": "wk2",
+          "project": "Kitefield",
+          "title": "Template wish list",
+          "kind": "changed",
+          "what": "notes/templates.md"
+        },
+        {
+          "at": "11:00",
+          "key": "wk2",
+          "project": "Kitefield",
+          "title": "Template wish list",
+          "kind": "finished",
+          "what": "Fourteen wishes, the delta kite most asked for."
+        },
+        {
+          "at": "13:15",
+          "key": "wk3",
+          "project": "Kitefield",
+          "title": "Wind in the simulator",
+          "kind": "working",
+          "what": "You asked: \"Add gusts to the simulator\""
+        },
+        {
+          "at": "13:50",
+          "key": "wk3",
+          "project": "Kitefield",
+          "title": "Wind in the simulator",
+          "kind": "changed",
+          "what": "sim/wind.js"
+        },
+        {
+          "at": "14:20",
+          "key": "wk3",
+          "project": "Kitefield",
+          "title": "Wind in the simulator",
+          "kind": "changed",
+          "what": "sim/tail.js"
+        },
+        {
+          "at": "14:45",
+          "key": "wk3",
+          "project": "Kitefield",
+          "title": "Wind in the simulator",
+          "kind": "finished",
+          "what": "Gusts come every ten to forty seconds now."
+        },
+        {
+          "at": "16:30",
+          "key": "ws2",
+          "project": "Studio",
+          "title": "Planning next quarter",
+          "kind": "working",
+          "what": "You asked: \"Draft the quarter's three goals\""
+        },
+        {
+          "at": "16:55",
+          "key": "ws2",
+          "project": "Studio",
+          "title": "Planning next quarter",
+          "kind": "finished",
+          "what": "Three goals drafted, for you to pick from."
+        }
+      ]
+    },
+    {
+      "back": 5,
+      "spent": {
+        "Lantern": 760000,
+        "Tidepool": 300000
+      },
+      "moments": [
+        {
+          "at": "09:20",
+          "key": "wl4",
+          "project": "Lantern",
+          "title": "Night reading theme",
+          "kind": "working",
+          "what": "You asked: \"Make the night theme warmer\""
+        },
+        {
+          "at": "09:50",
+          "key": "wl4",
+          "project": "Lantern",
+          "title": "Night reading theme",
+          "kind": "changed",
+          "what": "reader/themes.css"
+        },
+        {
+          "at": "10:05",
+          "key": "wl4",
+          "project": "Lantern",
+          "title": "Night reading theme",
+          "kind": "asked",
+          "what": "Warmer like paper, or like candlelight?"
+        },
+        {
+          "at": "10:25",
+          "key": "wl4",
+          "project": "Lantern",
+          "title": "Night reading theme",
+          "kind": "working",
+          "what": "You asked: \"Like paper\""
+        },
+        {
+          "at": "10:40",
+          "key": "wl4",
+          "project": "Lantern",
+          "title": "Night reading theme",
+          "kind": "finished",
+          "what": "The night theme reads like warm paper."
+        },
+        {
+          "at": "14:00",
+          "key": "wt2",
+          "project": "Tidepool",
+          "title": "Wind sensor drift",
+          "kind": "working",
+          "what": "You asked: \"Find why the wind sensor drifts\""
+        },
+        {
+          "at": "14:35",
+          "key": "wt2",
+          "project": "Tidepool",
+          "title": "Wind sensor drift",
+          "kind": "changed",
+          "what": "firmware/wind.c"
+        },
+        {
+          "at": "15:00",
+          "key": "wt2",
+          "project": "Tidepool",
+          "title": "Wind sensor drift",
+          "kind": "stopped",
+          "what": "Tidepool's agents have used today's budget."
+        }
+      ]
+    }
+  ]
+}

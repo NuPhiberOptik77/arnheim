@@ -238,7 +238,7 @@ company's folders at its next step, and a message you send one in Claude Code is
 note saying so: send it again after you **Resume everyone**. Nothing is ever stopped in the middle of a step, and a message you send from the
 building is always handed over first.
 
-## 8. Replay the day
+## 8. Replay the day, ask its history, and the week
 
 When something went wrong, or you were away, drag the slider under "Replay the day" on the Overview
 back through today. The building shows who was at work at that moment, who was waiting on you and who
@@ -248,6 +248,21 @@ you and what it said when it finished. Tap a moment to read that conversation, o
 
 It needs only step 2's hooks. A file changed inside a floor's folder is named by its path there; one
 outside it, by its name alone.
+
+The building keeps a week of these days, and you can ask about them. Ask the receptionist **"What
+happened yesterday?"**, **"What did the agents do on Tuesday?"**, **"What happened on Lantern this
+week?"** or **"Who changed reader/bookmark.js?"**, and they answer from the moments.
+
+**This week**, on the Overview, is the weekly report: each floor's conversations, the instructions you
+gave, the files they changed, how many finished or stopped, how long they waited on you, and what they
+spent. **Copy the report** copies it as plain text, for a message or a document. Ask **"How was the
+week?"** to hear it summed up.
+
+**How long things wait on you**: each line under "Waiting on you" says how long it has waited, and a
+meter fills as the longest an agent has been held up grows, amber past five minutes and red past
+fifteen. Under it, how long agents waited on you today in all. A wait starts when an agent asks you
+for a permission or an answer, and ends when it goes on. Ask **"How long have the agents waited on
+me?"** for the same in words.
 
 ## 9. Any agent, not just Claude Code
 
@@ -438,13 +453,43 @@ connect/ping.py` every few minutes). `--test` sends a hello now, to check it rea
 prints what the brief would say without sending it, and `--now` sends the brief now. A new setting
 waits for its first time, and a time missed while the computer slept sends once.
 
+## 16. Restore points
+
+Before an agent changes a project's files, Arnheim can keep how they were, so you can go back. Add
+this hook beside step 2's, in the same settings file:
+
+```json
+"PreToolUse": [{ "matcher": "Edit|MultiEdit|Write|NotebookEdit|Bash", "hooks": [{ "type": "command", "command": "python3 /path/to/arnheim/connect/claude_code.py" }] }]
+```
+
+and `"feeds/restore.json"` to `feeds` in `company.json`. Then, before the first file an agent changes
+after each message you send it, and before any command that deletes or overwrites files in bulk (`rm
+-r`, `git reset --hard`, `git clean`, `git checkout -- ...` and the like), the hook saves every file
+in the project's folder that git doesn't ignore as a restore point. It uses git, beside the project's
+own history: your branch, what you have staged and your files are left as they are, and `git log`
+shows nothing new unless you ask it for `--all`. A folder that isn't in git gets none.
+
+Each conversation's page and each floor's page list its restore points. With control on (step 4),
+**Go back to here** puts the files as they were then: those changed since are put back, those deleted
+since come back, and those made since are left where they are, and listed. It keeps how things are
+first, as a restore point of its own, so going back can be undone too, and it won't while an agent is
+at work on that floor. The last 40 restore points are kept; git tidies older ones away in its own time.
+
+## 17. A shelf of how-tos
+
+Write down how your company does things, a short Markdown file each, and list them in `company.json`'s
+`howtos` (docs/data.md, "How-tos"). Each agent in a floor's folder is told that floor's how-tos, and
+those every floor shares, as it starts, with where to read each one, and is asked to follow the one
+that covers what it is about to do. In the building they stand on the Library's shelf.
+
 ## What is kept, and where
 
 The connectors write `data/feeds/claude-code.json` and `data/feeds/projects.json`. From Claude Code
 they keep, for each conversation: its title, or the first line of your first message; the first
 words of your latest message; the first sentences of the last thing Claude said; what it asks you
 for; and its task titles. Nothing else from the conversation is kept, and nothing leaves this
-computer, unless you serve Arnheim with `--lan`, when anyone on your network can open it.
+computer, unless you serve Arnheim with `--lan`, when anyone on your network can open it, or with
+`--share`, when those you give its view-only link can (README, "A view-only link").
 
 A floor's check keeps the last lines it printed beside each conversation it checked, and a lock and
 a note for its next run in `data/feeds/proof/`. The company's memory is `data/memory.json`, and the
@@ -454,7 +499,9 @@ far each floor was let go past its budget today. On a floor with a review line, 
 keeps what the line made of each conversation's work. Routines keep `data/feeds/routines.json`: each
 routine, when Arnheim first saw it, and its last run, with a command's last lines or an agent's last
 words. Pings keep `data/feeds/pings.json`: when the last was sent, what each of the last fourteen said, and whether it arrived. The replay's moments are kept a file a day in
-`data/feeds/history/`, for a week.
+`data/feeds/history/`, for a week, with what each floor's agents spent that day. Restore points are
+listed in `data/feeds/restore.json`, and their files kept by git in each project's own repository,
+under `refs/arnheim/restore/`.
 
 With control on, your messages wait in `data/control/` until Claude takes them, a permission
 request and its answer are deleted once it is answered, and each agent started from the building

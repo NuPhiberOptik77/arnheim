@@ -16,7 +16,9 @@ It keeps a title for each conversation (its own, or the first line of your first
 first sentences of the last thing Claude said, your latest message's first words and task titles,
 all in data/, on this computer. Any trouble goes to data/feeds/claude-code.log, and Claude carries on.
 
-It hands every conversation in the company's folders the company's memory as it starts (data/memory.json:
+It hands every conversation in the company's folders the company's how-tos for its floor as it starts
+(data/company.json's "howtos", docs/data.md), to read before work one of them covers. It also hands it
+the company's memory as it starts (data/memory.json:
 the decisions you asked the building to remember), and one at work the decisions made since, with your
 next message to it.
 
@@ -24,6 +26,10 @@ It counts what each conversation spends each day, in new tokens, from its own tr
 floor's agents pass the floor's budget for the day (connect/budget.py), it stops the one at work at its
 next step, once, and asks you in the building whether they may go on. Paused from the building, every
 conversation stops at its next step, and a message you send one in Claude Code waits until you resume.
+
+With a PreToolUse hook too, it takes a restore point of the project's files before the first file a
+conversation changes after each message you send it, and before any command that deletes or overwrites
+files in bulk, so you can go back from the building (connect/restore.py).
 
 It keeps a short log of each day's moments for the building's replay: when each conversation started
 work, which files it changed (as paths inside its floor's folder), what it asked, and when it finished
@@ -53,6 +59,7 @@ HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
 import budget  # noqa: E402  (beside this file: what each conversation spends)
 import control  # noqa: E402  (beside this file: what the building has for Claude Code)
+import restore  # noqa: E402  (beside this file: restore points before an agent changes files)
 
 DATA = os.environ.get("ARNHEIM_DATA") or os.path.join(os.path.dirname(HERE), "data")
 FEED = os.path.join(DATA, "feeds", "claude-code.json")
@@ -320,7 +327,14 @@ def update(event, extra=None):
             weigh(event, talk, talks, tasks, where, extra or {}, verdict, feed.get("ended"))
         try:
             if talk is not None or before is not None:  # one that ended has left the feed: log it as it was
-                log(event, talk if talk is not None else before, where, extra or {}, verdict)
+                said = dict(extra or {})
+                was = before or {}
+                if was.get("check") and (was.get("says") or {}).get("needs") and talk is not None and talk.get("working"):
+                    said["answered"] = True  # it waited on you, and went on: the wait ends here (src/waiting.js)
+                day = budget.local_day()
+                spent = {p: budget.spent_today(talks, p, day, feed.get("ended"))
+                         for p in {c.get("project") for c in talks if c.get("project")} | {where}}
+                log(event, talk if talk is not None else before, where, said, verdict, spent)
         except Exception as error:  # the replay's trouble never costs the feed
             note(error)
         return talks, tasks
@@ -347,6 +361,8 @@ def moment(event, talk, extra, verdict):
         return "finished", (talk.get("says") or {}).get("now") or "It finished."
     if name == "SessionEnd":
         return "left", "The conversation ended."
+    if extra.get("answered"):
+        return "answered", "It went on."
     return None
 
 
@@ -359,24 +375,32 @@ def inside(path, cwd):
     return os.path.basename(full)
 
 
-def log(event, talk, project, extra, verdict):
-    """Adds this event's moment to today's history, under the feed's lock."""
+def log(event, talk, project, extra, verdict, spent=None):
+    """Adds this event's moment to today's history, under the feed's lock, with what each floor's agents
+    have spent today so far (for the weekly report, src/weekly.js)."""
     found = moment(event, talk, extra, verdict)
     if not found:
         return
-    add_moment(talk, project, *found)
+    add_moment(talk, project, *found, spent=spent)
 
 
-def add_moment(talk, project, kind, what):
-    """Adds a moment to today's history, for the replay. Any connector can (connect/agents.py)."""
+def add_moment(talk, project, kind, what, spent=None):
+    """Adds a moment to today's history, for the replay. Any connector can (connect/agents.py). `spent`, tokens
+    by project, keeps the day's highest for each."""
     now = time.time()
     day = budget.local_day()
     path = os.path.join(HISTORY, day + ".json")
     try:
         with open(path, encoding="utf-8") as handle:
-            rows = json.load(handle).get("moments") or []
+            kept = json.load(handle)
+        rows = kept.get("moments") or []
+        had = kept.get("spent") if isinstance(kept.get("spent"), dict) else {}
     except (OSError, ValueError, AttributeError):
-        rows = []
+        rows, had = [], {}
+    spent_now = dict(had)
+    for p, tokens in (spent or {}).items():
+        if isinstance(p, str) and isinstance(tokens, int) and tokens > (had.get(p) if isinstance(had.get(p), int) else -1):
+            spent_now[p] = tokens
     key = talk.get("id")
     if kind == "changed" and any(r.get("key") == key and r.get("kind") == "changed" and r.get("what") == what and now - r.get("at", 0) < 300
                                  for r in rows[-40:]):
@@ -385,8 +409,8 @@ def add_moment(talk, project, kind, what):
     os.makedirs(HISTORY, exist_ok=True)
     part = f"{path}.{os.getpid()}.part"
     with open(part, "w", encoding="utf-8") as handle:
-        json.dump({"about": "The day's moments, for the building's replay (docs/connect.md, \"Replay the day\"). Safe to delete.", "moments": rows},
-                  handle, ensure_ascii=False)
+        json.dump({"about": "The day's moments, for the building's replay and its history (docs/connect.md, \"Replay the day\"). Safe to delete.",
+                   "moments": rows, "spent": spent_now}, handle, ensure_ascii=False)
     os.replace(part, path)
     oldest = (datetime.date.today() - datetime.timedelta(days=HISTORY_DAYS)).isoformat()
     for name in os.listdir(HISTORY):  # a week is kept
@@ -497,6 +521,37 @@ def edit_talk(event, change_it):
     edit_feed(edit)
 
 
+def restore_point(event):
+    """Before an agent changes files: a restore point (connect/restore.py), once after each message you send
+    it, and before every command that deletes or overwrites files in bulk. Tried once a turn, so a folder
+    that isn't in git, or one too big to save quickly, costs nothing more after the first try."""
+    tool = event.get("tool_name")
+    given = event.get("tool_input") if isinstance(event.get("tool_input"), dict) else {}
+    bulk = tool == "Bash" and restore.risky(given.get("command"))
+    if tool not in CHANGES and not bulk:
+        return None
+    project = project_for(event.get("cwd"))
+    if not project:
+        return None  # not this company's work
+    key = key_of(event)
+    talk = next((c for c in read_feed().get("conversations") or [] if isinstance(c, dict) and c.get("id") == key), None) or {}
+
+    def number(value):
+        try:
+            return float(value or 0)
+        except (TypeError, ValueError):
+            return 0.0
+    if not bulk and talk.get("restore_at") and number(talk.get("restore_at")) >= number(talk.get("asked_at")):
+        return None  # one already since your last message
+    asked = talk.get("asked")
+    why = f"before: {line(given.get('command'), 70)}" if bulk else (f'before changing files for "{asked}"' if asked else "before changing files")
+    now = time.time()
+    try:
+        return restore.take(event.get("cwd"), why, key=key, project=project, title=talk.get("title") or NEW, data=DATA, now=now)
+    finally:
+        edit_talk(event, lambda t: t.update(restore_at=round(now, 1)))
+
+
 def review(event):
     """As a turn ends on a floor with a review line (connect/review.py): holds it while the floor's check and
     the reader look at what changed. What Claude Code hears back: the work sent back with the reason, or None,
@@ -599,6 +654,36 @@ def remembered(event, name):
     return control.told(rows), now
 
 
+HOWTO_FILE = re.compile(r"^(?:[\w-]+/)*[\w-]+\.md$")
+HOWTOS_TOLD = 20
+
+
+def shelf(event):
+    """The company's how-tos for this conversation's floor, and those for every floor, as an agent is handed them
+    as it starts: each title with its file, to read before work it covers. None if there are none."""
+    project = project_for(event.get("cwd"))
+    if not project:
+        return None
+    try:
+        with open(os.path.join(DATA, "company.json"), encoding="utf-8-sig") as handle:
+            company = json.load(handle)
+    except (OSError, ValueError):
+        return None
+    home = os.path.realpath(DATA)
+    rows = []
+    for item in company.get("howtos") or [] if isinstance(company, dict) else []:
+        if not isinstance(item, dict) or item.get("project") not in (None, "", project):
+            continue
+        name, title = str(item.get("file") or ""), line(item.get("title"), 80)
+        path = os.path.realpath(os.path.join(home, name))
+        if title and HOWTO_FILE.match(name) and path.startswith(home + os.sep) and os.path.isfile(path):
+            rows.append(f'"{title}" ({path})')
+    if not rows:
+        return None
+    return ("The people you work for keep how-tos for their own ways of doing things, in Arnheim, the building that shows "
+            "their company's work. Before you do something one of them covers, read it and follow it: " + "; ".join(rows[:HOWTOS_TOLD]) + ".")
+
+
 def respond(event):
     """Keeps the feed up to date, and gives what Claude Code should hear back, if anything: your
     messages from the building, your answer there to a permission, or your request to stop.
@@ -606,6 +691,12 @@ def respond(event):
     name = event.get("hook_event_name")
     if not event.get("session_id") or os.environ.get("ARNHEIM_REVIEWER"):
         return None  # the review line's own reader is never a conversation of its own
+    if name == "PreToolUse":
+        try:
+            restore_point(event)
+        except Exception as error:  # a restore point's trouble never holds Claude up
+            note(error)
+        return None
     key = key_of(event)
     box = control.Box(DATA)
     if name == "PermissionRequest":
@@ -648,7 +739,13 @@ def respond(event):
                 return held
         if name == "Stop":
             prove(event)
-        words = "\n\n".join(w for w in (memo[0] if memo else None, verdict.get("warn")) if w)
+        howtos = None
+        if name == "SessionStart":
+            try:
+                howtos = shelf(event)
+            except Exception as error:  # the shelf's trouble never costs Claude its start
+                note(error)
+        words = "\n\n".join(w for w in (howtos, memo[0] if memo else None, verdict.get("warn")) if w)
         return {"hookSpecificOutput": {"hookEventName": name, "additionalContext": words}} if words else None
     heard = rows[-1].get("id")
     if name == "Stop":

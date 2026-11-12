@@ -2,7 +2,8 @@
 // keeps it in data/feeds/history/, a file a day; the made-up sample has sample/history.json). Plain module,
 // so tests/test_replay.py can run it under Node.
 //
-// A moment: { at (seconds), key, project, title, kind: working | changed | asked | finished | stopped | left, what }.
+// A moment: { at (seconds), key, project, title, kind: working | changed | asked | answered | finished | stopped | left, what }.
+// "answered": it had asked you something, and went on.
 
 const sorted = (moments) => moments.filter((m) => m && m.key && Number.isFinite(m.at)).sort((a, b) => a.at - b.at);
 
@@ -13,7 +14,7 @@ export function conversationsAt(moments, t) {
   const out = [];
   for (const m of last.values()) {
     if (m.kind === 'left') continue;
-    const working = m.kind === 'working' || m.kind === 'changed';
+    const working = m.kind === 'working' || m.kind === 'changed' || m.kind === 'answered';
     out.push({
       id: m.key, project: m.project, title: m.title || 'A conversation', at: m.at, working, check: !working,
       says: m.kind === 'asked' ? { needs: m.what } : { now: m.kind === 'changed' ? `Changing ${m.what}.` : m.what },
@@ -39,10 +40,11 @@ export function sayMoment(m) {
   if (m.kind === 'working') return end(`${who} started work${m.what ? `. ${m.what}` : ''}`);
   if (m.kind === 'changed') return end(`${who} changed ${m.what}`);
   if (m.kind === 'asked') return end(`${who} asked: ${m.what}`);
+  if (m.kind === 'answered') return `${who} had its answer, and went on.`;
   if (m.kind === 'finished') return end(`${who} finished${m.what ? `. ${m.what}` : ''}`);
   if (m.kind === 'stopped') return end(`${who} stopped${m.what ? `. ${m.what}` : ''}`);
   return `${who} ended.`;
 }
 
 // The mood each kind of moment shows in.
-export const MOMENT_MOOD = { working: 'working', changed: 'working', asked: 'needs', finished: 'check', stopped: 'failed', left: 'quiet' };
+export const MOMENT_MOOD = { working: 'working', changed: 'working', asked: 'needs', answered: 'working', finished: 'check', stopped: 'failed', left: 'quiet' };

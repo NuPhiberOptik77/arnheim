@@ -43,6 +43,12 @@
     }
   ],
   "budget": 2000000,
+  "howtos": [
+    { "id": "ship-lantern", "title": "Ship a new build of Lantern", "file": "howtos/ship-lantern.md", "project": "Lantern" },
+    { "id": "sensor-alarm", "title": "Answer a sensor alarm", "file": "howtos/sensor-alarm.md", "project": "Tidepool" },
+    { "id": "kite-template", "title": "Add a kite template", "file": "howtos/kite-template.md", "project": "Kitefield" },
+    { "id": "release-notes", "title": "Write release notes", "file": "howtos/release-notes.md" }
+  ],
   "floors": [
     {
       "id": "studio",

@@ -287,3 +287,20 @@ a.floor-card:hover, a.room-tile:hover { transform: translateY(-1px); }
 #replay-banner { position: absolute; left: 50%; top: 64px; transform: translateX(-50%); z-index: 4; display: flex; gap: 10px; align-items: center;
   max-width: calc(100% - 24px); padding: 6px 6px 6px 14px; border-radius: 12px; background: rgba(13, 16, 26, .86); color: #fff; font-size: 13px; }
 #replay-banner span, #replay-banner .btn { white-space: nowrap; }
+
+/* The waiting-time meter (src/waiting.js): fills as the longest wait on you grows. */
+.wait-meter { margin: 0 0 10px; }
+.meter { height: 8px; border-radius: 4px; background: rgba(var(--quiet-rgb), .2); overflow: hidden; margin: 2px 0 6px; }
+.meter-fill { display: block; height: 100%; border-radius: inherit; background: rgb(var(--c, var(--working-rgb))); transition: width .6s ease, background-color .6s ease; }
+.meter-fill.s-working { --c: var(--working-rgb); }
+.meter-fill.s-needs { --c: var(--needs-rgb); }
+.meter-fill.s-failed { --c: var(--failed-rgb); }
+@media (prefers-reduced-motion: reduce) { .meter-fill { transition: none; } }
+
+/* A how-to (src/howto.js), drawn from its Markdown as text. */
+.howto { line-height: 1.5; }
+.howto h3, .howto h4, .howto h5, .howto h6 { margin: 14px 0 6px; }
+.howto ul, .howto ol { padding-left: 22px; margin: 6px 0; }
+.howto code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; background: rgba(var(--quiet-rgb), .14); border-radius: 4px; padding: 0 3px; }
+.howto-code { overflow-x: auto; padding: 10px 12px; border-radius: 8px; background: rgba(var(--quiet-rgb), .14); }
+.howto-code code { background: none; padding: 0; }

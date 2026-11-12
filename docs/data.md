@@ -72,6 +72,7 @@ own files show every one of them in use.
 | `basement` | | The machines every project shares, and the Library. |
 | `feeds` | | Files in `data/` that tools keep up to date, such as `["feeds/claude-code.json"]`. The page adds their lists to `work.json`'s and reads them every few seconds ([docs/connect.md](connect.md)). |
 | `pings` | | The morning brief and the decisions that wait on you, sent to your phone: `{"ntfy": "https://ntfy.sh/your-topic", "at": ["08:00", "17:30"]}`, or `"run": [...]`, a command of your own, instead of `ntfy` ([docs/connect.md](connect.md), "A morning brief, and pings on your phone"). |
+| `howtos` | | The company's own ways of doing things, a shelf of how-tos: `[{"id": "ship-lantern", "title": "Ship a new build of Lantern", "file": "howtos/ship-lantern.md", "project": "Lantern"}]`. Each `file` is a short Markdown file beside `company.json` (in `data/`, or a folder in it). Leave out `project` for one every floor shares (below, "How-tos"). |
 | `quote` | | Words the company lives by, painted in a script hand on the long wall of each project floor's corridor in the photo-real building: `{"text": "...", "by": "who said them"}`. |
 | `sample` | only for a made-up company | A sentence saying the company is made up. While it is there, the page says "made up" wherever it shows the company. Leave it out for a real one. |
 
@@ -165,6 +166,7 @@ floor's `label`), and each `id` is unique within its list.
 | `jobs` | `id`, `name`, `machine` (a basement room's `id`) and `state`: `queued`, `running` or `done`. |
 | `routines` | Written by connect/routines.py (docs/connect.md, "Routines"): `id`, `project`, `label`, `when` (its schedule in words), `kind` (`command` or `agent`), `next`, and `last`: `{"state": "all clear", "at": ..., "tail": ...}` (state `starting`, `running`, `all clear`, `needs you`, `failed`, `timeout` or `error`). |
 | `library` | `id`, `name`, and `status` in your own words. The sample uses Using, Copied from, Considered, Dropped and Not looked at. |
+| `restore` | Written by connect/restore.py (docs/connect.md, "Restore points"): `id`, `project`, `key` (its conversation), `title`, `why`, `by` (`agent`, or `you` for one taken before going back), `files` (how many weren't committed then), and `at`. The sample gives `ago`, in seconds, instead of `at`. |
 
 `says` is what the person at a desk or in a seat answers when you talk to them on a walk, with no
 AI: `{ "now": "...", "next": "...", "when": "...", "needs": "..." }`, each a sentence or two. `now`
@@ -176,6 +178,15 @@ one every `every` seconds (6 if left out, and at least 2). Each step is
 `{ "line": "What happened", "change": [["tasks", "t1", { "status": "done" }]] }`, where each change
 names a list, an `id` in it and the fields to change. A real company leaves it out or empties it
 (`"story": []`), and the Live button, which pauses the story, only shows when there is one.
+
+### How-tos
+
+A how-to is a short Markdown file: `#` headings, paragraphs, lists (`-` or `1.`), `` `code` ``,
+`**bold**` and blocks of code between ```` ``` ```` lines. The page draws it as text, never as a web
+page, so nothing in it can run. Each stands on the Library's shelf, its floor's page lists it, and the
+receptionist points to it when a question fits its title ("How do I ship a new build?"). Connected to
+Claude Code (docs/connect.md), each agent is told its floor's how-tos, and those every floor shares, as
+it starts, with where to read them, so it does things your way. The sample has four, in `sample/howtos/`.
 
 ## notes.json
 

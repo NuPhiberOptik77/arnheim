@@ -4,6 +4,7 @@
   python3 serve.py          on this computer only, at http://127.0.0.1:8740
   python3 serve.py 8741     on another port
   python3 serve.py --lan    on phones and other computers on this network too (README, "Phones")
+  python3 serve.py --share  the same, but only for those you give its view-only link (README, "A view-only link")
   python3 serve.py --control  and let the page talk to your Claude Code agents, answer their
                             permission requests, and start and stop them (docs/connect.md)
   python3 serve.py --brain  and let the receptionist and your assistant talk about anything, with
@@ -17,21 +18,26 @@ names it was opened by (127.0.0.1 and localhost, and with --lan an IP address or
 It also answers /voice/, the voice the walk's people speak with, if this computer has one
 (voice/bridge.py, and README, "Voice"), and with --control, /control/ (connect/control.py), and
 with --brain, /brain/ (connect/brain.py), only to the page on this computer: never with --lan.
+With --share, another computer gets in only through the view-only link it prints, and only to look: it
+never gets the founder's notes, and nothing it sends is acted on.
 """
 import argparse
 import errno
+import hmac
 import http.server
 import io
 import ipaddress
 import json
 import os
+import re
+import secrets
 import signal
 import socket
 import subprocess
 import sys
 import threading
 import time
-from urllib.parse import unquote
+from urllib.parse import parse_qs, unquote
 
 from connect.brain import Brain
 from connect.control import Control
@@ -44,9 +50,32 @@ TYPES = {
     ".json": "application/json; charset=utf-8",
     ".jpg": "image/jpeg", ".hdr": "image/vnd.radiance",  # the real materials walk mode loads (vendor/polyhaven)
     ".bin": "application/octet-stream",  # the photo-real floors' shapes (baked/)
+    ".md": "text/markdown; charset=utf-8",  # the company's how-tos (docs/data.md, "How-tos")
 }
 PORT_TAKEN = {errno.EADDRINUSE, getattr(errno, "WSAEADDRINUSE", errno.EADDRINUSE)}
 HERE_ONLY = ("127.0.0.1", "::1", "::ffff:127.0.0.1")  # what this computer's own requests come from
+SHARE_KEY = os.path.join(ROOT, ".share-key")  # the view-only link's key (--share), kept so the link stays the same
+VIEW = "arnheim_view"  # the cookie a view-only link leaves, so the page's own files come with it
+KEY = re.compile(r"^[A-Za-z0-9_-]{20,64}$")
+NEVER_AWAY = ("/data/control/",)  # control's mail with Claude Code: never to another computer, link or not
+NOT_SHARED = ("/data/notes.json",)  # the founder's notes: never through a view-only link
+
+
+def share_key(new=False):
+    """The view-only link's key: the one kept beside this file, or a new one (--new-link), which ends the old link."""
+    if not new:
+        try:
+            with open(SHARE_KEY, encoding="utf-8") as handle:
+                key = handle.read().strip()
+            if KEY.match(key):
+                return key
+        except OSError:
+            pass
+    key = secrets.token_urlsafe(24)
+    handle = os.open(SHARE_KEY, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(handle, "w", encoding="utf-8") as out:
+        out.write(key + "\n")
+    return key
 
 
 def without_pings(raw):
@@ -99,6 +128,43 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         super().end_headers()
+
+    def here(self):
+        return self.client_address[0] in HERE_ONLY
+
+    def has_key(self):
+        """With --share: whether another computer came through the view-only link (its cookie)."""
+        key = self.server.share
+        for part in self.headers.get("Cookie", "").split(";"):
+            name, _, value = part.strip().partition("=")
+            if name == VIEW and key and hmac.compare_digest(value.strip().encode("utf-8", "replace"), key.encode()):
+                return True
+        return False
+
+    def let_in(self, path):
+        """With --share, for another computer: a request with the link's key in the address leaves the cookie and
+        goes on to the page; one without the key, or asking for what a viewer never gets, is refused. True when
+        the request may go on; otherwise the answer has been sent."""
+        if not self.here() and path.startswith(NEVER_AWAY):
+            self.send_error(404)
+            return False
+        if not self.server.share or self.here():
+            return True
+        given = parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "").get("view", [""])[0]
+        if path in ("/", "/index.html") and given and hmac.compare_digest(given.encode("utf-8", "replace"), self.server.share.encode()):
+            self.send_response(303)
+            self.send_header("Location", "/")
+            self.send_header("Set-Cookie", f"{VIEW}={self.server.share}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return False
+        if not self.has_key():
+            self.send_error(403, "This building opens only through its view-only link. Ask for the link again: it may have changed.")
+            return False
+        if self.command == "POST" or path.startswith(("/voice/", "/control/", "/brain/")) or path in NOT_SHARED:
+            self.send_error(403 if self.command == "POST" else 404, "A view-only link can look, not change anything.")
+            return False
+        return True
 
     def allowed(self):
         """A name this server answers to, and on a POST its own page (the Origin)."""
@@ -177,6 +243,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if not self.allowed():
             self.send_error(403)
             return
+        if not self.let_in(path):
+            return
         try:
             size = int(self.headers.get("Content-Length") or 0)
         except ValueError:
@@ -199,6 +267,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_error(403)
             return None
         path = unquote(self.path.split("?", 1)[0].split("#", 1)[0])
+        if not self.let_in(path):
+            return None
         if path.startswith("/voice/"):
             return self.voice(path)
         if path.startswith("/control/"):
@@ -237,6 +307,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 class Server(http.server.ThreadingHTTPServer):
     request_queue_size = 128  # one page load asks for about 25 files at once
     lan = False
+    share = None  # the view-only link's key, with --share
     control = None  # connect/control.py's Control, with --control
     brain = None  # connect/brain.py's Brain, with --brain
 
@@ -296,6 +367,9 @@ def main():
     parser = argparse.ArgumentParser(description="Shows Arnheim in a browser.")
     parser.add_argument("port", nargs="?", type=int, default=8740, help="the port to use (8740 if left out)")
     parser.add_argument("--lan", action="store_true", help="show it to phones and other computers on this network too")
+    parser.add_argument("--share", action="store_true",
+                        help="show it on this network only to those you give its view-only link, who can look but not change anything")
+    parser.add_argument("--new-link", action="store_true", help="with --share: make a new view-only link, so the old one stops working")
     parser.add_argument("--control", action="store_true",
                         help="let the page on this computer talk to your Claude Code agents, answer their permission requests, and start and stop them")
     parser.add_argument("--routines", action="store_true",
@@ -307,17 +381,24 @@ def main():
     args = parser.parse_args()
     if not 0 < args.port < 65536:
         parser.error("the port is a number from 1 to 65535")
-    if args.control and args.lan:
-        sys.exit("Control works only on this computer, so it can't go with --lan. Leave out one of them.")
-    if args.brain and args.lan:
-        sys.exit("The brain works only on this computer, so it can't go with --lan. Leave out one of them.")
+    if args.share and args.lan:
+        sys.exit("--share is --lan with a view-only link that only its holders can open. Leave out one of them.")
+    if args.new_link and not args.share:
+        sys.exit("--new-link goes with --share: python3 serve.py --share --new-link")
+    away = "--lan" if args.lan else "--share" if args.share else None
+    if args.control and away:
+        sys.exit(f"Control works only on this computer, so it can't go with {away}. Leave out one of them, or run a second "
+                 f"copy on another port: python3 serve.py --control, and python3 serve.py {args.port + 1} {away}")
+    if args.brain and away:
+        sys.exit(f"The brain works only on this computer, so it can't go with {away}. Leave out one of them, or run a second "
+                 f"copy on another port: python3 serve.py --brain, and python3 serve.py {args.port + 1} {away}")
     control = Control() if args.control else None
     try:
         brain = Brain(tell=lambda why: print(f"The brain had no answer: {why}", file=sys.stderr, flush=True), control=control) if args.brain else None
     except ValueError as error:
         sys.exit(str(error))
     try:
-        server = Server(("0.0.0.0" if args.lan else "127.0.0.1", args.port), Handler)
+        server = Server(("0.0.0.0" if args.lan or args.share else "127.0.0.1", args.port), Handler)
     except OSError as error:
         if error.errno in PORT_TAKEN:
             sys.exit(f"Port {args.port} is already in use, perhaps by another copy of Arnheim. Stop that one, "
@@ -325,7 +406,8 @@ def main():
         if error.errno == errno.EACCES:
             sys.exit(f"This computer won't let Arnheim use port {args.port}. Give one above 1024: python3 serve.py 8740")
         raise
-    server.lan = args.lan
+    server.lan = args.lan or args.share
+    server.share = share_key(new=args.new_link) if args.share else None
     server.control = control
     server.brain = brain
     print(f"Arnheim is at http://127.0.0.1:{args.port}", flush=True)
@@ -341,6 +423,12 @@ def main():
         where = f"http://{address}:{args.port}" if address else f"this computer's network address, port {args.port}"
         print(f"On phones and other computers on this network, open {where}", flush=True)
         print("Anyone on this network can open it while it runs, data/ included.", flush=True)
+    if args.share:
+        address = network_address()
+        where = f"http://{address}:{args.port}" if address else f"http://<this computer's network address>:{args.port}"
+        print(f"The view-only link, for people on this network: {where}/?view={server.share}", flush=True)
+        print("Whoever has it can look round and walk in while this runs, but not change anything, and never sees the "
+              "founder's notes. It stays the same each time; python3 serve.py --share --new-link makes a new one and ends this one.", flush=True)
     for line in company_note():
         print(line, flush=True)
     if args.routines:

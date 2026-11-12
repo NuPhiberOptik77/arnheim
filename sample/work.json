@@ -32,7 +32,7 @@
     { "id": "cs2", "project": "Studio", "title": "Sorting the subscriptions", "check": true, "spent": { "tokens": 300000 }, "says": { "now": "I sorted the studio's subscriptions into keep and cancel. Three can go." },
       "proof": { "state": "passed", "check": "The spending check" },
       "review": { "state": "passed", "by": "The reader", "said": "The keep and cancel lists match the statements, and nothing was cancelled without asking." } },
-    { "id": "cl1", "project": "Lantern", "title": "Why the bookmark jumps", "working": true, "spent": { "tokens": 900000 }, "files": [{ "path": "reader/bookmark.js" }, { "path": "reader/page-turn.js" }], "says": {"now": "I'm finding out why the bookmark jumps back a page. It saves your place before the page has finished turning, so it keeps the page you were leaving.", "next": "Next I'll save it once the turn ends, then try it on a long book.", "when": "About an hour, if the long book behaves.", "needs": "Nothing yet. If the fix changes how pages turn, I'll ask you first."} },
+    { "id": "cl1", "ago": 420, "project": "Lantern", "title": "Why the bookmark jumps", "working": true, "spent": { "tokens": 900000 }, "files": [{ "path": "reader/bookmark.js" }, { "path": "reader/page-turn.js" }], "says": {"now": "I'm finding out why the bookmark jumps back a page. It saves your place before the page has finished turning, so it keeps the page you were leaving.", "next": "Next I'll save it once the turn ends, then try it on a long book.", "when": "About an hour, if the long book behaves.", "needs": "Nothing yet. If the fix changes how pages turn, I'll ask you first."} },
     { "id": "cl2", "project": "Lantern", "title": "Reading streak ideas", "agent": "Codex", "check": true, "files": [{ "path": "reader/page-turn.js" }, { "path": "reader/streak.js" }],
       "says": { "now": "I added a streak counter to the page turn." } },
     { "id": "cl3", "project": "Lantern", "title": "Pictures for the app store", "check": true, "says": { "now": "I made the five pictures for the app store." },
@@ -40,7 +40,7 @@
       "review": { "state": "failed", "by": "The picture sizes check", "times": 2, "most": 2, "why": "The picture sizes check failed: tablet-1.png is 2048 x 2732 and should be 2064 x 2752." } },
     { "id": "ct1", "project": "Tidepool", "title": "Rain gauge supplier" },
     { "id": "ct2", "project": "Tidepool", "title": "Wind sensor drift", "says": {"now": "I'm looking at why the wind sensor reads high after a few days. It drifts by about half a metre a second.", "next": "Next I'll compare it with the spare sensor and write down a fix.", "when": "Once the spare has run for a day."} },
-    { "id": "ck1", "project": "Kitefield", "title": "Tail physics", "working": true, "spent": { "tokens": 1400000 }, "says": {"now": "I'm checking the kite's tail against the field test video. In a strong wind it swings about a third too far.", "next": "Next I'll add a little drag to the tail and run the test again.", "when": "Two more test runs, so this afternoon.", "needs": "Not yet. You may want to watch the last run with me."} },
+    { "id": "ck1", "ago": 300, "project": "Kitefield", "title": "Tail physics", "working": true, "spent": { "tokens": 1400000 }, "says": {"now": "I'm checking the kite's tail against the field test video. In a strong wind it swings about a third too far.", "next": "Next I'll add a little drag to the tail and run the test again.", "when": "Two more test runs, so this afternoon.", "needs": "Not yet. You may want to watch the last run with me."} },
     { "id": "ck2", "project": "Kitefield", "title": "Template wish list" }
   ],
   "pullRequests": [
@@ -106,6 +106,11 @@
       "every": "day", "at": "07:00", "last": { "state": "failed", "took": 12, "tail": "Sensors 1, 2 and 4: readings every minute\nSensor 3 sent no readings for 6 hours." } },
     { "id": "rt-studio-scan", "project": "Studio", "label": "Security scan", "when": "Every Friday at 16:00", "kind": "agent",
       "every": "friday", "at": "16:00", "last": { "state": "all clear", "took": 380, "said": "Nothing secret or unsafe was added this week. All clear." } }
+  ],
+  "restore": [
+    { "id": "rp-5c1a7e20b94d", "ago": 6300, "project": "Kitefield", "key": "ck1", "title": "Tail physics", "why": "before changing files for \"Make the tail sway less in light wind\"", "by": "agent", "files": 1 },
+    { "id": "rp-8e4f02d1c3a6", "ago": 2700, "project": "Lantern", "key": "cl1", "title": "Why the bookmark jumps", "why": "before changing files for \"Find out why the bookmark jumps back a page\"", "by": "agent", "files": 0 },
+    { "id": "rp-b2d93f6e0a17", "ago": 840, "project": "Lantern", "key": "cl1", "title": "Why the bookmark jumps", "why": "before: rm -rf build/cache", "by": "agent", "files": 2 }
   ],
   "every": 6,
   "story": [

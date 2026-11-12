@@ -103,6 +103,11 @@ below).
   which. The building turns to the room where it sits down.
 - **"Remember that ..."** adds a decision to the company's memory, which every agent is told as it
   starts ("Connect your agents", below). **"What have we decided?"** reads it back.
+- **"What happened yesterday?"**, **"Who changed bookmark.js?"** or **"How was the week?"**: they
+  answer from the building's week of history, and **"How long have the agents waited on me?"** from
+  how long each waited.
+- **"How do I ship a new build?"**: if the company has a how-to for it, they point to it on the
+  Library's shelf. **"Can I undo what the agent did?"** lists the restore points.
 - **"What's waiting on me?"** reads out everything that waits on you, from every agent and your own
   tasks, most urgent first. With control on, **"allow all the reads"** lets every agent waiting to
   read an ordinary file go ahead; searches, and anything that looks private, each need an answer.
@@ -257,6 +262,20 @@ python3 serve.py --lan
 This prints a second address: open it on a phone on the same Wi-Fi. Anyone on that network can
 then open Arnheim, `data/` included, so use a network you trust. On a phone the people speak and
 you type: browsers only allow the microphone over HTTPS or on the computer itself.
+
+### A view-only link
+
+```bash
+python3 serve.py --share
+```
+
+The same, but only for those you give the link it prints. Whoever has it can look round and walk in
+while it runs, and nothing they do changes anything: control, the brain and the voice stay on this
+computer, and they never see the founder's notes. The link stays the same each time; `python3
+serve.py --share --new-link` makes a new one, and the old one stops working. It is plain HTTP on your
+own network, so share it with people you trust, on a network you trust. To keep control on this
+computer as well, run a second copy on another port: `python3 serve.py --control`, and `python3
+serve.py 8741 --share`.
 
 ## If something is wrong
 

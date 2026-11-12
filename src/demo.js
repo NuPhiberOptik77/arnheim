@@ -15,6 +15,11 @@ import { MEMORY_ASKED, decidedFor, rememberAsked, sayMemory } from './memory.js'
 import { floorSpend, localDay } from './budget.js';
 import { clashesOf, sayClash, waitWords } from './clashes.js';
 import { MOMENT_MOOD, conversationsAt, momentsBefore, sayMoment, touchedBy } from './replay.js';
+import { RESTORE_ASKED, pointsOf, sayPoint, sayRestore, wentBack } from './restore.js';
+import { HISTORY_ASKED, historyAsked, sayHistory } from './history.js';
+import { LONG, WAITED_ASKED, meter, sayWaited, waitFor, waitMood, waitedSum, waitingLine, waits } from './waiting.js';
+import { WEEKLY_ASKED, floorLine, sayWeek, weekReport, weekText } from './weekly.js';
+import { blocks, howtoFor, howtosOf, runs, sayShelf, shelfAsked } from './howto.js';
 import { icon } from './icons.js';
 import { createPoe, has, insertAfter, needWord, norm, poeBadge } from './poe-desk.js';
 
@@ -110,6 +115,8 @@ function agoText(at) {
 
 // A company map with "sample" in it is made up, and the page says so wherever it shows it.
 const madeUp = () => !!org.sample;
+// Opened from another device (serve.py --lan or --share): control, the brain and the voice stay on the computer it runs on.
+const fromAway = () => !['127.0.0.1', 'localhost', '[::1]', '::1'].includes(location.hostname);
 const sampleLine = () => (typeof org.sample === 'string' ? org.sample : `${org.company} is made up.`);
 const hasStory = () => work.story.length > 0;
 const floors = () => [...org.floors, org.lobby, org.basement].filter(Boolean);
@@ -169,8 +176,10 @@ function roomModel(floor, room) {
     };
   }
   if (kind === 'library') {
-    const n = work.library.length;
-    return { state: 'quiet', big: n || null, detail: n ? 'on the shelves' : 'Nothing on the shelves yet', items: work.library.map((b) => ({ id: b.id, title: b.name, sub: b.status, status: b.status, href: `${base}/${enc(b.id)}` })) };
+    const shelf = howtosOf(org).map((x) => ({ id: `howto:${x.id}`, title: x.title, sub: `How-to${x.project ? `, for ${floorOf(x.project)?.label || x.project}` : ''}`, status: 'How-to', href: howtoHref(x) }));
+    const n = work.library.length + shelf.length;
+    return { state: 'quiet', big: n || null, detail: n ? 'on the shelves' : 'Nothing on the shelves yet',
+      items: [...shelf, ...work.library.map((b) => ({ id: b.id, title: b.name, sub: b.status, status: b.status, href: `${base}/${enc(b.id)}` }))] };
   }
   if (kind === 'machine') {
     const m = work.machines.find((x) => x.id === room.id) || {};
@@ -324,7 +333,7 @@ async function dropTask(id) {
 
 // What the rules answer even with the brain on: at once, and nothing Claude could be talked into
 // instead. A refusal stays a refusal.
-const RULED = new Set(['refuse', 'greeting', 'tour', 'waiting', 'memory', 'routines', 'health', 'brief']);
+const RULED = new Set(['refuse', 'greeting', 'tour', 'waiting', 'memory', 'routines', 'health', 'brief', 'waited', 'weekly', 'history', 'restore']);
 const ruledBy = (t) => (RULED.has(t.id) ? { ...t, answer: (c) => { const a = t.answer(c); return a && { ...a, ruled: t.id }; } } : t);
 
 function setupDesk() {
@@ -343,6 +352,35 @@ function setupDesk() {
   const health = {
     id: 'health',
     answer: (c) => !c.floor && HEALTH_ASKED.test(c.text) && { lines: [sayHealth(org.floors, work)], go: c.go('#/', 'Show me') },
+  };
+  const label = (p) => floorOf(p)?.label || p;
+  const waited = {
+    id: 'waited',
+    answer: (c) => WAITED_ASKED.test(c.text) && {
+      lines: [sayWaited(waits(history, Date.now() / 1000, new Set(waitingNow().map((i) => i.key).filter(Boolean))), waitingNow(), label)],
+      go: c.go('#/', 'Show me'),
+    },
+  };
+  const weekly = {
+    id: 'weekly',
+    answer: (c) => !c.floor && WEEKLY_ASKED.test(c.text) && { lines: [sayWeek(weekReport(weekDays(), Date.now() / 1000), label)], go: c.go('#/', 'Show me') },
+  };
+  const shelf = {
+    id: 'howto',
+    answer: (c) => {
+      const all = howtosOf(org);
+      if (shelfAsked(c.text)) return { lines: [sayShelf(all, label)] };
+      const x = howtoFor(c.text, c.floor ? howtosOf(org, c.floor.project) : all);
+      return x && { lines: [`There's a how-to for that: "${x.title}", on the shelf in the Library. Every agent${x.project ? ` on ${label(x.project)}` : ''} is told it as it starts.`], go: c.go(howtoHref(x), 'Open it') };
+    },
+  };
+  const past = {
+    id: 'history',
+    answer: (c) => HISTORY_ASKED.test(c.text) && { lines: [sayHistory(weekMoments(), historyAsked(c.text, new Date(), c.floor?.project), label, clockOf)] },
+  };
+  const restorePoints = {
+    id: 'restore',
+    answer: (c) => RESTORE_ASKED.test(c.text) && { lines: [sayRestore(work.restore, (p) => floorOf(p)?.label || p, clockOf)] },
   };
   const routines = {
     id: 'routines',
@@ -392,10 +430,13 @@ function setupDesk() {
     },
     topics: (list) => {
       const all = insertAfter(insertAfter(list, 'thanks', [real]), 'tour', [howTo]);
-      all.splice(Math.max(0, all.findIndex((t) => t.id === 'needs')), 0, waiting, memory, routines);
+      // "How long have they been waiting on me?" before "what's waiting on me?".
+      all.splice(Math.max(0, all.findIndex((t) => t.id === 'needs')), 0, waited, waiting, memory, routines, restorePoints);
       // Before "what's happening" and "what's running", which would take "catch me up" and "how are the
       // projects doing?" for themselves.
-      all.splice(Math.max(0, all.findIndex((t) => t.id === 'happening')), 0, brief, health);
+      all.splice(Math.max(0, all.findIndex((t) => t.id === 'happening')), 0, brief, weekly, health, past);
+      // Before the receptionist's own "how do I ..." answers about the building, a how-to of the company's that fits.
+      all.splice(Math.max(0, all.findIndex((t) => t.id === 'how-to' || t.id === 'handoff')), 0, shelf);
       return brain.on ? all.map(ruledBy) : all;
     },
     // A typed question at the desk: Claude's answer as it comes, with the brain on.
@@ -732,6 +773,29 @@ function convoControls(c) {
     controlNote && h('p.small.muted', { role: 'status' }, controlNote));
 }
 
+// Restore points (restore.js): the files as they were before an agent changed them, and with control on, a
+// way back to one. On a floor (titles) each says whose it was.
+function restoreCard(points, { titles = false } = {}) {
+  if (!points.length) return null;
+  const canGo = control.on && dir === 'data';
+  const go = (p) => {
+    const where = floorOf(p.project)?.label || p.project;
+    if (!window.confirm(`Put ${where}'s files back as they were at ${clockOf(p.at)}? How they are now is kept as a restore point first, so you can undo this.`)) return;
+    controlDone(control.restore(p.id), wentBack);
+  };
+  return h('section.panel-card',
+    sectHead('rotate-ccw', 'Restore points'),
+    h('ul.list', points.slice(0, 5).map((p) => {
+      const li = row(null, sayPoint(p, clockOf), [titles && (p.by === 'you' ? 'You, from the building' : p.title), dayWord(p.at)].filter(Boolean).join('. '), 'quiet');
+      if (canGo) li.append(h('div.control-row', btn('Go back to here', () => go(p))));
+      return li;
+    })),
+    h('p.small.muted', canGo ? 'Going back puts the files as they were then. Files made since stay where they are.'
+      : dir === 'data' ? 'With control on, you can put the files back to one of these.'
+        : 'Made up, like the rest of the sample. With your own company and control on, you can put the files back to one of these.'),
+    canGo && controlNote && h('p.small.muted', { role: 'status' }, controlNote));
+}
+
 // Collision warnings (clashes.js): two agents changing the same files, and, with control on, a way to make
 // one wait for the other.
 function clashCard() {
@@ -767,6 +831,11 @@ function pauseCard() {
 let replayAt = null;
 let realTalks = null;
 const clockOf = (at) => new Date(at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+// Which day a time was: "Today", "Yesterday", or the day's name within the week.
+const dayWord = (at) => {
+  const day = localDay(new Date(at * 1000));
+  return day === localDay() ? 'Today' : day === dayBefore(1) ? 'Yesterday' : new Date(at * 1000).toLocaleDateString([], { weekday: 'long' });
+};
 function replayed() {
   realTalks = work.conversations;
   work.conversations = conversationsAt(history, replayAt);
@@ -819,6 +888,27 @@ function replayCard() {
     h('div.replay-row', slider, label),
     list,
     replayAt != null && h('div.control-row', btn('Back to now', () => showAt(null))));
+}
+
+// The weekly report (weekly.js): the last seven days floor by floor, and the whole of it as text to copy.
+let weekNote = '';
+function weekCard() {
+  const report = weekReport(weekDays(), Date.now() / 1000);
+  if (!report.total.talks) return null;
+  const label = (p) => floorOf(p)?.label || p;
+  const copy = () => {
+    const text = weekText(report, label, org.company);
+    const done = (said) => { weekNote = said; render(); };
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(() => done('Copied. Paste it into a message or a document.'), () => done("This browser wouldn't copy it."));
+    else done("This browser can't copy from here.");
+  };
+  return h('section.panel-card',
+    sectHead('calendar-days', 'This week'),
+    h('p', sayWeek(report, label)),
+    h('ul.list', report.floors.map((f) => row(floorOf(f.project) ? `#/${floorOf(f.project).id}` : null, label(f.project) || 'No floor', floorLine(f), 'quiet'))),
+    h('div.control-row', btn('Copy the report', copy)),
+    weekNote && h('p.small.muted', { role: 'status' }, weekNote),
+    madeUp() && h('p.small.muted', 'A made-up week, like the rest of the sample.'));
 }
 
 // What each floor's agents have spent today, against its budget.
@@ -914,13 +1004,31 @@ function proofPart(c, pr) {
 // an agent that asked something or finished (with control on), and a link to look closer. Reads waiting
 // together can be allowed together.
 function waitingList(items) {
-  if (!items.length) return empty('Nothing is waiting on you right now.');
+  if (!items.length) return [waitMeter(items), empty('Nothing is waiting on you right now.')];
   const reads = control.on ? together(items) : null;
   const allowAll = (ids) => controlDone(allowReads(ids), (said) => said);
   return h('div.waiting',
+    waitMeter(items),
     reads && h('div.control-row', btn(reads.label, () => allowAll(reads.ids), '.primary')),
     h('ul.list', items.map(waitingItem)),
     controlNote && h('p.small.muted', { role: 'status' }, controlNote));
+}
+
+// The waiting-time meter (waiting.js): it fills as the longest an agent has been held up grows, amber past five
+// minutes and red past fifteen, and under it how long agents waited on you today. tick() keeps it moving.
+function waitMeter(items) {
+  const now = Date.now() / 1000;
+  const m = meter(items, now);
+  const held = new Set(items.filter((i) => i.kind === 'permission' || i.kind === 'question').map((i) => i.key).filter(Boolean));
+  const sum = waitedSum(waits(history, now, held));
+  if (!m && !sum.count) return null;
+  return h('div.wait-meter',
+    m && h('div.meter', { role: 'meter', 'aria-label': 'How long the longest wait on you has been, in minutes', 'aria-valuemin': 0, 'aria-valuemax': LONG / 60,
+      'aria-valuenow': Math.floor(Math.min(LONG, m.seconds) / 60) },
+    h(`span.meter-fill.s-${m.mood}`, { 'data-meter': m.item.at, style: `width: ${Math.max(4, Math.round(m.share * 100))}%` })),
+    m && h('p.small', 'The longest has waited ', h('span', { 'data-waited': m.item.at }, waitFor(m.seconds)), `: ${waitingHead(m.item)}.`),
+    sum.count > 0 && h('p.small.muted', `Today, agents waited on you ${waitFor(sum.total)} in all, ${sum.count === 1 ? 'once' : `${sum.count} times`}. `
+      + `The longest wait was ${waitFor(sum.longest.seconds)}.`));
 }
 
 // A conversation control can pass a message to: one the Claude Code feed names (connect/control.py, KEY).
@@ -983,6 +1091,8 @@ function waitingItem(i) {
   const what = i.kind === 'task' ? null : i.kind === 'permission' ? `It wants ${i.what}` : marked ? `${marked.word}. ${i.what}` : i.what;
   const sub = [what, where].filter(Boolean).map((part, n, all) => (n < all.length - 1 && !/[.?!]$/.test(part) ? `${part}.` : part)).join(' ');
   const li = row(href, head, sub, i.kind === 'turn' ? reviewMood(i.review) || proofMood(i.proof) || 'check' : 'needs');
+  const waited = waitingLine(i);
+  if (waited) li.querySelector('.row-main')?.append(h('span.row-sub.wait-time', { 'data-wait': i.at }, waited));
   if (i.kind === 'permission' && control.on) {
     li.append(h('div.control-row.waiting-do',
       btn('Allow', () => controlDone(answerAsk(i.ask.id, 'allow'), () => 'Allowed, just this once.'), '.primary'),
@@ -1065,7 +1175,8 @@ function viewOverview() {
       h('section.panel-card.intro',
         title(madeUp() ? `${org.company}, a company that is made up` : org.company),
         madeUp() ? h('p', sampleLine()) : org.about && h('p', org.about),
-        h('p.small.muted', `Arnheim shows a company as a building. Each floor is a project and each room holds one kind of thing. Tap a floor to bring it out, then a room to look inside. Press Walk to go in and talk to the people at work, and to ${deskName() || 'the receptionist'} at the front desk.`)),
+        h('p.small.muted', `Arnheim shows a company as a building. Each floor is a project and each room holds one kind of thing. Tap a floor to bring it out, then a room to look inside. Press Walk to go in and talk to the people at work, and to ${deskName() || 'the receptionist'} at the front desk.`),
+        fromAway() && h('p.small', h('strong', 'View only. '), 'You are looking from another device: you can look round and walk in, but nothing here changes anything.')),
       h('div.stats', tile('bell-ring', 'needs', waiting.length, 'Need you'), tile('messages-square', 'working', talking.length, 'Working now'), tile('server', 'working', jobs.length, 'Jobs running')),
       briefCard(),
       pauseCard(),
@@ -1075,6 +1186,7 @@ function viewOverview() {
         waitingList(waiting)),
       healthCard(),
       replayCard(),
+      weekCard(),
       spendCard(),
       routinesCard(),
       h('section.panel-card',
@@ -1146,6 +1258,45 @@ function memoryCard() {
     controlNote && h('p.small.muted', { role: 'status' }, controlNote));
 }
 
+// A shelf of how-tos (howto.js): each opens on its own floor's page, or the Library's for the whole company's.
+const HOWTO = 'howto';
+const howtoHref = (x) => {
+  const floor = (x.project && floorOf(x.project)) || org.basement || org.lobby || org.floors[0];
+  return floor ? `#/${floor.id}/${HOWTO}/${enc(x.id)}` : null;
+};
+const howtoText = new Map(); // file -> its text, as last read, so a redraw doesn't blink
+function howtoCard(floor) {
+  const list = howtosOf(org, floor.project);
+  if (!list.length) return null;
+  return h('section.panel-card',
+    sectHead('library', 'How-tos'),
+    h('ul.list', list.map((x) => row(howtoHref(x), x.title, x.project ? null : 'For every floor', 'quiet'))),
+    h('p.small.muted', 'The company\'s own ways of doing things. Each agent on this floor is told these as it starts.'));
+}
+function viewHowto(floor, id) {
+  const x = howtosOf(org).find((y) => y.id === id);
+  if (!x) return { crumbs: crumbsFor(floor, null, 'Not here any more'), body: [title('Not here any more'), h('p', 'That how-to is not on the shelf now.'), h('a.btn', { href: `#/${floor.id}` }, `Back to ${floor.label}`)] };
+  const file = `${dir}/${x.file}`;
+  const box = h('div.howto');
+  const same = (b, i) => i === 0 && b.kind === 'h' && b.text.trim().toLowerCase() === x.title.trim().toLowerCase(); // its title is the page's already
+  const draw = (text) => box.replaceChildren(...(text == null ? [empty('Opening it…')] : blocks(text).filter((b, i) => !same(b, i)).map((b) => {
+    const inline = (t) => runs(t).map((r) => (r.kind === 'code' ? h('code', r.text) : r.kind === 'strong' ? h('strong', r.text) : r.text));
+    if (b.kind === 'h') return h(`h${Math.min(6, b.level + 2)}`, inline(b.text));
+    if (b.kind === 'code') return h('pre.howto-code', h('code', b.text));
+    if (b.kind === 'ul' || b.kind === 'ol') return h(b.kind, b.items.map((t) => h('li', inline(t))));
+    return h('p', inline(b.text));
+  })));
+  draw(howtoText.get(file) ?? null);
+  fetch(file, { cache: 'no-store' }).then((res) => (res.ok ? res.text() : Promise.reject(new Error(String(res.status)))))
+    .then((text) => { if (howtoText.get(file) !== text) { howtoText.set(file, text); draw(text); } },
+      () => { if (!howtoText.has(file)) box.replaceChildren(h('p.muted', `It can't be read: ${x.file} isn't there, beside company.json.`)); });
+  return {
+    crumbs: crumbsFor(floor, null, x.title),
+    body: [title(x.title), h('p.small.muted', `A how-to${x.project ? ` for ${floorOf(x.project)?.label || x.project}` : ', for every floor'}. ${madeUp() ? 'Made up, like the rest of the sample.' : `From ${dir}/${x.file}.`}`),
+      box, h('a.btn', { href: `#/${floor.id}` }, icon('arrow-left', 15), `Back to ${floor.label}`)],
+  };
+}
+
 function viewFloor(floor) {
   return {
     crumbs: crumbsFor(floor),
@@ -1155,6 +1306,8 @@ function viewFloor(floor) {
       h('p.states', floorLines(floor).map(chip)),
       org.floors.includes(floor) && floorHealth(floor),
       floor.about && h('p', floor.about),
+      org.floors.includes(floor) && restoreCard(pointsOf(work.restore, { project: floor.project }), { titles: true }),
+      org.floors.includes(floor) && howtoCard(floor),
       floor.story && h('p.muted', floor.story),
       h('ul.room-list', roomsOf(floor).map((room) => {
         const info = roomModel(floor, room);
@@ -1233,7 +1386,7 @@ function viewItem(floor, room, id) {
     const c = work.conversations.find((x) => x.id === id && x.project === floor.project);
     const pr = c && proofOf(c);
     return c ? show(c.title, [['Now', c.working ? 'Working' : c.check ? 'To check' : 'Quiet'], ['Agent', c.agent || (REACHABLE.test(c.id) ? 'Claude Code' : null)], ['Project', c.project], ['Last said', c.says?.now || control.run(c.id)?.said],
-      ['Its work', pr && `${pr.word}. ${pr.line}`], ['Review line', reviewOf(c)?.line]], [proofPart(c, pr), control.on ? convoControls(c) : null]) : gone();
+      ['Its work', pr && `${pr.word}. ${pr.line}`], ['Review line', reviewOf(c)?.line]], [proofPart(c, pr), control.on ? convoControls(c) : null, restoreCard(pointsOf(work.restore, { key: c.id }))]) : gone();
   }
   if (kind === 'code') {
     const [what, key] = id.split('/');
@@ -1262,6 +1415,7 @@ function viewFor(r) {
   if (r.floor === 'front-desk') return poe.view();
   const floor = floors().find((f) => f.id === r.floor);
   if (!floor) return viewOverview();
+  if (r.room === HOWTO && r.item && !roomsOf(floor).some((x) => x.id === HOWTO)) return viewHowto(floor, r.item);
   const room = r.room && roomsOf(floor).find((x) => x.id === r.room);
   if (!room) return viewFloor(floor);
   return r.item ? viewItem(floor, room, r.item) : viewRoom(floor, room);
@@ -1310,6 +1464,14 @@ function render({ nav = false } = {}) {
 
 function tick() {
   for (const el of document.querySelectorAll('[data-at]')) el.textContent = agoText(Number(el.dataset.at));
+  const now = Date.now() / 1000;
+  for (const el of document.querySelectorAll('[data-wait]')) el.textContent = `Waiting ${waitFor(now - Number(el.dataset.wait))}`;
+  for (const el of document.querySelectorAll('[data-waited]')) el.textContent = waitFor(now - Number(el.dataset.waited));
+  for (const el of document.querySelectorAll('[data-meter]')) {
+    const s = now - Number(el.dataset.meter);
+    el.style.width = `${Math.max(4, Math.round(Math.min(1, s / LONG) * 100))}%`;
+    el.className = `meter-fill s-${waitMood(s)}`;
+  }
 }
 
 function refresh() {
@@ -1602,7 +1764,7 @@ function setupIcons() {
 
 /* ---------- reading the company's files ---------- */
 
-const LISTS = ['tasks', 'goals', 'conversations', 'pullRequests', 'copies', 'company', 'presence', 'machines', 'jobs', 'library', 'story', 'routines'];
+const LISTS = ['tasks', 'goals', 'conversations', 'pullRequests', 'copies', 'company', 'presence', 'machines', 'jobs', 'library', 'story', 'routines', 'restore'];
 const problem = (text, status) => Object.assign(new Error(text), { own: true, status });
 
 // One of the company's files, or an error that says which one and why.
@@ -1688,6 +1850,8 @@ async function readWork() {
   }
   now.memory = await readMemory();
   if (dir !== 'data') now.pullRequests = now.pullRequests.map((p) => (p.waited ? { ...p, updated: OPENED - p.waited * 86400 } : p)); // the sample's: days waited
+  if (dir !== 'data') now.restore = now.restore.map((p) => (Number.isFinite(p.ago) ? { ...p, at: OPENED - p.ago } : p)); // the sample's: seconds ago
+  if (dir !== 'data') now.conversations = now.conversations.map((c) => (Number.isFinite(c.ago) ? { ...c, at: OPENED - c.ago } : c));
   if (dir !== 'data') { // the sample's routines: their times from their schedules, as if each last ran on time
     now.routines = now.routines.map((r) => {
       const t = timesOf(r, OPENED);
@@ -1701,11 +1865,42 @@ const OPENED = Date.now() / 1000;
 
 // Today's moments, for the replay: data/feeds/history/<today>.json for your own company, or the sample's,
 // whose times count back from when the page opened.
+// The six days before, for the brief (yesterday), the weekly report and the receptionist's history: each
+// past day's file is read once, since it doesn't change. The sample's are in sample/week.json.
 let history = [];
+let todaySpent = {}; // what each floor's agents have spent today, as the hook keeps it beside the moments
 let sampleHistory = null;
+const pastDays = new Map(); // day -> { day, moments, spent }
 let yesterday = { day: '', moments: [] }; // for the brief, which can reach back a day
+const dayBefore = (n) => localDay(new Date(Date.now() - n * 864e5));
+const dayOf = (raw, day) => ({ day, moments: Array.isArray(raw?.moments) ? raw.moments.filter((m) => m && typeof m === 'object') : [],
+  spent: raw?.spent && typeof raw.spent === 'object' && !Array.isArray(raw.spent) ? raw.spent : {} });
+async function readPastDays() {
+  const days = [1, 2, 3, 4, 5, 6].map(dayBefore);
+  for (const d of [...pastDays.keys()]) if (!days.includes(d)) pastDays.delete(d);
+  if (dir !== 'data') {
+    if (!pastDays.size) {
+      const w = await readJson(`${dir}/week.json`).catch(() => null);
+      for (const d of Array.isArray(w?.days) ? w.days : []) {
+        const at = (clock) => { const t = new Date(Date.now() - (Number(d.back) || 0) * 864e5); const [hh, mm] = String(clock).split(':'); t.setHours(Number(hh) || 0, Number(mm) || 0, 0, 0); return t.getTime() / 1000; };
+        const day = dayBefore(Number(d.back) || 0);
+        pastDays.set(day, dayOf({ moments: (d.moments || []).map((m) => ({ ...m, at: at(m.at) })), spent: d.spent }, day));
+      }
+    }
+  } else {
+    await Promise.all(days.filter((d) => !pastDays.has(d)).map(async (d) => {
+      try {
+        pastDays.set(d, dayOf(await readJson(`data/feeds/history/${d}.json`), d));
+      } catch (error) {
+        if (error.status === 404) pastDays.set(d, dayOf(null, d)); // none that day; anything else, look again next time
+      }
+    }));
+  }
+  yesterday = pastDays.get(days[0]) || { day: days[0], moments: [] };
+}
 async function readHistory() {
   try {
+    await readPastDays();
     if (dir !== 'data') {
       if (!sampleHistory) {
         const opened = Date.now() / 1000;
@@ -1714,17 +1909,19 @@ async function readHistory() {
       }
       return sampleHistory;
     }
-    const before = localDay(new Date(Date.now() - 864e5));
-    if (yesterday.day !== before) {
-      const y = await readJson(`data/feeds/history/${before}.json`).catch(() => null);
-      yesterday = { day: before, moments: Array.isArray(y?.moments) ? y.moments : [] };
-    }
     const m = await readJson(`data/feeds/history/${localDay()}.json`);
-    return Array.isArray(m?.moments) ? m.moments : [];
+    todaySpent = dayOf(m, localDay()).spent;
+    return dayOf(m, localDay()).moments;
   } catch (error) {
     return error.status === 404 ? [] : history;
   }
 }
+// The week as the weekly report takes it, today first.
+const weekDays = () => [{ day: localDay(), moments: history, spent: dir === 'data' ? todaySpent : sampleSpent() }, ...pastDays.values()];
+const weekMoments = () => weekDays().flatMap((d) => d.moments);
+// The sample's spending today: what its conversations say they spent.
+const sampleSpent = () => Object.fromEntries(org.floors.map((f) => [f.project, spentOfFloor(f)]).filter(([, n]) => n > 0));
+const spentOfFloor = (f) => spendOf(f)?.spent || 0;
 
 // The company's memory: memory.json beside company.json, written through control (docs/connect.md,
 // "Company memory"). None yet is an empty memory; one caught mid-change keeps what it said last time.

@@ -169,5 +169,103 @@ class ControlServeTest(ServeTest):
         self.assertIn("only on this computer", done.stderr)
 
 
+
+class ShareServeTest(unittest.TestCase):
+    """With --share: another computer gets in only through the view-only link, and then only to look. Never the
+    founder's notes, nor control's mail with Claude Code (that one never leaves this computer, link or not)."""
+
+    KEY = "k" * 32
+
+    @classmethod
+    def setUpClass(cls):
+        cls.base = tempfile.TemporaryDirectory()
+        base = cls.base.name
+        for name, text in (("index.html", "<!doctype html><title>Arnheim</title>"), ("data/company.json", '{"company": "Example Studio"}'),
+                           ("data/notes.json", '{"notes": ["private"]}'), ("data/control/box.json", '{"mail": "private"}'),
+                           ("data/howtos/ship.md", "# Ship it\n")):
+            os.makedirs(os.path.dirname(os.path.join(base, name)), exist_ok=True)
+            with open(os.path.join(base, name), "w", encoding="utf-8") as handle:
+                handle.write(text)
+        cls.root = serve.ROOT
+        serve.ROOT = os.path.realpath(base)
+
+        class Away(serve.Handler):  # a request marked "away" stands for one from another computer
+            def here(self):
+                return self.headers.get("X-Test-From") != "away"
+        cls.server = serve.Server(("127.0.0.1", 0), Away)
+        cls.server.lan = True
+        cls.server.share = cls.KEY
+        cls.port = cls.server.server_address[1]
+        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        serve.ROOT = cls.root
+        cls.server.shutdown()
+        cls.server.server_close()
+        cls.base.cleanup()
+
+    def ask(self, path, headers=None, method="GET", body=None):
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        try:
+            conn.request(method, path, body=body, headers={"Host": f"127.0.0.1:{self.port}", **(headers or {})})
+            reply = conn.getresponse()
+            return reply.status, dict(reply.getheaders()), reply.read()
+        finally:
+            conn.close()
+
+    def test_only_through_the_link(self):
+        away = {"X-Test-From": "away"}
+        for path in ("/", "/?view=wrong", "/?view=", "/data/company.json", f"/data/company.json?view={self.KEY}"):
+            self.assertEqual(self.ask(path, away)[0], 403, path)
+        self.assertEqual(self.ask("/", {**away, "Cookie": "arnheim_view=wrong"})[0], 403)
+        status, headers, _ = self.ask(f"/?view={self.KEY}", away)
+        self.assertEqual((status, headers["Location"]), (303, "/"))  # the key leaves the address bar
+        self.assertIn(f"arnheim_view={self.KEY}; Path=/; HttpOnly; SameSite=Lax", headers["Set-Cookie"])
+        viewer = {**away, "Cookie": f"other=1; arnheim_view={self.KEY}"}
+        for path in ("/", "/data/company.json", "/data/howtos/ship.md"):
+            self.assertEqual(self.ask(path, viewer)[0], 200, path)
+        self.assertEqual(self.ask("/data/howtos/ship.md", viewer)[1]["Content-Type"], "text/markdown; charset=utf-8")
+        for path in ("/data/notes.json", "/data/control/box.json", "/control/token", "/brain/status", "/voice/status"):
+            status, _, body = self.ask(path, viewer)
+            self.assertEqual(status, 404, path)
+            self.assertNotIn(b"private", body)
+        self.assertEqual(self.ask("/voice/say", viewer, "POST", b"{}")[0], 403)  # nothing it sends is acted on
+        # This computer needs no link, and sees the notes.
+        self.assertEqual(self.ask("/")[0], 200)
+        self.assertEqual(self.ask("/data/notes.json")[0], 200)
+
+    def test_control_mail_never_leaves_this_computer(self):
+        self.server.share = None  # plain --lan: anyone on the network, but never control's mail
+        try:
+            away = {"X-Test-From": "away"}
+            self.assertEqual(self.ask("/data/company.json", away)[0], 200)
+            self.assertEqual(self.ask("/data/control/box.json", away)[0], 404)
+            self.assertEqual(self.ask("/data/control/box.json")[0], 200)
+        finally:
+            self.server.share = self.KEY
+
+    def test_the_key_is_kept_until_a_new_link(self):
+        with tempfile.TemporaryDirectory() as base:
+            kept = serve.SHARE_KEY
+            serve.SHARE_KEY = os.path.join(base, ".share-key")
+            try:
+                first = serve.share_key()
+                self.assertRegex(first, serve.KEY)
+                self.assertEqual(serve.share_key(), first)
+                self.assertEqual(os.stat(serve.SHARE_KEY).st_mode & 0o777, 0o600)
+                self.assertNotEqual(serve.share_key(new=True), first)
+            finally:
+                serve.SHARE_KEY = kept
+
+    def test_flags(self):
+        import subprocess
+        for args, said in ((["--share", "--lan"], "Leave out one of them"), (["--share", "--control"], "second copy"),
+                           (["--share", "--brain"], "only on this computer"), (["--new-link"], "goes with --share")):
+            done = subprocess.run([sys.executable, os.path.join(ROOT, "serve.py"), *args, "8766"], capture_output=True, text=True, timeout=20)
+            self.assertNotEqual(done.returncode, 0, args)
+            self.assertIn(said, done.stderr, args)
+
+
 if __name__ == "__main__":
     unittest.main()

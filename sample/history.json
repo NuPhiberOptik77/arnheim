@@ -7,6 +7,8 @@
     { "ago": 13700, "key": "cl3", "project": "Lantern", "title": "Pictures for the app store", "kind": "working", "what": "You asked: \"Make the five app store pictures\"" },
     { "ago": 12600, "key": "cl3", "project": "Lantern", "title": "Pictures for the app store", "kind": "changed", "what": "store/phone-1.png" },
     { "ago": 12300, "key": "cl3", "project": "Lantern", "title": "Pictures for the app store", "kind": "changed", "what": "store/tablet-1.png" },
+    { "ago": 12000, "key": "cl3", "project": "Lantern", "title": "Pictures for the app store", "kind": "asked", "what": "Should the tablet pictures show the dark theme?" },
+    { "ago": 11700, "key": "cl3", "project": "Lantern", "title": "Pictures for the app store", "kind": "answered", "what": "It went on." },
     { "ago": 10800, "key": "cl3", "project": "Lantern", "title": "Pictures for the app store", "kind": "finished", "what": "I made the five pictures for the app store." },
     { "ago": 9000, "key": "ck1", "project": "Kitefield", "title": "Tail physics", "kind": "working", "what": "You asked: \"Make the tail swing like the field test\"" },
     { "ago": 7200, "key": "ck1", "project": "Kitefield", "title": "Tail physics", "kind": "changed", "what": "sim/tail.js" },
@@ -14,6 +16,8 @@
     { "ago": 4300, "key": "cs2", "project": "Studio", "title": "Sorting the subscriptions", "kind": "finished", "what": "I sorted the studio's subscriptions into keep and cancel. Three can go." },
     { "ago": 3600, "key": "cs1", "project": "Studio", "title": "Planning next quarter", "kind": "stopped", "what": "I stopped: Studio's agents have used today's budget." },
     { "ago": 1500, "key": "cl1", "project": "Lantern", "title": "Why the bookmark jumps", "kind": "changed", "what": "reader/page-turn.js" },
-    { "ago": 600, "key": "ck1", "project": "Kitefield", "title": "Tail physics", "kind": "changed", "what": "sim/tail.js" }
+    { "ago": 600, "key": "ck1", "project": "Kitefield", "title": "Tail physics", "kind": "changed", "what": "sim/tail.js" },
+    { "ago": 420, "key": "cl1", "project": "Lantern", "title": "Why the bookmark jumps", "kind": "asked", "what": "Nothing yet. If the fix changes how pages turn, I'll ask you first." },
+    { "ago": 300, "key": "ck1", "project": "Kitefield", "title": "Tail physics", "kind": "asked", "what": "Not yet. You may want to watch the last run with me." }
   ]
 }

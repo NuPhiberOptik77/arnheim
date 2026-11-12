@@ -11,7 +11,9 @@ Then, on a walk and in the panel:
 - you can have a floor's check run again on an agent's work (connect/prove.py);
 - you can add to the company's memory, the decisions every agent is told, and take them out again;
 - you can pause every agent at once and let them go on again, and let a floor's agents go past
-  today's budget (connect/budget.py).
+  today's budget (connect/budget.py);
+- you can put a project's files back as they were at a restore point, taken before an agent changed
+  them (connect/restore.py).
 
 The page and Claude Code meet in data/control/, on this computer. Control, below, answers the
 page's /control/ requests for serve.py, or for a server of your own. Box is the mail between them.
@@ -35,16 +37,27 @@ import threading
 import time
 import uuid
 
+
+
+def _beside(name):
+    """A module beside this file, loaded by its path: for another server that loads this file by its path
+    alone (python3 -I, no folder on the path)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("arnheim_" + name, os.path.join(os.path.dirname(os.path.realpath(__file__)), name + ".py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 try:
-    from . import budget  # as connect.control, from serve.py
+    from . import budget, restore  # as connect.control, from serve.py
 except ImportError:
     try:
         import budget  # beside this file, as the hook has it
-    except ImportError:  # loaded by its path alone, by another server (python3 -I, no folder on the path): budget.py by its path too
-        import importlib.util
-        _spec = importlib.util.spec_from_file_location("arnheim_budget", os.path.join(os.path.dirname(os.path.realpath(__file__)), "budget.py"))
-        budget = importlib.util.module_from_spec(_spec)
-        _spec.loader.exec_module(budget)
+        import restore
+    except ImportError:
+        budget = _beside("budget")
+        restore = _beside("restore")
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 DATA = os.environ.get("ARNHEIM_DATA") or os.path.join(os.path.dirname(HERE), "data")
@@ -399,6 +412,7 @@ class Control:
         self.token = secrets.token_urlsafe(24)
         self.claude = list(claude) if claude else shlex.split(os.environ.get("ARNHEIM_CLAUDE") or "claude")
         self.lock = threading.Lock()
+        self.going_back = threading.Lock()  # one restore at a time, apart from the lock every request takes
         self.runs = {}
         self.procs = {}
         self.load()
@@ -457,6 +471,8 @@ class Control:
                 return answer(200, self.forget(given.get("id")))
             if name == "run_routine":
                 return answer(200, self.run_routine(given.get("key")))
+            if name == "restore":
+                return answer(200, self.restore(given.get("id")))
         except Refused as why:
             return answer(400, {"error": str(why)})
         return answer(404, {"error": "No such request."})
@@ -558,6 +574,30 @@ class Control:
         with self.lock:
             times = self.box.allow_more(project, budget.local_day())
         return {"ok": True, "project": project, "times": times + 1}
+
+    # ---------- restore points ----------
+
+    def restore(self, pid):
+        """Puts a project's files back as they were at a restore point (connect/restore.py), unless an agent is
+        at work on that floor. A restore point of how they are now is taken first, so this can be undone too."""
+        if not isinstance(pid, str) or not restore.POINT.match(pid):
+            raise Refused("That isn't a restore point.")
+        point = next((p for p in restore.read_points(self.data) if p.get("id") == pid), None)
+        if not point:
+            raise Refused("That restore point isn't kept any more.")
+        project = str(point.get("project") or "")
+        feed = read(os.path.join(self.data, "feeds", "claude-code.json")) or {}
+        if any(isinstance(c, dict) and c.get("project") == project and c.get("working") for c in feed.get("conversations") or []):
+            raise Refused(f"An agent is at work on {project or 'that floor'}. Stop it first, then go back.")
+        if not self.going_back.acquire(blocking=False):
+            raise Refused("Going back to another restore point is under way. Try again in a moment.")
+        try:
+            done = restore.go_back(point, self.data)
+        except ValueError as why:
+            raise Refused(str(why))
+        finally:
+            self.going_back.release()
+        return {"ok": True, **done}
 
     # ---------- the company's memory ----------
 

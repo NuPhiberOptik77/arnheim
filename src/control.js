@@ -86,6 +86,8 @@ export function createControl({ base = BASE, headers = () => ({}), every = 3000,
     prove: (key) => after(call('prove', { key })),
     // Routines (connect/routines.py): run one now.
     runRoutine: (key) => after(call('run_routine', { key })),
+    // Restore points (connect/restore.py): put a project's files back as they were at one.
+    restore: (id) => after(call('restore', { id })),
     // The company's memory (connect/control.py): what every agent is told.
     remember: (text) => after(call('remember', { text })),
     // A budget per floor, and every agent paused at once (connect/budget.py).
