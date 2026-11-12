@@ -29,6 +29,9 @@ It keeps a short log of each day's moments for the building's replay: when each 
 work, which files it changed (as paths inside its floor's folder), what it asked, and when it finished
 or stopped (data/feeds/history/, a file a day, kept for a week).
 
+When two conversations change the same file within two hours, the one that just did is told who
+else is changing it, so it can check their work first, and the building shows the pair.
+
 When a conversation changes files and its floor names a check (docs/connect.md, "Done means proven"), it
 starts that check in the background as the turn ends (connect/prove.py), and the building shows whether
 the work is proven.
@@ -57,6 +60,8 @@ KEEP = 12 * 3600  # a conversation not heard from for this long has gone
 ASKS = {"permission_prompt", "elicitation_dialog", "agent_needs_input"}  # Claude waits for you to decide
 CHANGES = {"Edit", "MultiEdit", "Write", "NotebookEdit"}  # tools that change files: then its floor's check is due
 NEW = "A new conversation"
+CLASH = 2 * 3600  # seconds: two conversations changing one file this close together may trip over each other
+FILES_KEPT = 30
 HISTORY = os.path.join(DATA, "feeds", "history")
 HISTORY_DAYS = 7
 HISTORY_MOST = 5000  # moments in a day at most
@@ -187,9 +192,14 @@ def change(event, feed, project, now, extra=None):
     elif name == "PostToolUse":
         talk.update(working=True, check=False)
         drop(ask)
+        given = event.get("tool_input") if isinstance(event.get("tool_input"), dict) else {}
+        path = str(given.get("file_path") or given.get("notebook_path") or "")
         if event.get("tool_name") in CHANGES:
             talk["changed"] = now
-        given = event.get("tool_input") if isinstance(event.get("tool_input"), dict) else {}
+        if event.get("tool_name") in CHANGES and path:  # which files it changed lately, for clashes
+            where = inside(path, event.get("cwd"))
+            files = [f for f in talk.get("files") or [] if isinstance(f, dict) and f.get("path") != where]
+            talk["files"] = (files + [{"path": where, "at": now}])[-FILES_KEPT:]
         if event.get("tool_name") == "TaskUpdate":  # its own task list: in progress, done or deleted
             tid = given.get("taskId") or given.get("task_id")
             state = given.get("status")
@@ -372,6 +382,23 @@ def add_moment(talk, project, kind, what):
                 pass
 
 
+def clash(talk, talks, project, now):
+    """The other conversations on this floor that changed a file this one just changed, within CLASH
+    seconds: [(their title, the file)]."""
+    files = talk.get("files") or []
+    mine = files[-1].get("path") if files and isinstance(files[-1], dict) else None
+    if not mine:
+        return []
+    out = []
+    for c in talks:
+        if c is talk or c.get("project") != project:
+            continue
+        for f in c.get("files") or []:
+            if isinstance(f, dict) and f.get("path") == mine and now - float(f.get("at") or 0) < CLASH:
+                out.append((c.get("title") or "another conversation", mine))
+    return out
+
+
 def halt(talk, words):
     talk.update(working=False, check=True, says={"now": words, "next": "It's your turn now."})
 
@@ -398,6 +425,12 @@ def weigh(event, talk, talks, tasks, project, extra, verdict):
     used = budget.spent_today(talks, project, day)
     if not limit or used < limit:
         tasks[:] = [t for t in tasks if t.get("id") != tid]  # under budget again: nothing to ask
+    if name == "PostToolUse" and event.get("tool_name") in CHANGES:
+        others = clash(talk, talks, project, time.time())
+        if others:
+            who = ", ".join(f'"{title}"' for title, _ in others[:3])
+            verdict["warn"] = (f"Arnheim, the building, saw that {who} also changed {others[0][1]} in the last two hours, in another "
+                               "conversation. Look at what changed there before going on, so you don't undo each other's work.")
     if name != "PostToolUse" or extra.get("heard") or extra.get("stopped"):
         return  # it stops only between steps, and never instead of handing over your message
     paused = box.paused()
@@ -526,13 +559,14 @@ def respond(event):
             return {"continue": False, "stopReason": verdict["stop"]}
         if name == "Stop":
             prove(event)
-        return {"hookSpecificOutput": {"hookEventName": name, "additionalContext": memo[0]}} if memo else None
+        words = "\n\n".join(w for w in (memo[0] if memo else None, verdict.get("warn")) if w)
+        return {"hookSpecificOutput": {"hookEventName": name, "additionalContext": words}} if words else None
     heard = rows[-1].get("id")
     if name == "Stop":
         keep(event, {"heard": heard, "going_on": True})
         return {"decision": "block", "reason": control.message(rows, stopping=True)}
-    keep(event, {"heard": heard, **told})
-    words = control.message(rows) + (f"\n\n{memo[0]}" if memo else "")
+    verdict = keep(event, {"heard": heard, **told})
+    words = "\n\n".join(w for w in (control.message(rows), memo[0] if memo else None, verdict.get("warn")) if w)
     return {"hookSpecificOutput": {"hookEventName": name, "additionalContext": words}}
 
 

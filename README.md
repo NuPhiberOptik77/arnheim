@@ -164,7 +164,7 @@ the building you can talk to your agents for real, answer their permission reque
 Deny, stop them, and start new ones on a project, by typing or out loud. It answers only the page on
 your computer ([docs/connect.md](docs/connect.md), step 4).
 
-Six things no single agent can do for itself:
+Seven things no single agent can do for itself:
 
 - **Any agent, not just Claude Code.** OpenAI's Codex CLI, and any agent or script that can run a
   command, sit in the same building and the same list of what waits on you
@@ -182,6 +182,8 @@ Six things no single agent can do for itself:
 - **A budget per floor, with a brake.** Each floor shows what its agents spent today. Give it a
   budget, and an agent that runs past it stops at its next step and you are asked once. With control
   on, one button pauses every agent ([docs/connect.md](docs/connect.md), step 7).
+- **Collision warnings.** When two agents change the same file, the second is told at once, and the
+  building shows the pair, with a button to make one wait ([docs/connect.md](docs/connect.md), step 10).
 - **Replay the day.** Drag a slider back through today and the building shows who was at work then,
   and on which files, with each moment a tap away from its conversation
   ([docs/connect.md](docs/connect.md), step 8).

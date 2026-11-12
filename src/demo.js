@@ -9,6 +9,7 @@ import { allowReadsAsked, sayWaiting, together, waitingOnYou } from './queue.js'
 import { inner, proofMood, proofOf } from './proof.js';
 import { MEMORY_ASKED, decidedFor, rememberAsked, sayMemory } from './memory.js';
 import { floorSpend, localDay } from './budget.js';
+import { clashesOf, sayClash, waitWords } from './clashes.js';
 import { MOMENT_MOOD, conversationsAt, momentsBefore, sayMoment, touchedBy } from './replay.js';
 import { icon } from './icons.js';
 import { createPoe, has, insertAfter, needWord, norm, poeBadge } from './poe-desk.js';
@@ -235,6 +236,7 @@ function floorLines(floor) {
   const lines = [];
   if (openTasks().some((t) => t.project === floor.project && t.status === 'needs_you')) lines.push({ text: 'Needs you', kind: 'needs' });
   if (work.conversations.some((c) => c.project === floor.project && c.working)) lines.push({ text: 'Working now', kind: 'working' });
+  if (clashesOf(work.conversations).some((c) => c.project === floor.project)) lines.push({ text: 'Two agents on the same files', kind: 'failed' });
   const spend = spendOf(floor);
   if (spend) lines.push({ text: spend.text[0].toUpperCase() + spend.text.slice(1), kind: spend.over ? 'failed' : 'quiet' });
   return lines.length ? lines : [{ text: 'Quiet', kind: 'quiet' }];
@@ -417,6 +419,7 @@ function brainFacts() {
   add('Waiting on you, as one list (agents and tasks)', [sayWaiting(waitingNow(), label)]);
   add('Company memory: what every agent is told as it starts', memoryNow().length ? memoryNow().map((r) => `- ${r.text}`) : ['Nothing is remembered yet.']);
   add('Today, moment by moment (newest first)', momentsBefore(history, Date.now() / 1000, 25).map((m) => `- At ${clock(m.at)}, on ${label(m.project)}: ${sayMoment(m)}`));
+  add('Agents on the same files', clashesOf(work.conversations).map((x) => `- ${sayClash(x)} On ${label(x.project)}.`));
   add("Spent today, in new tokens, against each floor's budget", org.floors.map((f) => [f, spendOf(f)]).filter(([, s]) => s).map(([f, s]) => `- ${f.label}: ${s.text}.`));
   if (control.on && control.paused()) add('Every agent', ['Paused from the building, until it resumes them.']);
   add('Needs you', [
@@ -669,6 +672,25 @@ function convoControls(c) {
     controlNote && h('p.small.muted', { role: 'status' }, controlNote));
 }
 
+// Collision warnings (clashes.js): two agents changing the same files, and, with control on, a way to make
+// one wait for the other.
+function clashCard() {
+  const list = clashesOf(work.conversations);
+  if (!list.length) return null;
+  const canTell = (c) => control.on && (REACHABLE.test(c.id) || control.run(c.id));
+  return h('section.panel-card',
+    sectHead('shield-check', 'Two agents on the same files'),
+    h('ul.list', list.map((x) => {
+      const li = row(convoHref(x.a), sayClash(x), [floorOf(x.project)?.label || x.project, x.working ? 'One is at work now' : null].filter(Boolean).join('. '), 'failed');
+      const buttons = [x.a, x.b].filter(canTell).map((who) => btn(`Make "${who.title}" wait`, () => controlDone(control.say(who.id, waitWords(x, who)),
+        () => `Told "${who.title}" to wait. It reads it at its next step.`)));
+      if (buttons.length) li.append(h('div.control-row.waiting-do', buttons));
+      return li;
+    })),
+    h('p.small.muted', 'Each was told as it changed the file. Look at both before either goes on.'),
+    controlNote && h('p.small.muted', { role: 'status' }, controlNote));
+}
+
 // Every agent at once: paused from here until you resume them (connect/budget.py), with control on.
 function pauseCard() {
   if (!control.on || dir !== 'data') return null;
@@ -908,6 +930,7 @@ function viewOverview() {
         h('p.small.muted', `Arnheim shows a company as a building. Each floor is a project and each room holds one kind of thing. Tap a floor to bring it out, then a room to look inside. Press Walk to go in and talk to the people at work, and to ${deskName() || 'the receptionist'} at the front desk.`)),
       h('div.stats', tile('bell-ring', 'needs', waiting.length, 'Need you'), tile('messages-square', 'working', talking.length, 'Working now'), tile('server', 'working', jobs.length, 'Jobs running')),
       pauseCard(),
+      clashCard(),
       h('section.panel-card',
         sectHead('bell', 'Waiting on you'),
         waitingList(waiting)),

@@ -278,6 +278,15 @@ python3 connect/agents.py --agent Gemini --session 42 --cwd ~/code/lantern --sta
 conversation. Answering, stopping and starting work from the building (step 4) is for Claude Code
 alone, since only it lets another program hand it words.
 
+## 10. Collision warnings
+
+Two agents changing the same file can undo each other's work. When a conversation changes a file that
+another conversation on the same floor changed in the last two hours, Arnheim tells it at once, with the
+other's name, so it looks at their work before going on. The Overview lists the pair under "Two agents
+on the same files", and the floor says so. With control on, "Make ... wait" tells either one to wait
+until the other has finished. It needs only step 2's hooks, and sees changes made with Claude Code's
+own tools for editing files.
+
 ## What is kept, and where
 
 The connectors write `data/feeds/claude-code.json` and `data/feeds/projects.json`. From Claude Code
