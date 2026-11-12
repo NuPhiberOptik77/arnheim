@@ -399,6 +399,40 @@ with a brief that says what is wrong and asks it to fix it, or, for a pull reque
 needs without merging or closing it. Ask the receptionist "is anything broken?" or "how are the
 projects doing?" to hear it.
 
+## 15. A morning brief, and pings on your phone
+
+The receptionist tells you what happened since you were last here: how many agents were at work,
+which finished and whether their work was proven, which were stopped, which routines ran, and what
+waits on you now. On a walk they greet you with it the first time you come to the desk, out loud
+with Voice on. Ask "brief me", "what did I miss?" or "what happened overnight?" to hear it again.
+The Overview shows it too, as "Since you were last here". Your last visit is kept in that browser,
+and the brief never reaches back more than a day.
+
+To have it on your phone, add "pings" to company.json, and Arnheim sends the brief at the first time
+of the day. At each later time it sends only when a decision has come up since the last ping: a
+permission an agent asks for, a question it stopped to ask, or a task marked as needing you. A quiet
+night sends nothing.
+
+```json
+"pings": { "ntfy": "https://ntfy.sh/a-long-topic-name-nobody-could-guess", "at": ["08:00", "13:00", "17:30"] }
+```
+
+[ntfy](https://ntfy.sh) is free and open source: install its app on your phone and subscribe to the
+same topic. The words go to that server, which hands them to the app: they are the titles of your
+agents' work and what they ask you, so pick a topic name nobody could guess, or run your own ntfy
+server. Or send them your own way: `"run": ["/path/to/your/notifier"]` gets each ping on its
+standard input, its first line the title.
+
+```bash
+python3 serve.py --pings
+python3 connect/ping.py --test
+```
+
+`--pings` checks every minute while Arnheim runs (or have your computer's scheduler run `python3
+connect/ping.py` every few minutes). `--test` sends a hello now, to check it reaches you, `--show`
+prints what the brief would say without sending it, and `--now` sends the brief now. A new setting
+waits for its first time, and a time missed while the computer slept sends once.
+
 ## What is kept, and where
 
 The connectors write `data/feeds/claude-code.json` and `data/feeds/projects.json`. From Claude Code
@@ -414,7 +448,7 @@ new tokens for today and how far its transcript has been read; `data/control/` k
 far each floor was let go past its budget today. On a floor with a review line, the feed also
 keeps what the line made of each conversation's work. Routines keep `data/feeds/routines.json`: each
 routine, when Arnheim first saw it, and its last run, with a command's last lines or an agent's last
-words. The replay's moments are kept a file a day in
+words. Pings keep `data/feeds/pings.json`: when the last was sent, what each of the last fourteen said, and whether it arrived. The replay's moments are kept a file a day in
 `data/feeds/history/`, for a week.
 
 With control on, your messages wait in `data/control/` until Claude takes them, a permission

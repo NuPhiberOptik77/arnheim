@@ -10,6 +10,7 @@ import { inner, proofMood, proofOf } from './proof.js';
 import { reviewMood, reviewOf, reviewSaid } from './review.js';
 import { ROUTINES_ASKED, routineNow, sayRoutines, timesOf } from './routines.js';
 import { HEALTH_ASKED, healthChip, healthOf, sayHealth } from './health.js';
+import { BRIEF_ASKED, briefOf, sayBrief, sinceOf, sinceSaid } from './brief.js';
 import { MEMORY_ASKED, decidedFor, rememberAsked, sayMemory } from './memory.js';
 import { floorSpend, localDay } from './budget.js';
 import { clashesOf, sayClash, waitWords } from './clashes.js';
@@ -122,6 +123,18 @@ const machineLabel = (id) => org.basement?.rooms.find((r) => r.id === id)?.label
 // Everything waiting on you, from every agent and the work, most urgent first (queue.js).
 // What a floor's agents have spent today against its budget (budget.js), as far as control has let them go.
 const spendOf = (floor) => (floor?.project ? floorSpend(org, floor, work.conversations, control.on ? control.timesAllowed(floor.project) : 1) : null);
+// The brief: what happened since your last visit. Your own company's last visit is kept in this browser
+// (the sample's story is the same every time, so it always starts twelve hours back).
+const SEEN = 'arnheim-seen';
+let lastSeen = null;
+try { lastSeen = Number(localStorage.getItem(SEEN)) || null; } catch { lastSeen = null; }
+const markSeen = () => { try { localStorage.setItem(SEEN, String(Math.round(Date.now() / 1000))); } catch { /* the next brief starts twelve hours back */ } };
+addEventListener('pagehide', markSeen);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') markSeen(); });
+let briefTold = false; // on a walk, the receptionist greets you with it once a visit
+const briefNow = () => briefOf({ moments: [...yesterday.moments, ...history], conversations: work.conversations, routines: routinesNow(),
+  waiting: waitingNow(), since: sinceOf(dir === 'data' ? lastSeen : null) });
+
 const waitingNow = () => {
   const { asks, runs } = control.on ? control.state() : { asks: [], runs: [] };
   // a floor's budget question goes as soon as it is under budget again, without waiting for the hook
@@ -311,7 +324,7 @@ async function dropTask(id) {
 
 // What the rules answer even with the brain on: at once, and nothing Claude could be talked into
 // instead. A refusal stays a refusal.
-const RULED = new Set(['refuse', 'greeting', 'tour', 'waiting', 'memory', 'routines', 'health']);
+const RULED = new Set(['refuse', 'greeting', 'tour', 'waiting', 'memory', 'routines', 'health', 'brief']);
 const ruledBy = (t) => (RULED.has(t.id) ? { ...t, answer: (c) => { const a = t.answer(c); return a && { ...a, ruled: t.id }; } } : t);
 
 function setupDesk() {
@@ -322,6 +335,10 @@ function setupDesk() {
   const memory = {
     id: 'memory',
     answer: (c) => MEMORY_ASKED.test(c.text) && { lines: [sayMemory(memoryNow())], go: c.go('#/company', 'Show me') },
+  };
+  const brief = {
+    id: 'brief',
+    answer: (c) => !c.floor && BRIEF_ASKED.test(c.text) && { lines: [sayBrief(briefNow(), (p) => floorOf(p)?.label || p)], go: c.go('#/', 'Show me') },
   };
   const health = {
     id: 'health',
@@ -376,8 +393,9 @@ function setupDesk() {
     topics: (list) => {
       const all = insertAfter(insertAfter(list, 'thanks', [real]), 'tour', [howTo]);
       all.splice(Math.max(0, all.findIndex((t) => t.id === 'needs')), 0, waiting, memory, routines);
-      // Before "what's running", which would take "how are the projects doing?" for itself.
-      all.splice(Math.max(0, all.findIndex((t) => t.id === 'happening')), 0, health);
+      // Before "what's happening" and "what's running", which would take "catch me up" and "how are the
+      // projects doing?" for themselves.
+      all.splice(Math.max(0, all.findIndex((t) => t.id === 'happening')), 0, brief, health);
       return brain.on ? all.map(ruledBy) : all;
     },
     // A typed question at the desk: Claude's answer as it comes, with the brain on.
@@ -628,6 +646,9 @@ const talk = {
     if (who.href === DESK) {
       const hr = new Date().getHours();
       const hello = hr >= 5 && hr < 12 ? 'Good morning' : hr >= 12 && hr < 18 ? 'Good afternoon' : hr >= 18 && hr < 23 ? 'Good evening' : 'Hello';
+      const b = briefTold ? null : briefNow();
+      briefTold = true;
+      if (b && !b.quiet) return `${hello}. ${sayBrief(b, (p) => floorOf(p)?.label || p)}`;
       return `${hello}. Ask me what's happening, or anything ${brain.on ? 'at all' : 'about the building'}.${control.on ? ' I can start an agent on a project too.' : ''}`;
     }
     if (isAide(who)) {
@@ -647,6 +668,7 @@ const talk = {
       if (decision) return rememberIt(decision);
       if (MEMORY_ASKED.test(String(text || ''))) return sayMemory(memoryNow());
       if (ROUTINES_ASKED.test(String(text || ''))) return sayRoutines(routinesNow(), (p) => floorOf(p)?.label || p);
+      if (BRIEF_ASKED.test(String(text || ''))) return sayBrief(briefNow(), (p) => floorOf(p)?.label || p);
       if (HEALTH_ASKED.test(String(text || ''))) return sayHealth(org.floors, work);
       const start = deskStart(control, text, starting);
       if (start) {
@@ -825,6 +847,22 @@ function healthItems(floor, hh) {
     }
     return li;
   });
+}
+function briefCard() {
+  const now = Date.now() / 1000;
+  const b = briefNow();
+  if (b.quiet) return null;
+  const label = (p) => floorOf(p)?.label || p;
+  const done = [...b.finished.map((f) => ({ ...f, said: f.proof ? `Finished, ${f.proof}` : 'Finished', mood: f.proof === 'proven' ? 'check' : f.proof ? 'failed' : 'quiet' })),
+    ...b.stopped.map((f) => ({ ...f, said: 'Stopped', mood: 'failed' }))];
+  return h('section.panel-card',
+    sectHead('sun', 'Since you were last here'),
+    h('p', sayBrief({ ...b, finished: [], stopped: [] }, label, now).replace(/ Ask me .*$/, '')),
+    done.length ? h('ul.list', done.map((f) => {
+      const c = work.conversations.find((x) => x.id === f.key);
+      return row(c ? convoHref(c) : null, f.title, `${f.project ? `${label(f.project)}. ` : ''}${f.said}`, f.mood);
+    })) : null,
+    dir === 'data' ? null : h('p.small.muted', `${sinceSaid(b.since, now)}: the sample always starts twelve hours back. With your own company, it starts at your last visit in this browser.`));
 }
 function healthCard() {
   const each = org.floors.map((f) => ({ f, h: healthOf(f.project, work) }));
@@ -1029,6 +1067,7 @@ function viewOverview() {
         madeUp() ? h('p', sampleLine()) : org.about && h('p', org.about),
         h('p.small.muted', `Arnheim shows a company as a building. Each floor is a project and each room holds one kind of thing. Tap a floor to bring it out, then a room to look inside. Press Walk to go in and talk to the people at work, and to ${deskName() || 'the receptionist'} at the front desk.`)),
       h('div.stats', tile('bell-ring', 'needs', waiting.length, 'Need you'), tile('messages-square', 'working', talking.length, 'Working now'), tile('server', 'working', jobs.length, 'Jobs running')),
+      briefCard(),
       pauseCard(),
       clashCard(),
       h('section.panel-card',
@@ -1662,6 +1701,7 @@ const OPENED = Date.now() / 1000;
 // whose times count back from when the page opened.
 let history = [];
 let sampleHistory = null;
+let yesterday = { day: '', moments: [] }; // for the brief, which can reach back a day
 async function readHistory() {
   try {
     if (dir !== 'data') {
@@ -1671,6 +1711,11 @@ async function readHistory() {
         sampleHistory = (Array.isArray(m?.moments) ? m.moments : []).map((x) => ({ ...x, at: opened - (Number(x.ago) || 0) }));
       }
       return sampleHistory;
+    }
+    const before = localDay(new Date(Date.now() - 864e5));
+    if (yesterday.day !== before) {
+      const y = await readJson(`data/feeds/history/${before}.json`).catch(() => null);
+      yesterday = { day: before, moments: Array.isArray(y?.moments) ? y.moments : [] };
     }
     const m = await readJson(`data/feeds/history/${localDay()}.json`);
     return Array.isArray(m?.moments) ? m.moments : [];

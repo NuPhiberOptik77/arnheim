@@ -71,6 +71,7 @@ own files show every one of them in use.
 | `lobby` | | The ground floor, Front of house: websites, email, social media and domains, with the receptionist at the front desk. Without it, the receptionist has no desk in the building, though their tab still answers. |
 | `basement` | | The machines every project shares, and the Library. |
 | `feeds` | | Files in `data/` that tools keep up to date, such as `["feeds/claude-code.json"]`. The page adds their lists to `work.json`'s and reads them every few seconds ([docs/connect.md](connect.md)). |
+| `pings` | | The morning brief and the decisions that wait on you, sent to your phone: `{"ntfy": "https://ntfy.sh/your-topic", "at": ["08:00", "17:30"]}`, or `"run": [...]`, a command of your own, instead of `ntfy` ([docs/connect.md](connect.md), "A morning brief, and pings on your phone"). |
 | `quote` | | Words the company lives by, painted in a script hand on the long wall of each project floor's corridor in the photo-real building: `{"text": "...", "by": "who said them"}`. |
 | `sample` | only for a made-up company | A sentence saying the company is made up. While it is there, the page says "made up" wherever it shows the company. Leave it out for a real one. |
 
