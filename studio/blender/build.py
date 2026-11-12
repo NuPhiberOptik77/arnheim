@@ -258,6 +258,8 @@ def main():
         sc.view_settings.look = st.get("grade", "AgX - Medium High Contrast")
         sc.view_settings.white_balance_temperature = st.get("wb", 5100)
         slug = name.lower().replace("'", "").replace(" ", "-")
+        if o["floor"] != "studio":  # two floors may have a room of the same name (the basement's and the office's LIBRARY)
+            slug = f"{o['floor']}-{slug}"
         final = os.path.join(o["out"], f"{slug}-{k}{('-' + o['tag']) if o['tag'] else ''}.png")
         sc.render.filepath = final if ss == 1 else final[:-4] + f"@{ss}x.png"
         if ss > 1:

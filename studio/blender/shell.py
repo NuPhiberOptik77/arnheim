@@ -72,8 +72,9 @@ def build_shell(plan, design, styles):
     fl = design.get("floor", {})
     G = street_drop(design)   # how far the ground is below this floor
     walls = plan["walls"]
-    mottle = design.get("finish", {}).get("plaster_mottle", 0.0)
-    plaster = M.plaster(mottle=mottle) if mottle else M.plaster()
+    fin = design.get("finish", {})
+    mottle = fin.get("plaster_mottle", 0.0)
+    plaster = M.plaster(**{k: v for k, v in (("color", fin.get("plaster_tone")), ("mottle", mottle)) if v})  # "plaster_tone": the walls' paint
 
     def meets(x, y, me):
         for o in walls:

@@ -52,8 +52,9 @@
   "work": "sample/work.json"
  },
  "finish": {
-  "about": "The walls' and ceiling's hand-finished plaster: its tone wanders this much either way (materials.plaster).",
-  "plaster_mottle": 0.018
+  "about": "The walls' and ceiling's hand-finished plaster: its tone wanders this much either way (materials.plaster). plaster_tone: the walls' paint (warm white below ground).",
+  "plaster_mottle": 0.018,
+  "plaster_tone": "#ECE7DF"
  },
  "lit": {
   "CORRIDOR": "downlights on",

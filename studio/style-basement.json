@@ -11,19 +11,21 @@
     "floor": "concrete",
     "floor_tone": "#A9A59D",
     "lights": "battens",
-    "cameras": [{"at": [11.5, 8.5], "look": [7.0, 3.6], "lens": 18, "height": 1.4, "exposure": 0.0, "shift_y": 0.0, "wb": 5200,
+    "cameras": [{"at": [11.5, 8.5], "look": [7.0, 3.6], "lens": 18, "height": 1.4, "exposure": 0.8, "shift_y": 0.0, "wb": 5200,
                  "about": "from just inside the door, across to the machine's rack and the bench under the window"}]
   },
   "MIDDLE MACHINE ROOM": {
     "floor": "concrete",
     "floor_tone": "#A39F97",
     "lights": "battens",
-    "cameras": [{"at": [17.5, 8.5], "look": [13.0, 3.6], "lens": 18, "height": 1.4, "exposure": 0.0, "shift_y": 0.0, "wb": 5200}]
+    "cameras": [{"at": [17.4, 1.1], "look": [12.8, 6.6], "lens": 18, "height": 1.4, "exposure": 0.8, "shift_y": 0.0, "wb": 5200,
+                 "about": "from the south-east corner under the high window, across to the machine's rack and the shelving by the door"}]
   },
   "EAST MACHINE ROOM": {
     "floor": "concrete",
     "floor_tone": "#ADA9A1",
     "lights": "battens",
-    "cameras": [{"at": [23.3, 8.5], "look": [18.8, 3.6], "lens": 18, "height": 1.4, "exposure": 0.0, "shift_y": 0.0, "wb": 5200}]
+    "cameras": [{"at": [21.6, 8.4], "look": [21.0, 1.0], "lens": 20, "height": 1.25, "exposure": 0.8, "shift_y": 0.0, "wb": 5200,
+                 "about": "from the door, down the room to the bench under the high windows, the rack on the right"}]
   }
 }

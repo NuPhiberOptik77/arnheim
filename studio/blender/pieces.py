@@ -1144,6 +1144,34 @@ def wire_shelving(col, w=1.2, d=0.45, h=1.8, levels=5, seed=3):
     return out
 
 
+def bin_shelving(col, w=1.0, d=0.45, h=1.9, levels=5, seed=5):
+    """Grey steel shelving of stacking parts bins, each with a white label on its lip, a few left out or pulled."""
+    rnd = random.Random(seed)
+    steel = M.steel("#8F959B", 0.4)
+    out = []
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            out.append(kit.box("upright", (sx * (w / 2) - 0.02 * (sx > 0), sy * (d / 2) - 0.02 * (sy > 0), 0), (sx * (w / 2) + 0.02 * (sx < 0), sy * (d / 2) + 0.02 * (sy < 0), h), col, steel))
+    gap = (h - 0.15) / (levels - 1)
+    for j in range(levels):
+        z = 0.1 + j * gap
+        out.append(kit.box("steel shelf", (-w / 2, -d / 2, z - 0.02), (w / 2, d / 2, z), col, steel))
+        if j == levels - 1:
+            continue
+        n = int((w - 0.04) / 0.31)
+        for i in range(n):
+            if rnd.random() < 0.08:
+                continue  # one taken down
+            x = -w / 2 + 0.03 + i * (w - 0.06) / n
+            bw = (w - 0.06) / n - 0.015
+            bh = min(0.2, gap - 0.07)
+            pull = 0.06 if rnd.random() < 0.15 else 0.0
+            tone = rnd.choices(["#8A8F96", "#3E5C7A", "#B0352B"], [0.75, 0.18, 0.07])[0]
+            out.append(rbox("bin", (x, -d / 2 + 0.02 - pull, z), (x + bw, d / 2 - 0.03 - pull, z + bh), col, M.matte(tone, 0.55), 0.008))
+            out.append(kit.box("bin label", (x + bw * 0.25, -d / 2 + 0.014 - pull, z + bh * 0.55), (x + bw * 0.75, -d / 2 + 0.02 - pull, z + bh * 0.8), col, M.matte("#F2F0EA", 0.6)))
+    return out
+
+
 def cable_tray(col, length=4.0, w=0.3):
     """A galvanised ladder tray, hung under the ceiling on threaded rods, with cables laid in it (at z=0 its top)."""
     galv = M.steel("#A9AEB3", 0.45)
@@ -1164,10 +1192,10 @@ def cable_tray(col, length=4.0, w=0.3):
     return out
 
 
-def batten(col, length=1.5):
+def batten(col, length=1.5, strength=60.0, color="#FFF1DE"):
     """A surface-mounted LED batten on the ceiling, on (at z=0 the ceiling)."""
     return [rbox("batten body", (-length / 2, -0.035, -0.05), (length / 2, 0.035, 0.0), col, M.matte("#EDEBE6", 0.4), 0.008),
-            kit.box("batten diffuser", (-length / 2 + 0.02, -0.03, -0.053), (length / 2 - 0.02, 0.03, -0.049), col, M.glow("#FFF1DE", 60.0))]
+            kit.box("batten diffuser", (-length / 2 + 0.02, -0.03, -0.053), (length / 2 - 0.02, 0.03, -0.049), col, M.glow(color, strength))]
 
 
 def tool_cabinet(col, w=0.7, d=0.46, h=1.0, color="#B32A22"):

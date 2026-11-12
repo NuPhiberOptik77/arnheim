@@ -150,14 +150,15 @@ def finish(col, plan, design, room, style=None):
             put(P.roller_blind(col, g_hi - g_lo + 0.1, 0.06), x, y, face, "blind", col, z=H - 0.02)
     # recessed downlights on a grid about 2.4 m apart, a sprinkler head beside each (style "lights": "downlights on"
     # lights them, as in a room below ground; "battens" hangs LED battens instead, as in a machine room)
-    nx = max(1, round((x1 - x0) / 2.4))
-    ny = max(1, round((y1 - y0) / 2.4))
+    grid = 3.6 if lights == "battens" else 2.4  # battens: fewer, so the room keeps its shadows (four in a machine room)
+    nx = max(1, round((x1 - x0) / grid))
+    ny = max(1, round((y1 - y0) / grid))
     for i in range(nx):
         for j in range(ny):
             x = x0 + (i + 0.5) * (x1 - x0) / nx
             y = y0 + (j + 0.5) * (y1 - y0) / ny
             if lights == "battens":
-                put(P.batten(col, 1.5), x, y, "E" if (y1 - y0) > (x1 - x0) else "S", "batten", col, z=H)
+                put(P.batten(col, 1.5, 36.0, "#FFD9B0"), x, y, "E" if (y1 - y0) > (x1 - x0) else "S", "batten", col, z=H)  # about 3600 K
             else:
                 put(P.downlight(col, lit=lights == "downlights on"), x, y, "S", "downlight", col, z=H)
             put(P.sprinkler(col), x + 0.6, y + 0.3, "S", "sprinkler", col, z=H)
@@ -515,7 +516,6 @@ def machine_room(col, room, plan, design, style):
     rx, ry = x0 + 0.52, y0 + 4.6
     put(P.server_rack(col, lit=True, seed=seed), rx, ry, "E", "the machine", col,
         live="machine", slot={"w": 0.6, "d": 1.0, "h": 2.0})
-    put(P.rug(col, 1.4, 1.0, "#2C2E31"), rx + 1.15, ry, "E", "mat", col)
     put([P.rbox("ups", (-0.22, -0.32, 0), (0.22, 0.32, 0.62), col, M.matte("#25272B", 0.4, 0.3), 0.01)], rx - 0.08, ry + 0.95, "E", "ups", col)
     put(P.crash_cart(col), rx + 1.3, ry - 1.0, toward(-1.0, 0.4), "crash cart", col)
     # the workbench under the window, a pegboard above it, a screen, keyboard, laptop, toolbox
@@ -527,6 +527,8 @@ def machine_room(col, room, plan, design, style):
     put([P.rbox("toolbox", (-0.22, -0.11, 0), (0.22, 0.11, 0.16), col, M.matte("#B0352B", 0.45), 0.01)], bx + 0.8, by + 0.05, "N", "toolbox", col, z=0.18)
     put(P.task_chair(col, "#3F4743"), bx - 0.4, by + 0.85, "N", "chair", col, turn=rnd.uniform(-0.5, 0.5))
     put(P.tool_cabinet(col, 0.7, 0.46, 1.0, rnd.choice(["#B32A22", "#2D4A6B", "#3C4148"])), bx + 1.65, y0 + 0.35, "N", "tool chest", col)
+    # a warm lamp low over the bench, so the work there is lit and the room has a pool of light and shadow
+    put(P.pendant_cone(col, 0.19, H - 1.85, H, "#2B2E33"), bx - 0.1, by + 0.05, "N", "bench lamp", col)
     # a steel table in the middle for whatever is being tested or mended: an open case, a meter, a coil of cable
     mx, my = (x0 + x1) / 2 + 0.6, y0 + 3.6
     put(P.workbench(col, 1.6, 0.8, 0.86, tone="#9C8466"), mx, my, "E", "test table", col)
@@ -537,6 +539,9 @@ def machine_room(col, room, plan, design, style):
     put([P.tube("cable coil", ring, 0.015, col, M.matte("#1A3A6B", 0.5), 8)], mx + 0.15, my - 0.05, "E", "cable", col, z=0.86)
     put(P.laptop(col, open_=True), mx - 0.05, my - 0.35, toward(0.0, -1.0), "laptop open", col, z=0.86, turn=0.2)
     put(P.stool(col, 0.65, "#A9825A"), mx + 0.7, my + 0.2, "W", "stool", col, turn=rnd.uniform(-0.6, 0.6))
+    # steel shelving of labelled parts bins on the west wall, north of the machine
+    for k, yy in enumerate((y0 + 6.65, y0 + 7.65)):
+        put(P.bin_shelving(col, 0.98, 0.45, 1.9, 5, seed=seed + 7 * k), x0 + 0.23, yy, "E", "bin shelving", col)
     # a pegboard of tools on the west wall, south of the rack
     put(P.pegboard(col, 1.3, 0.8, seed=seed), x0, y0 + 2.2, "E", "pegboard", col, z=1.05)
     # wire shelving along the east wall, archive boxes stacked on the floor beside it
