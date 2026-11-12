@@ -22,7 +22,8 @@ company of your own, put it in `data/` (README, "Make it yours"); git ignores th
   ```
 
   They check the server's rules (what it serves, and to whom) and that the sample's files hang
-  together.
+  together. One also runs a rule of the photo-real look under Node.js (who may be shown
+  photo-real), and is skipped where Node isn't installed.
 - Try what you changed in the page: the building, a floor and a room, the panel, the receptionist, a walk
   through a few floors, light and dark, and `?list` (the panel alone).
 - Turn on reduced motion in your system's settings and try it again: the camera should keep still.

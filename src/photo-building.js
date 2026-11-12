@@ -5,6 +5,7 @@
 // What comes from the data (desks, seats, books, screens, people) is placed live in each room.
 import * as THREE from '../vendor/three/three.module.js';
 import { FILL, loadKit, loadPeople, loadShell } from './three/baked.js';
+import { realPerson as madeFrom } from './three/looks.js';
 import { buildPerson, buildSeated, receptionistSpec } from './three/poe.js';
 
 const rad = THREE.MathUtils.degToRad;
@@ -39,10 +40,6 @@ const SITE_LEVEL = 0.8;
 const BASEMENT_DROP = 3.6; // studio/design-basement.json: floor to floor under the lobby
 const ROOF_SLAB = 0.35; // studio/blender/street.py: the baked roof's slab under its top
 
-// A look as one string, whatever order its settings were written in, to tell whether two looks are the same.
-const sameLookKey = (v) => (Array.isArray(v) ? `[${v.map(sameLookKey).join(',')}]`
-  : v && typeof v === 'object' ? `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${sameLookKey(v[k])}`).join(',')}}`
-    : JSON.stringify(v ?? null));
 const KIND_ORDER = { goals: 0, code: 1, conversations: 2, work: 3 };
 
 // A room's light, as a colour over its bake.
@@ -449,10 +446,7 @@ export function createPhotoBuilding(canvas, org, { base, people: ownPeople, onPi
 
   // The photo-real receptionist or assistant, from the company's own set or the baked one, but only one made from
   // the very look the company file gives them: anyone else is drawn from their look, never shown as someone else.
-  function realPerson(name, look) {
-    const want = sameLookKey(look || {});
-    return [own, people].find((set) => set?.has(name) && set.lookOf(name) && sameLookKey(set.lookOf(name)) === want) || null;
-  }
+  const realPerson = (name, look) => madeFrom([own, people], name, look);
 
   // The receptionist, as the map names and dresses them, at the desk in the reception hall.
   function placeReceptionist(room, content, ctx) {
