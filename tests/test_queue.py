@@ -130,8 +130,10 @@ class QueueTest(unittest.TestCase):
                     "gcp/service-account.json", "api_key.txt", "~/.pgpass", "~/.zsh_history", "C:\\Users\\x\\.ssh\\id_rsa"]
         secrets += ["~/.codex/auth.json", "~/.claude.json", "~/.my.cnf", "~/.s3cfg", "~/.boto", "~/.yarnrc.yml", "~/.config/rclone/rclone.conf",
                     "~/.oci/config", "keys/server.ppk", "backup.gpg", "Library/Application Support/Google/Chrome/Default/Login Data",
-                    "C:\\Users\\x\\AppData\\Roaming\\app\\state.json"]
-        plain = ["notes.md", "../other/README.md", "/srv/app/main.py", "TODO", "C:\\work\\plan.txt", "./notes.md", "../../shared/plan.md"]
+                    "C:\\Users\\x\\AppData\\Roaming\\app\\state.json", "~/library/application support/app/state.json",
+                    "Library/Application Support/Google/Chrome/Default/Cookies"]
+        plain = ["notes.md", "../other/README.md", "/srv/app/main.py", "TODO", "C:\\work\\plan.txt", "./notes.md", "../../shared/plan.md",
+                 "src/pages/cookies.html", "../My Project/plan v2.md"]
         asks = [ask(f"s{i}", "c2", "Read", w) for i, w in enumerate(secrets)] + [ask(f"p{i}", "c2", "Read", w) for i, w in enumerate(plain)]
         asks += [ask("g1", "c2", "Grep", "/Users/x"), ask("g2", "c2", "Glob", "**/*.md"), ask("g3", "c2", "LS", "/")]  # searches: one at a time
         (got,) = self.run_js([["allow", {"now": NOW, "asks": asks, "conversations": [talk("c2", "Price list")]}, "allow all the reads"]])

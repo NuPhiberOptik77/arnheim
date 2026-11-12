@@ -72,6 +72,11 @@ class HandOutTest(unittest.TestCase):
         got = self.talk(said)
         self.assertEqual(got["out"], [None] * len(said))
         self.assertEqual(self.talk(["ask Claude to do the release notes for Tidepool"])["out"][0][1], ["Tidepool", "do the release notes"])
+        for words, job in (("have someone do the release notes on Tidepool", "do the release notes"),
+                           ("have an agent on Tidepool do the release notes", "do the release notes"),
+                           ("have Claude do the tests on Tidepool", "do the tests"),
+                           ("have someone have a look at the login bug on Tidepool", "have a look at the login bug")):
+            self.assertEqual(self.talk([words])["out"][0][1], ["Tidepool", job], words)
         self.assertEqual(got["begun"], [])
 
 

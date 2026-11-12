@@ -191,7 +191,7 @@ const CANCEL = /^(?:no|nope|cancel|don'?t|never ?mind|stop)\b/i;
 // "Get someone to fix the login bug on Lantern", "have an agent on Lantern tidy the tests", "ask Claude to
 // fix the login": work handed out in everyday words. The floor can come at the end, after "on", "for" or
 // "in", or not at all, and then the receptionist asks which.
-const HAND_OUT = /^(?:please\s+|can you\s+|could you\s+)?(?:get|have|ask|send|find)\s+(?:someone|somebody|an?\s+(?:new\s+)?agent|claude)\s+(?:(?:on|from|for)\s+(?:the\s+)?(.+?)(?:\s+(?:floor|project))?\s+)?(to\s+)?(.+)$/i;
+const HAND_OUT = /^(?:please\s+|can you\s+|could you\s+)?(get|have|ask|send|find)\s+(?:someone|somebody|an?\s+(?:new\s+)?agent|claude)\s+(?:(?:on|from|for)\s+(?:the\s+)?(.+?)(?:\s+(?:floor|project))?\s+)?(to\s+)?(.+)$/i;
 
 // The floor a name means, among those control can start agents on.
 const projectNamed = (list, name) => {
@@ -201,16 +201,17 @@ const projectNamed = (list, name) => {
 };
 
 // A question to pass on, not work to hand out: "ask Claude what is waiting on me", "ask an agent how it's going",
-// "ask Claude do the tests pass". With "to" ("ask Claude to do the release notes") it is work.
+// "ask Claude do the tests pass". With "to" ("ask Claude to do the release notes"), or after "have", "get", "send"
+// or "find" ("have someone do the release notes"), it is work.
 const ASKS = /^(?:what|what's|whats|how|how's|whether|if|where|when|why|who|who's|whom|which|about|is|isn't|are|aren't|am|was|wasn't|were|weren't|do|don't|does|doesn't|did|didn't|has|hasn't|have|haven't|had|can|can't|could|couldn't|should|shouldn't|shall|may|might|would|wouldn't|will|won't)\b/i;
 
 // The job and its floor from handed-out words: the floor is the last "on/for/in <a floor's name>".
 export function handedOut(words, list) {
   const said = String(words || '').trim();
   const m = HAND_OUT.exec(said);
-  if (!m || /\?$/.test(said) || (!m[2] && ASKS.test(m[3].trim()))) return null;
-  if (m[1]) return { project: projectNamed(list, m[1]), job: m[3], named: m[1] };
-  const job = m[3];
+  if (!m || /\?$/.test(said) || (/^ask$/i.test(m[1]) && !m[3] && ASKS.test(m[4].trim()))) return null;
+  if (m[2]) return { project: projectNamed(list, m[2]), job: m[4], named: m[2] };
+  const job = m[4];
   const at = [...job.matchAll(/\s(?:on|for|in)\s+(?:the\s+)?/gi)].reverse();
   for (const cut of at) {
     const p = projectNamed(list, job.slice(cut.index + cut[0].length));

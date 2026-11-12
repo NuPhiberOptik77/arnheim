@@ -13,8 +13,8 @@ import { reviewOf } from './review.js';
 // a hidden folder or file, the system's Library or AppData, where most keys and logins live (HIDDEN). Those,
 // like commands and changes, each need their own answer.
 export const READS = new Set(['Read', 'NotebookRead']);
-export const HIDDEN = /(?:^|[\\/\s])\.(?![.\\/\s]|$)|(?:^|[\\/\s])(?:Library|AppData)(?:[\\/]|$)/;
-export const SECRET = /(?:^|[\\/\s~])(?:[^\\/\s]*\.env\w*|\.ssh|\.aws|\.gnupg|\.netrc|\.npmrc|\.pypirc|\.pgpass|\.docker|\.kube|\.git-credentials|\.config[\\/]gh|keychains?|id_(?:rsa|dsa|ecdsa|ed25519)|[^\\/\s]*\.(?:pem|key|p8|p12|pfx|keystore|jks|ppk|gpg|asc|kdbx|ovpn)\b|login data|cookies\b|[^\\/\s]*(?:credential|secret|password|passwd|token|api[_-]?key|service[_-]?account)|[^\\/\s]*_history\b)/i;
+export const HIDDEN = /(?:^|[\\/\s])\.(?![.\\/\s]|$)|(?:^|[\\/\s])(?:Library|AppData)(?:[\\/]|$)/i;
+export const SECRET = /(?:^|[\\/\s~])(?:[^\\/\s]*\.env\w*|\.ssh|\.aws|\.gnupg|\.netrc|\.npmrc|\.pypirc|\.pgpass|\.docker|\.kube|\.git-credentials|\.config[\\/]gh|keychains?|id_(?:rsa|dsa|ecdsa|ed25519)|[^\\/\s]*\.(?:pem|key|p8|p12|pfx|keystore|jks|ppk|gpg|asc|kdbx|ovpn)\b|login data|cookies(?![\w.-])|[^\\/\s]*(?:credential|secret|password|passwd|token|api[_-]?key|service[_-]?account)|[^\\/\s]*_history\b)/i;
 const RANK = { permission: 0, question: 1, task: 2, turn: 3 };
 const RECENT = 2 * 3600; // seconds: an agent that finished longer ago than this is no longer waiting on you
 
