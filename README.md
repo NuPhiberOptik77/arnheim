@@ -47,6 +47,22 @@ and ask how it's going. Then the lift again, to the next floor, or up to your of
 With reduced motion on, the camera keeps still and floors change at once. On a slow computer or
 phone, add `?lite` to the address.
 
+## The photo-real look
+
+Arnheim can also draw the building as if photographed: the floors, the lobby, the basement, your
+office and the street outside, in the light of a measured sun. Its pictures (about 95 MB) are made
+from the code in `studio/` with Blender, and are kept out of this repository so it stays small.
+Download them once, in this folder:
+
+```bash
+curl -LO https://github.com/allwhenlabs/arnheim/releases/latest/download/baked.zip
+unzip baked.zip
+```
+
+(On Windows: `curl.exe -LO` with the same address, then `tar -xf baked.zip`.) That makes a `baked/`
+folder. Then open http://127.0.0.1:8740/?look=photo. The sample's receptionist and assistant are
+photo-real; people you name and dress yourself are drawn in their own look.
+
 ## Talk to the people
 
 Each person in the building has a ring of light on the floor beside them. Step into it and a
@@ -203,6 +219,8 @@ you type: browsers only allow the microphone over HTTPS or on the computer itsel
   `python3 serve.py 8741`.
 - **The sample shows, not your company:** the page looks for `data/company.json` beside
   `serve.py`. `?sample` in the address shows the sample anyway.
+- **`?look=photo` shows nothing:** the `baked/` folder is missing, or is from another version of
+  Arnheim. Download it again (The photo-real look, above).
 - **The building stays blank:** the browser has no WebGL 2. Everything is still in the panel, and
   `?list` shows the panel alone.
 - **The voice doesn't start:** http://127.0.0.1:8740/voice/status names the problem. Check that the

@@ -19,6 +19,12 @@ on a canvas. Its options:
 - `onWalk(on)`: a walk started or ended.
 - `onNotes()`: someone walked into the founder's office, so the page can answer with fresh notes.
 - `talk`: lets the people in the walk talk back (below).
+- `look: 'photo'`: the photo-real building, from the `baked/` folder beside `src/` (the README says
+  where to get it). Everything else here works the same.
+- `people`: with the photo-real look, the address of a folder made by
+  `studio/blender/people_export.py -- --company your-company.json --out that-folder`: your own
+  receptionist and assistant, photo-real. Each is used only when made from the very `look` your
+  company file gives them; anyone else is drawn in their own look.
 
 The building it gives back:
 
@@ -93,7 +99,8 @@ with one call (`Brain.handle`) for every request. Answer it only for the page on
 
 ## Serving it
 
-A server that shows Arnheim must send `.jpg` and `.hdr` files, as `serve.py` does: a walk loads
+A server that shows Arnheim must send `.jpg` and `.hdr` files (and `.bin` and `.json` from `baked/`
+for the photo-real look), as `serve.py` does: a walk loads
 about 6 MB of photographed materials (CC0, from Poly Haven) once someone presses Walk. A phone
 short of memory, or a browser with data saver on, keeps the drawn materials instead.
 
