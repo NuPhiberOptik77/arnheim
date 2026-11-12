@@ -14,6 +14,8 @@ const DOES = { Read: 'to read', NotebookRead: 'to read', Glob: 'to look for', Gr
   Bash: 'to run', Edit: 'to change', MultiEdit: 'to change', Write: 'to write', NotebookEdit: 'to change',
   WebFetch: 'to open', WebSearch: 'to search the web for' };
 export function wantsTo(tool, what) {
+  // control.py describes a request as "Read: notes.md", or just "Read" when it names nothing
+  if (tool && typeof what === 'string') what = what === tool ? '' : what.startsWith(`${tool}: `) ? what.slice(tool.length + 2) : what;
   const does = DOES[tool] || (tool ? `to use ${tool} on` : 'to use a tool on');
   return what ? `${does} ${what}` : (tool ? `to use ${tool}` : 'to use a tool');
 }

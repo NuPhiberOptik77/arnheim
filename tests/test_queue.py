@@ -102,9 +102,13 @@ class QueueTest(unittest.TestCase):
 
     def test_what_it_wants(self):
         asks = [ask("a1", "c1", "Bash", "npm test"), ask("a2", "c1", "Frobnicate", "the widget"), ask("a3", "c1", None, None),
-                ask("a4", "c1", "WebFetch", None)]
+                ask("a4", "c1", "WebFetch", None),
+                # as connect/control.py describes them
+                ask("a5", "c1", "Read", "Read: notes.md"), ask("a6", "c1", "Bash", "Bash: git status"), ask("a7", "c1", "Glob", "Glob"),
+                ask("a8", "c1", "Bash", "Read: not its own tool")]
         (got,) = self.run_js([["list", {"now": NOW, "asks": asks}]])
-        self.assertEqual([i[3] for i in got], ["to run npm test", "to use Frobnicate on the widget", "to use a tool", "to use WebFetch"])
+        self.assertEqual([i[3] for i in got], ["to run npm test", "to use Frobnicate on the widget", "to use a tool", "to use WebFetch",
+                                               "to read notes.md", "to run git status", "to use Glob", "to run Read: not its own tool"])
 
     def test_allow_all_the_reads(self):
         said = ["allow all the reads", "Please approve every read request.", "Allow all of the reads please!",
