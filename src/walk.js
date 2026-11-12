@@ -1019,7 +1019,7 @@ export function createWalk(ctx) {
     const signAt = new THREE.Vector3(gp.x + sign.x, gp.y + sign.y, gp.z + sign.z);
     const far = signAt.distanceTo(camera.position);
     if (!inLift && far < 16 && signAt.clone().sub(camera.position).normalize().dot(ahead) > 0.3 && inView(sign.x, sign.z)) {
-      out.push({ key: 'w:lift', title: 'Lift', sub: coarse ? 'Tap it, or ▲ ▼ at the top' : 'Click it, or ▲ ▼ at the top', kind: 'quiet', align: 'center', at: signAt.toArray(), rank: far });
+      out.push({ key: 'w:lift', title: 'Lift', sub: coarse ? 'Tap it, or ▲ ▼ at the top' : 'Click it, or ▲ ▼ at the top', kind: 'quiet', align: 'center', at: signAt.toArray(), rank: 0 }); // first, so a room's name never hides it
     }
     const person = ctx.personRoom;
     if (hall.poe && person?.storey === here) {
@@ -1128,7 +1128,7 @@ export function createWalk(ctx) {
   }
 
   // For tests: whether a spot on this floor stops the walker, and the squares they can reach from where they stand.
-  const debug = { blocked: (x, z) => blocked(x, z), reach: () => reach(), map: () => map, me: () => ({ x: me.x, z: me.z }), doors: () => Object.fromEntries(doors),
+  const debug = { blocked: (x, z) => blocked(x, z), reach: () => reach(), map: () => map, me: () => ({ x: me.x, z: me.z }), doors: () => Object.fromEntries(doors), labels: () => labels(),
     // walks you to a spot on this floor, round whatever is in the way (for tests)
     go(x, z) { const way = wayTo(x, z); if (way) { me.target = { ...way.shift(), next: way }; ctx.wake(2); } return !!way; } };
   return { update, labels, info, dispose, setNotes: notes.set, debug };
