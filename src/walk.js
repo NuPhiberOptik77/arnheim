@@ -184,8 +184,8 @@ export function createWalk(ctx) {
   const openButton = button('Open', () => ctx.leave(), 'Leave the walk and open this in the list');
   card.append(cardText, openButton);
   const help = el('p', 'aw-help', coarse
-    ? 'Walk with the stick and drag to look. Tap the floor to go there, or something to open it. Double-tap to burn this floor and rebuild it.'
-    : 'WASD or the arrow keys to walk, Shift to hurry, drag to look. Click the floor to go there, or something to open it. Double-click to burn this floor and rebuild it. Esc to leave.');
+    ? 'Walk with the stick and drag to look. Tap the floor to go there, or something to open it. The lift is where you arrive, and ▲ ▼ at the top take it from anywhere. Double-tap to burn this floor and rebuild it.'
+    : 'WASD or the arrow keys to walk, Shift to hurry, drag to look. Click the floor to go there, or something to open it. The lift is where you arrive, and ▲ ▼ at the top take it from anywhere. Double-click to burn this floor and rebuild it. Esc to leave.');
   const stickEl = el('div', 'aw-stick');
   const knob = el('span');
   stickEl.append(knob);
@@ -955,6 +955,14 @@ export function createWalk(ctx) {
       const d = v.distanceTo(camera.position);
       if (d > 16 || v.sub(camera.position).normalize().dot(ahead) < 0.35 || !inView(...seenAt)) continue;
       out.push({ key: `w:${room.key}`, title: room.label, sub: ctx.infoText(room.info), kind: room.mood, align: 'center', room, local, rank: d });
+    }
+    // The lift, so it can be found again on any floor: over its doors, while you aren't in it.
+    const sign = hall.liftSign || { x: hall.lift.x, z: hall.lift.z, y: 2.4 };
+    const gp = here.group.position;
+    const signAt = new THREE.Vector3(gp.x + sign.x, gp.y + sign.y, gp.z + sign.z);
+    const far = signAt.distanceTo(camera.position);
+    if (!inLift && far < 16 && signAt.clone().sub(camera.position).normalize().dot(ahead) > 0.3 && inView(sign.x, sign.z)) {
+      out.push({ key: 'w:lift', title: 'Lift', sub: coarse ? 'Tap it, or ▲ ▼ at the top' : 'Click it, or ▲ ▼ at the top', kind: 'quiet', align: 'center', at: signAt.toArray(), rank: far });
     }
     const person = ctx.personRoom;
     if (hall.poe && person?.storey === here) {

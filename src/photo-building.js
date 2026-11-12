@@ -1179,15 +1179,20 @@ export function createPhotoBuilding(canvas, org, { base, people: ownPeople, onPi
     // (below ground the rooms have solid walls, so you face down the corridor, toward its far end, instead)
     const along = s.role === 'basement' && cb && cb.x1 - lift.x > lift.x - cb.x0 ? -Math.PI / 2 : s.role === 'basement' && cb ? Math.PI / 2 : null;
     const spot = cb ? { x: lift.x, z: (cb.z0 + cb.z1) / 2, yaw: along ?? Math.PI } : office ? { x: lift.x, z: lb.z1 + 1.0, yaw: Math.PI } : { x: lift.x + 2, z: lb.z1 - 0.7, yaw: Math.PI / 2 };
+    // The baked lift is a room behind a wall the walk can't pass, so its doorstep counts as the lift: the strip of
+    // corridor (or office floor) in front of it. A sign over it says where it is (walk.js).
+    const front = cb && lb.z1 <= cb.z0 + 0.01 ? { x0: lb.x0, x1: lb.x1, z0: cb.z0 - 0.4, z1: cb.z0 + 0.62 }
+      : !cb ? { x0: lb.x0, x1: lb.x1, z0: lb.z1 - 0.4, z1: lb.z1 + 1.2 } : null;
+    const liftSign = { x: lift.x, z: cb ? cb.z0 + 0.3 : lb.z1 + 0.6, y: 2.35 };
     const tap = new THREE.Mesh(new THREE.BoxGeometry(lb.x1 - lb.x0, 2.2, lb.z1 - lb.z0), hitMaterial);
     tap.position.set(lift.x, 1.1, lift.z);
     tap.visible = false;
     tap.userData = { hit: true, lift: true, stay: true, title: 'The lift' };
     group.add(tap);
     const hall = {
-      baked: true, group, lift, spot, picks: [tap], sky: shell?.sky || null,
+      baked: true, group, lift, liftSign, spot, picks: [tap], sky: shell?.sky || null,
       west: box3.x0, east: box3.x1, north: box3.z0, front: box3.z1,
-      setDoors() {}, inLift: (x, z) => inside(lb, x, z),
+      setDoors() {}, inLift: (x, z) => inside(lb, x, z) || (!!front && inside(front, x, z)),
       dispose() { tap.geometry.dispose(); for (const m of extras) m.dispose?.(); },
     };
     if (s.role === 'lobby') {
