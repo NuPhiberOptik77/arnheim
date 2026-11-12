@@ -8,7 +8,8 @@ import { agentControls, agentReply, createControl, deskControls, deskStart } fro
 import { allowReadsAsked, sayWaiting, together, waitingOnYou } from './queue.js';
 import { inner, proofMood, proofOf } from './proof.js';
 import { MEMORY_ASKED, decidedFor, rememberAsked, sayMemory } from './memory.js';
-import { floorSpend } from './budget.js';
+import { floorSpend, localDay } from './budget.js';
+import { MOMENT_MOOD, conversationsAt, momentsBefore, sayMoment, touchedBy } from './replay.js';
 import { icon } from './icons.js';
 import { createPoe, has, insertAfter, needWord, norm, poeBadge } from './poe-desk.js';
 
@@ -415,6 +416,7 @@ function brainFacts() {
   ]);
   add('Waiting on you, as one list (agents and tasks)', [sayWaiting(waitingNow(), label)]);
   add('Company memory: what every agent is told as it starts', memoryNow().length ? memoryNow().map((r) => `- ${r.text}`) : ['Nothing is remembered yet.']);
+  add('Today, moment by moment (newest first)', momentsBefore(history, Date.now() / 1000, 25).map((m) => `- At ${clock(m.at)}, on ${label(m.project)}: ${sayMoment(m)}`));
   add("Spent today, in new tokens, against each floor's budget", org.floors.map((f) => [f, spendOf(f)]).filter(([, s]) => s).map(([f, s]) => `- ${f.label}: ${s.text}.`));
   if (control.on && control.paused()) add('Every agent', ['Paused from the building, until it resumes them.']);
   add('Needs you', [
@@ -678,6 +680,65 @@ function pauseCard() {
       : btn('Pause everyone', () => controlDone(control.pauseAll(), () => ''), '', 'clock')));
 }
 
+// Replay the day (replay.js): the building's conversations as they were at a moment today. While it
+// replays, the real ones wait in realTalks, and a banner on the building says so.
+let replayAt = null;
+let realTalks = null;
+const clockOf = (at) => new Date(at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+function replayed() {
+  realTalks = work.conversations;
+  work.conversations = conversationsAt(history, replayAt);
+}
+function showAt(t) {
+  const now = Date.now() / 1000;
+  if (t == null || t >= now - 30) {
+    if (realTalks) work.conversations = realTalks;
+    replayAt = realTalks = null;
+  } else {
+    if (realTalks) work.conversations = realTalks;
+    replayAt = t;
+    replayed();
+  }
+  replayBanner();
+  refresh();
+}
+function replayBanner() {
+  let el = $('replay-banner');
+  if (replayAt == null) { el?.remove(); return; }
+  if (!el) {
+    el = h('div', { id: 'replay-banner', role: 'status' }, h('span'), btn('Back to now', () => showAt(null), '.primary'));
+    $('stage').append(el);
+  }
+  el.firstChild.textContent = `Replaying the day at ${clockOf(replayAt)}`;
+}
+
+function replayCard() {
+  if (!history.length) return null;
+  const now = Date.now() / 1000;
+  const first = Math.floor(Math.min(...history.map((m) => m.at)) - 60);
+  const at = replayAt ?? now;
+  const real = realTalks || work.conversations;
+  const label = h('span.replay-at', replayAt == null ? 'Now' : clockOf(at));
+  const list = h('ul.list.replay-moments');
+  const fill = (t) => {
+    const ms = momentsBefore(history, t);
+    list.replaceChildren(...(ms.length ? ms.map((m) => {
+      const c = real.find((x) => x.id === m.key);
+      const files = m.kind === 'finished' ? touchedBy(history, m.key, t) : [];
+      return row(c ? convoHref(c) : null, sayMoment(m), [clockOf(m.at), floorOf(m.project)?.label || m.project, files.length ? `Changed ${files.slice(0, 3).join(', ')}${files.length > 3 ? ` and ${files.length - 3} more` : ''}` : null].filter(Boolean).join('. '), MOMENT_MOOD[m.kind]);
+    }) : [h('li', empty('Nothing had happened yet.'))]));
+  };
+  fill(at);
+  const slider = h('input.replay-slider', { type: 'range', min: first, max: Math.ceil(now), step: 60, value: Math.round(at), 'aria-label': 'When in the day to show',
+    oninput: (event) => { const t = Number(event.currentTarget.value); label.textContent = t >= now - 30 ? 'Now' : clockOf(t); fill(t); showAt(t); } });
+  return h('section.panel-card.replay',
+    sectHead('history', 'Replay the day'),
+    h('p.small.muted', 'Drag back through today to see who was at work, and on what. Tap a moment to read that conversation.'),
+    h('div.replay-row', slider, label),
+    list,
+    replayAt != null && h('div.control-row', btn('Back to now', () => showAt(null))));
+}
+
 // What each floor's agents have spent today, against its budget.
 function spendCard() {
   const list = org.floors.map((f) => [f, spendOf(f)]).filter(([, s]) => s);
@@ -849,6 +910,7 @@ function viewOverview() {
       h('section.panel-card',
         sectHead('bell', 'Waiting on you'),
         waitingList(waiting)),
+      replayCard(),
       spendCard(),
       h('section.panel-card',
         sectHead('zap', 'Working now'),
@@ -1457,7 +1519,29 @@ async function readWork() {
     for (const key of LISTS) if (Array.isArray(feed[key])) now[key].push(...feed[key].filter((x) => x && typeof x === 'object'));
   }
   now.memory = await readMemory();
+  history = await readHistory();
   return now;
+}
+
+// Today's moments, for the replay: data/feeds/history/<today>.json for your own company, or the sample's,
+// whose times count back from when the page opened.
+let history = [];
+let sampleHistory = null;
+async function readHistory() {
+  try {
+    if (dir !== 'data') {
+      if (!sampleHistory) {
+        const opened = Date.now() / 1000;
+        const m = await readJson(`${dir}/history.json`);
+        sampleHistory = (Array.isArray(m?.moments) ? m.moments : []).map((x) => ({ ...x, at: opened - (Number(x.ago) || 0) }));
+      }
+      return sampleHistory;
+    }
+    const m = await readJson(`data/feeds/history/${localDay()}.json`);
+    return Array.isArray(m?.moments) ? m.moments : [];
+  } catch (error) {
+    return error.status === 404 ? [] : history;
+  }
 }
 
 // The company's memory: memory.json beside company.json, written through control (docs/connect.md,
@@ -1490,6 +1574,7 @@ async function followWork() {
     now.tasks.push(...mine);
     for (const task of now.tasks) if (dropped.has(task.id)) task.status = 'dropped';
     work = now;
+    if (replayAt != null) replayed();
     refresh();
   } catch {
     // a file mid-edit: the building stays as it was until the next look

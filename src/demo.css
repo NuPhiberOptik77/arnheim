@@ -279,3 +279,11 @@ a.floor-card:hover, a.room-tile:hover { transform: translateY(-1px); }
 .panel-card.pause.paused { border-color: var(--fail); background: var(--fail-bg); }
 .panel-card.pause p { margin: 0 0 8px; }
 .spend-row .row-main { flex: 1; }
+
+/* Replay the day (replay.js): the slider, and the banner on the building while it replays. */
+.replay-row { display: flex; align-items: center; gap: 10px; margin: 6px 0 4px; }
+.replay-slider { flex: 1; min-width: 0; accent-color: var(--accent); }
+.replay-at { min-width: 52px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+#replay-banner { position: absolute; left: 50%; top: 64px; transform: translateX(-50%); z-index: 4; display: flex; gap: 10px; align-items: center;
+  max-width: calc(100% - 24px); padding: 6px 6px 6px 14px; border-radius: 12px; background: rgba(13, 16, 26, .86); color: #fff; font-size: 13px; }
+#replay-banner span, #replay-banner .btn { white-space: nowrap; }

@@ -237,6 +237,17 @@ company's folders at its next step, and a message you send one in Claude Code wa
 **Resume everyone**. Nothing is ever stopped in the middle of a step, and a message you send from the
 building is always handed over first.
 
+## 8. Replay the day
+
+When something went wrong, or you were away, drag the slider under "Replay the day" on the Overview
+back through today. The building shows who was at work at that moment, who was waiting on you and who
+had finished, with a banner saying which time you are looking at, and the list beside it shows the
+last moments before then: when each conversation started work, which files it changed, what it asked
+you and what it said when it finished. Tap a moment to read that conversation, or press Back to now.
+
+It needs only step 2's hooks. A file changed inside a floor's folder is named by its path there; one
+outside it, by its name alone.
+
 ## What is kept, and where
 
 The connectors write `data/feeds/claude-code.json` and `data/feeds/projects.json`. From Claude Code
@@ -249,7 +260,8 @@ A floor's check keeps the last lines it printed beside each conversation it chec
 a note for its next run in `data/feeds/proof/`. The company's memory is `data/memory.json`, and the
 feed notes when each conversation was last told it. For the budget, the feed keeps each conversation's
 new tokens for today and how far its transcript has been read; `data/control/` keeps a pause, and how
-far each floor was let go past its budget today.
+far each floor was let go past its budget today. The replay's moments are kept a file a day in
+`data/feeds/history/`, for a week.
 
 With control on, your messages wait in `data/control/` until Claude takes them, a permission
 request and its answer are deleted once it is answered, and each agent started from the building

@@ -1,0 +1,19 @@
+{
+  "about": "Fernhollow's day, for the replay. Made up, like the rest of Fernhollow. Each moment is \"ago\" seconds before the page opened.",
+  "moments": [
+    { "ago": 18000, "key": "cs1", "project": "Studio", "title": "Planning next quarter", "kind": "working", "what": "You asked: \"Plan the next quarter\"" },
+    { "ago": 16200, "key": "cl1", "project": "Lantern", "title": "Why the bookmark jumps", "kind": "working", "what": "You asked: \"Find out why the bookmark jumps\"" },
+    { "ago": 14400, "key": "cl1", "project": "Lantern", "title": "Why the bookmark jumps", "kind": "changed", "what": "reader/bookmark.js" },
+    { "ago": 13700, "key": "cl3", "project": "Lantern", "title": "Pictures for the app store", "kind": "working", "what": "You asked: \"Make the five app store pictures\"" },
+    { "ago": 12600, "key": "cl3", "project": "Lantern", "title": "Pictures for the app store", "kind": "changed", "what": "store/phone-1.png" },
+    { "ago": 12300, "key": "cl3", "project": "Lantern", "title": "Pictures for the app store", "kind": "changed", "what": "store/tablet-1.png" },
+    { "ago": 10800, "key": "cl3", "project": "Lantern", "title": "Pictures for the app store", "kind": "finished", "what": "I made the five pictures for the app store." },
+    { "ago": 9000, "key": "ck1", "project": "Kitefield", "title": "Tail physics", "kind": "working", "what": "You asked: \"Make the tail swing like the field test\"" },
+    { "ago": 7200, "key": "ck1", "project": "Kitefield", "title": "Tail physics", "kind": "changed", "what": "sim/tail.js" },
+    { "ago": 5400, "key": "cs2", "project": "Studio", "title": "Sorting the subscriptions", "kind": "working", "what": "You asked: \"Sort the subscriptions into keep and cancel\"" },
+    { "ago": 4300, "key": "cs2", "project": "Studio", "title": "Sorting the subscriptions", "kind": "finished", "what": "I sorted the studio's subscriptions into keep and cancel. Three can go." },
+    { "ago": 3600, "key": "cs1", "project": "Studio", "title": "Planning next quarter", "kind": "stopped", "what": "I stopped: Studio's agents have used today's budget." },
+    { "ago": 1500, "key": "cl1", "project": "Lantern", "title": "Why the bookmark jumps", "kind": "changed", "what": "reader/page-turn.js" },
+    { "ago": 600, "key": "ck1", "project": "Kitefield", "title": "Tail physics", "kind": "changed", "what": "sim/tail.js" }
+  ]
+}

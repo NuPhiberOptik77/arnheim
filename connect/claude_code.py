@@ -25,6 +25,10 @@ floor's agents pass the floor's budget for the day (connect/budget.py), it stops
 next step, once, and asks you in the building whether they may go on. Paused from the building, every
 conversation stops at its next step, and a message you send one in Claude Code waits until you resume.
 
+It keeps a short log of each day's moments for the building's replay: when each conversation started
+work, which files it changed (as paths inside its floor's folder), what it asked, and when it finished
+or stopped (data/feeds/history/, a file a day, kept for a week).
+
 When a conversation changes files and its floor names a check (docs/connect.md, "Done means proven"), it
 starts that check in the background as the turn ends (connect/prove.py), and the building shows whether
 the work is proven.
@@ -34,6 +38,7 @@ say to it in the building, at its next step; while the building is open, it show
 Claude asks for there and waits a while for your answer; and it stops Claude when you ask. Otherwise
 it prints nothing, so Claude Code goes on as if it weren't there. Standard library only.
 """
+import datetime
 import json
 import os
 import re
@@ -52,6 +57,9 @@ KEEP = 12 * 3600  # a conversation not heard from for this long has gone
 ASKS = {"permission_prompt", "elicitation_dialog", "agent_needs_input"}  # Claude waits for you to decide
 CHANGES = {"Edit", "MultiEdit", "Write", "NotebookEdit"}  # tools that change files: then its floor's check is due
 NEW = "A new conversation"
+HISTORY = os.path.join(DATA, "feeds", "history")
+HISTORY_DAYS = 7
+HISTORY_MOST = 5000  # moments in a day at most
 COUNT = {"PostToolUse", "Stop", "UserPromptSubmit", "SubagentStop", "SessionEnd", "PreCompact"}  # moments its spending is counted
 
 
@@ -279,14 +287,84 @@ def update(event, extra=None):
             where = seat and seat.get("project")
             if not where:
                 return None
+        before = next((dict(c) for c in feed.get("conversations") or [] if isinstance(c, dict) and c.get("id") == key_of(event)), None)
         talks, tasks = change(event, feed, where, time.time(), extra)
         talk = next((c for c in talks if c.get("id") == key_of(event)), None)
         if talk is not None:
             weigh(event, talk, talks, tasks, where, extra or {}, verdict)
+        try:
+            if talk is not None or before is not None:  # one that ended has left the feed: log it as it was
+                log(event, talk if talk is not None else before, where, extra or {}, verdict)
+        except Exception as error:  # the replay's trouble never costs the feed
+            note(error)
         return talks, tasks
 
     edit_feed(edit)
     return verdict
+
+
+def moment(event, talk, extra, verdict):
+    """What this event was, for the day's replay: (kind, words), or None for nothing worth keeping."""
+    name = event.get("hook_event_name")
+    given = event.get("tool_input") if isinstance(event.get("tool_input"), dict) else {}
+    if verdict.get("stop") or extra.get("stopped"):
+        return "stopped", (talk.get("says") or {}).get("now") or "It stopped."
+    if name == "UserPromptSubmit" and not extra.get("paused_prompt"):
+        said = line(event.get("prompt"), 80)
+        return "working", f'You asked: "{said}"' if said else "It started work."
+    if name == "PostToolUse" and event.get("tool_name") in CHANGES:
+        path = str(given.get("file_path") or given.get("notebook_path") or "")
+        return "changed", inside(path, event.get("cwd")) if path else "a file"
+    if name in ("PermissionRequest", "Notification") and (talk.get("says") or {}).get("needs"):
+        return "asked", talk["says"]["needs"]
+    if name == "Stop" and not extra.get("going_on"):
+        return "finished", (talk.get("says") or {}).get("now") or "It finished."
+    if name == "SessionEnd":
+        return "left", "The conversation ended."
+    return None
+
+
+def inside(path, cwd):
+    """A changed file as a path inside the floor's folder, never this computer's own folders."""
+    folder = os.path.realpath(os.path.expanduser(str(cwd or "")))
+    full = os.path.realpath(os.path.join(folder, os.path.expanduser(path)))
+    if full.startswith(folder.rstrip(os.sep) + os.sep):
+        return os.path.relpath(full, folder)
+    return os.path.basename(full)
+
+
+def log(event, talk, project, extra, verdict):
+    """Adds this event's moment to today's history, under the feed's lock."""
+    found = moment(event, talk, extra, verdict)
+    if not found:
+        return
+    kind, what = found
+    now = time.time()
+    day = budget.local_day()
+    path = os.path.join(HISTORY, day + ".json")
+    try:
+        with open(path, encoding="utf-8") as handle:
+            rows = json.load(handle).get("moments") or []
+    except (OSError, ValueError, AttributeError):
+        rows = []
+    key = talk.get("id")
+    if kind == "changed" and any(r.get("key") == key and r.get("kind") == "changed" and r.get("what") == what and now - r.get("at", 0) < 300
+                                 for r in rows[-40:]):
+        return  # the same file again within five minutes: once is enough
+    rows = (rows + [{"at": round(now, 1), "key": key, "project": project, "title": talk.get("title"), "kind": kind, "what": line(what, 160)}])[-HISTORY_MOST:]
+    os.makedirs(HISTORY, exist_ok=True)
+    part = f"{path}.{os.getpid()}.part"
+    with open(part, "w", encoding="utf-8") as handle:
+        json.dump({"about": "The day's moments, for the building's replay (docs/connect.md, \"Replay the day\"). Safe to delete.", "moments": rows},
+                  handle, ensure_ascii=False)
+    os.replace(part, path)
+    oldest = (datetime.date.today() - datetime.timedelta(days=HISTORY_DAYS)).isoformat()
+    for name in os.listdir(HISTORY):  # a week is kept
+        if name.endswith(".json") and name[:10] < oldest:
+            try:
+                os.remove(os.path.join(HISTORY, name))
+            except OSError:
+                pass
 
 
 def halt(talk, words):
