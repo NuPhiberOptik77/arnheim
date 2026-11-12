@@ -88,6 +88,7 @@ own files show every one of them in use.
 | `rooms` | | This floor's own rooms, in place of the company's `rooms`. |
 | `extraRooms` | | More rooms, after the company's `rooms`, on this floor only. |
 | `folder` | | The folder this project is in on your computer, such as `"~/code/lantern"`, or `folders` for several. The connectors use it to know which floor work belongs to ([docs/connect.md](connect.md)). |
+| `budget` | | What this floor's agents may spend in a day, in new tokens, such as `2000000`. The company can give every floor one with its own `budget`. When they pass it, the one at work stops at its next step and you are asked ([docs/connect.md](connect.md), "A budget per floor"). |
 | `check` | | The command that shows this project's work is sound, such as `["npm", "test"]`, or `{"run": [...], "label": "The tests", "timeout": 600}`. Arnheim runs it after an agent changes files here, and shows the work as proven or not ([docs/connect.md](connect.md), "Done means proven"). |
 
 A floor holds up to five rooms. The fifth carries the back row on to the right, so no other room
@@ -152,7 +153,7 @@ floor's `label`), and each `id` is unique within its list.
 | --- | --- |
 | `tasks` | `id`, `project`, `title` and `status`, which is `needs_you`, `working`, `waiting`, `open`, `done` or `dropped`. Done and dropped tasks leave the building. Optionally a `note`, and `says` (below). |
 | `goals` | `id`, `project`, `title` and `status`: `open` or `reached`. |
-| `conversations` | `id`, `project` and `title`. Optionally `working: true` while it is working, `check: true` when there is something to look at, `says`, and `changed` and `proof`: when it last changed files, and what its floor's check made of them, such as `{"state": "passed", "check": "The tests"}` (state `passed`, `failed`, `timeout`, `error` or `checking`, and `tail`, the check's last lines). |
+| `conversations` | `id`, `project` and `title`. Optionally `working: true` while it is working, `check: true` when there is something to look at, `says`, and `changed` and `proof`: when it last changed files, and what its floor's check made of them, such as `{"state": "passed", "check": "The tests"}` (state `passed`, `failed`, `timeout`, `error` or `checking`, and `tail`, the check's last lines). `spent`: what it spent today, `{"day": "2026-11-12", "tokens": 900000}` (with no `day`, today). |
 | `pullRequests` | `number`, `project` and `title`, and `draft: true` for a draft. |
 | `copies` | `id`, `project`, `name`, and `changes`: how many changes are not saved yet. |
 | `company` | `id`, `section` (`Money`, `Legal`, `Subscriptions` or `Key dates`) and `name`. Optionally a `note`. |

@@ -20,6 +20,11 @@ It hands every conversation in the company's folders the company's memory as it 
 the decisions you asked the building to remember), and one at work the decisions made since, with your
 next message to it.
 
+It counts what each conversation spends each day, in new tokens, from its own transcript. When a
+floor's agents pass the floor's budget for the day (connect/budget.py), it stops the one at work at its
+next step, once, and asks you in the building whether they may go on. Paused from the building, every
+conversation stops at its next step, and a message you send one in Claude Code waits until you resume.
+
 When a conversation changes files and its floor names a check (docs/connect.md, "Done means proven"), it
 starts that check in the background as the turn ends (connect/prove.py), and the building shows whether
 the work is proven.
@@ -37,6 +42,7 @@ import time
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
+import budget  # noqa: E402  (beside this file: what each conversation spends)
 import control  # noqa: E402  (beside this file: what the building has for Claude Code)
 
 DATA = os.environ.get("ARNHEIM_DATA") or os.path.join(os.path.dirname(HERE), "data")
@@ -46,6 +52,7 @@ KEEP = 12 * 3600  # a conversation not heard from for this long has gone
 ASKS = {"permission_prompt", "elicitation_dialog", "agent_needs_input"}  # Claude waits for you to decide
 CHANGES = {"Edit", "MultiEdit", "Write", "NotebookEdit"}  # tools that change files: then its floor's check is due
 NEW = "A new conversation"
+COUNT = {"PostToolUse", "Stop", "UserPromptSubmit", "SubagentStop", "SessionEnd", "PreCompact"}  # moments its spending is counted
 
 
 def line(text, most):
@@ -256,11 +263,14 @@ def edit_feed(edit):
 
 
 def update(event, extra=None):
+    """Keeps the feed up to date with this event. What the building's rules then ask of Claude Code:
+    {"stop": why} to stop at this step (a budget passed, or every agent paused), or {}."""
+    verdict = {}
     if not event.get("session_id"):
-        return
+        return verdict
     project = project_for(event.get("cwd"))
     if not project and not os.path.isfile(FEED):
-        return  # a conversation in a folder no floor names: not part of this company
+        return verdict  # a conversation in a folder no floor names: not part of this company
 
     def edit(feed):
         where = project
@@ -269,9 +279,59 @@ def update(event, extra=None):
             where = seat and seat.get("project")
             if not where:
                 return None
-        return change(event, feed, where, time.time(), extra)
+        talks, tasks = change(event, feed, where, time.time(), extra)
+        talk = next((c for c in talks if c.get("id") == key_of(event)), None)
+        if talk is not None:
+            weigh(event, talk, talks, tasks, where, extra or {}, verdict)
+        return talks, tasks
 
     edit_feed(edit)
+    return verdict
+
+
+def halt(talk, words):
+    talk.update(working=False, check=True, says={"now": words, "next": "It's your turn now."})
+
+
+def weigh(event, talk, talks, tasks, project, extra, verdict):
+    """What the conversation has spent today, its floor's budget, and every agent paused (connect/budget.py)."""
+    name = event.get("hook_event_name")
+    day = budget.local_day()
+    if event.get("transcript_path") and name in COUNT:
+        spent, talk["read"] = budget.new_tokens(event["transcript_path"], talk.get("read"))
+        had = talk.get("spent") if isinstance(talk.get("spent"), dict) and talk["spent"].get("day") == day else {}
+        talk["spent"] = {"day": day, "tokens": int(had.get("tokens") or 0) + spent.get(day, 0)}
+    if extra.get("paused_prompt"):
+        halt(talk, "Every agent is paused from the building. Resume them there, then send your message again.")
+        return
+    box = control.Box(DATA)
+    tid = "budget-" + re.sub(r"[^A-Za-z0-9]+", "-", project).strip("-").lower()
+    try:
+        with open(os.path.join(DATA, "company.json"), encoding="utf-8-sig") as handle:
+            per_day = budget.budget_of(json.load(handle), project)
+    except (OSError, ValueError):
+        per_day = None
+    limit = per_day * (1 + box.allowances(day).get(project, 0)) if per_day else None
+    used = budget.spent_today(talks, project, day)
+    if not limit or used < limit:
+        tasks[:] = [t for t in tasks if t.get("id") != tid]  # under budget again: nothing to ask
+    if name != "PostToolUse" or extra.get("heard") or extra.get("stopped"):
+        return  # it stops only between steps, and never instead of handing over your message
+    paused = box.paused()
+    if paused and talk.get("paused") != paused:
+        talk["paused"] = paused
+        halt(talk, "I stopped: every agent is paused from the building.")
+        verdict["stop"] = "Paused from Arnheim, the building: every agent is paused until the person you work for resumes them there."
+    elif limit and used >= limit and talk.get("braked") != limit:
+        talk["braked"] = limit
+        halt(talk, f"I stopped: {project}'s agents have used today's budget.")
+        tasks[:] = [t for t in tasks if t.get("id") != tid] + [{
+            "id": tid, "project": project, "budget": project, "status": "needs_you",
+            "title": f"{project}'s agents have used today's budget",
+            "note": f"{budget.tokens(used)} new tokens of {budget.tokens(limit)}. Let them go on, or leave them until tomorrow.",
+        }]
+        verdict["stop"] = (f"Stopped by Arnheim, the building: {project}'s agents have used today's budget of {budget.tokens(limit)} "
+                           "new tokens. Wait until the person you work for lets you go on.")
 
 
 def due(talk):
@@ -307,9 +367,10 @@ def note(error):
 
 def keep(event, extra=None):
     try:
-        update(event, extra)
+        return update(event, extra)
     except Exception as error:  # the feed's trouble never costs Claude your message or answer
         note(error)
+        return {}
 
 
 def remembered(event, name):
@@ -359,6 +420,10 @@ def respond(event):
                 decision["interrupt"] = True
             return {"hookSpecificOutput": {"hookEventName": name, "decision": decision}}
         return None
+    if name == "UserPromptSubmit" and box.paused() and (project_for(event.get("cwd")) or any(
+            isinstance(c, dict) and c.get("id") == key for c in read_feed().get("conversations") or [])):
+        keep(event, {"paused_prompt": True})
+        return {"decision": "block", "reason": "Arnheim, the building, has paused every agent. Resume them there, then send this again."}
     stop = box.stopping(key) if name in ("PostToolUse", "UserPromptSubmit", "Stop") else False
     if stop and name == "PostToolUse":
         keep(event, {"stopped": True})
@@ -373,7 +438,9 @@ def respond(event):
     told = {"memory_at": memo[1]} if memo else {}
     if not rows:
         extra = {"started_here": os.path.exists(box.path("runs", key + ".json"))} if name == "SessionEnd" else {}
-        keep(event, {**extra, **told} or None)
+        verdict = keep(event, {**extra, **told} or None)
+        if verdict.get("stop"):
+            return {"continue": False, "stopReason": verdict["stop"]}
         if name == "Stop":
             prove(event)
         return {"hookSpecificOutput": {"hookEventName": name, "additionalContext": memo[0]}} if memo else None

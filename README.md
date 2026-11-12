@@ -164,7 +164,7 @@ the building you can talk to your agents for real, answer their permission reque
 Deny, stop them, and start new ones on a project, by typing or out loud. It answers only the page on
 your computer ([docs/connect.md](docs/connect.md), step 4).
 
-Three things no single agent can do for itself:
+Four things no single agent can do for itself:
 
 - **One list of what waits on you.** The Overview puts every agent's permission requests and
   questions, your own tasks, and agents that have just finished in one list, most urgent first, each
@@ -176,6 +176,9 @@ Three things no single agent can do for itself:
   agent in the company's folders is told it as it starts, and one already at work with your next
   message. When an agent asks something you've decided before, the list shows your decision with a
   button to send it ([docs/connect.md](docs/connect.md), step 6).
+- **A budget per floor, with a brake.** Each floor shows what its agents spent today. Give it a
+  budget, and an agent that runs past it stops at its next step and you are asked once. With control
+  on, one button pauses every agent ([docs/connect.md](docs/connect.md), step 7).
 
 Everything stays on your computer.
 

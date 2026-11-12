@@ -86,6 +86,12 @@ export function createControl({ base = BASE, headers = () => ({}), every = 3000,
     prove: (key) => after(call('prove', { key })),
     // The company's memory (connect/control.py): what every agent is told.
     remember: (text) => after(call('remember', { text })),
+    // A budget per floor, and every agent paused at once (connect/budget.py).
+    paused: () => state.paused || null,
+    timesAllowed: (project) => 1 + (state.allowed?.[project] || 0),
+    allowMore: (project) => after(call('allow_more', { project })),
+    pauseAll: () => after(call('pause', {})),
+    resumeAll: () => after(call('resume', {})),
     forget: (id) => after(call('forget', { id })),
     refresh: poll,
   };

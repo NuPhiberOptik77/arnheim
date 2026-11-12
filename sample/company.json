@@ -42,6 +42,7 @@
       "about": "Open pull requests as books, and copies of the code with unsaved changes as crates."
     }
   ],
+  "budget": 2000000,
   "floors": [
     {
       "id": "studio",

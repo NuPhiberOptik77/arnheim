@@ -8,6 +8,7 @@ import { agentControls, agentReply, createControl, deskControls, deskStart } fro
 import { allowReadsAsked, sayWaiting, together, waitingOnYou } from './queue.js';
 import { inner, proofMood, proofOf } from './proof.js';
 import { MEMORY_ASKED, decidedFor, rememberAsked, sayMemory } from './memory.js';
+import { floorSpend } from './budget.js';
 import { icon } from './icons.js';
 import { createPoe, has, insertAfter, needWord, norm, poeBadge } from './poe-desk.js';
 
@@ -114,9 +115,13 @@ const openTasks = () => byProject(work.tasks.filter((t) => !CLOSED.has(t.status)
 const kindOf = (floor, room) => room.kind || (floor === org.basement ? (room.id === 'library' ? 'library' : 'machine') : room.id);
 const machineLabel = (id) => org.basement?.rooms.find((r) => r.id === id)?.label || id;
 // Everything waiting on you, from every agent and the work, most urgent first (queue.js).
+// What a floor's agents have spent today against its budget (budget.js), as far as control has let them go.
+const spendOf = (floor) => (floor?.project ? floorSpend(org, floor, work.conversations, control.on ? control.timesAllowed(floor.project) : 1) : null);
 const waitingNow = () => {
   const { asks, runs } = control.on ? control.state() : { asks: [], runs: [] };
-  return waitingOnYou({ asks: asks.filter((a) => !answered.has(a.id)), runs, conversations: work.conversations, tasks: openTasks() });
+  // a floor's budget question goes as soon as it is under budget again, without waiting for the hook
+  const tasks = openTasks().filter((t) => !t.budget || spendOf(floorOf(t.budget))?.over !== false);
+  return waitingOnYou({ asks: asks.filter((a) => !answered.has(a.id)), runs, conversations: work.conversations, tasks });
 };
 // Permissions answered here, left out of the list before the next look at control catches up.
 const answered = new Set();
@@ -229,6 +234,8 @@ function floorLines(floor) {
   const lines = [];
   if (openTasks().some((t) => t.project === floor.project && t.status === 'needs_you')) lines.push({ text: 'Needs you', kind: 'needs' });
   if (work.conversations.some((c) => c.project === floor.project && c.working)) lines.push({ text: 'Working now', kind: 'working' });
+  const spend = spendOf(floor);
+  if (spend) lines.push({ text: spend.text[0].toUpperCase() + spend.text.slice(1), kind: spend.over ? 'failed' : 'quiet' });
   return lines.length ? lines : [{ text: 'Quiet', kind: 'quiet' }];
 }
 
@@ -408,6 +415,8 @@ function brainFacts() {
   ]);
   add('Waiting on you, as one list (agents and tasks)', [sayWaiting(waitingNow(), label)]);
   add('Company memory: what every agent is told as it starts', memoryNow().length ? memoryNow().map((r) => `- ${r.text}`) : ['Nothing is remembered yet.']);
+  add("Spent today, in new tokens, against each floor's budget", org.floors.map((f) => [f, spendOf(f)]).filter(([, s]) => s).map(([f, s]) => `- ${f.label}: ${s.text}.`));
+  if (control.on && control.paused()) add('Every agent', ['Paused from the building, until it resumes them.']);
   add('Needs you', [
     needs.length ? [`${needWord(needs.length)}, in this order:`, some(needs, (t) => `- ${q(t.title)}, on ${label(t.project)}`)] : 'Nothing needs you right now.',
     checks.length > 0 && [`${count(checks.length, 'conversation has', 'conversations have')} something for you to check:`, some(checks, (c) => `- ${q(c.title)}, on ${label(c.project)}`)],
@@ -658,6 +667,29 @@ function convoControls(c) {
     controlNote && h('p.small.muted', { role: 'status' }, controlNote));
 }
 
+// Every agent at once: paused from here until you resume them (connect/budget.py), with control on.
+function pauseCard() {
+  if (!control.on || dir !== 'data') return null;
+  const paused = control.paused();
+  return h(`section.panel-card.pause${paused ? '.paused' : ''}`, { 'aria-live': 'polite' },
+    paused ? h('p', h('strong', 'Every agent is paused.'), ` Since ${new Date(paused * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Each stopped at its next step, and a message sent to one in Claude Code waits until you resume.`)
+      : h('p.small.muted', 'Pause every agent at once: each stops at its next step, until you resume them.'),
+    h('div.control-row', paused ? btn('Resume everyone', () => controlDone(control.resumeAll(), () => ''), '.primary', 'rotate-ccw')
+      : btn('Pause everyone', () => controlDone(control.pauseAll(), () => ''), '', 'clock')));
+}
+
+// What each floor's agents have spent today, against its budget.
+function spendCard() {
+  const list = org.floors.map((f) => [f, spendOf(f)]).filter(([, s]) => s);
+  if (!list.length) return null;
+  return h('section.panel-card',
+    sectHead('gauge', 'Spent today'),
+    h('ul.list', list.map(([f, s]) => h('li', h('a.row.spend-row', { href: `#/${f.id}` }, dot(s.over ? 'failed' : 'quiet'),
+      h('span.row-main', h('span.row-title', f.label), h('span.row-sub', s.text[0].toUpperCase() + s.text.slice(1)),
+        s.share != null && h('span.spend-bar', { 'aria-hidden': 'true' }, h(`span${s.over ? '.over' : ''}`, { style: `width: ${Math.round(s.share * 100)}%` }))))))),
+    h('p.small.muted', 'New tokens: what Claude read fresh and wrote. Re-reading its cache is left out.'));
+}
+
 // Done means proven (proof.js): the check's last lines when it didn't pass, and, with control on and a check
 // on its floor, a way to run it again.
 function proofPart(c, pr) {
@@ -738,6 +770,10 @@ function waitingItem(i) {
       btn('Allow', () => controlDone(answerAsk(i.ask.id, 'allow'), () => 'Allowed, just this once.'), '.primary'),
       btn('Deny', () => controlDone(answerAsk(i.ask.id, 'deny'), () => 'Denied.'))));
   }
+  if (i.kind === 'task' && i.task?.budget && control.on && dir === 'data') {
+    li.append(h('div.control-row.waiting-do',
+      btn('Let them go on', () => controlDone(control.allowMore(i.task.budget), (r) => `${i.task.budget}'s agents may spend as much again today. Tell them to go on.`), '.primary')));
+  }
   const decided = i.kind === 'question' ? decidedFor(i.what, memoryNow()) : [];
   const reachable = control.on && (REACHABLE.test(i.key) || control.run(i.key));
   if (decided.length) {
@@ -809,9 +845,11 @@ function viewOverview() {
         madeUp() ? h('p', sampleLine()) : org.about && h('p', org.about),
         h('p.small.muted', `Arnheim shows a company as a building. Each floor is a project and each room holds one kind of thing. Tap a floor to bring it out, then a room to look inside. Press Walk to go in and talk to the people at work, and to ${deskName() || 'the receptionist'} at the front desk.`)),
       h('div.stats', tile('bell-ring', 'needs', waiting.length, 'Need you'), tile('messages-square', 'working', talking.length, 'Working now'), tile('server', 'working', jobs.length, 'Jobs running')),
+      pauseCard(),
       h('section.panel-card',
         sectHead('bell', 'Waiting on you'),
         waitingList(waiting)),
+      spendCard(),
       h('section.panel-card',
         sectHead('zap', 'Working now'),
         talking.length || jobs.length
@@ -886,6 +924,7 @@ function viewFloor(floor) {
     crumbs: crumbsFor(floor),
     body: [
       title(floor.label),
+      floor === org.lobby && pauseCard(),
       h('p.states', floorLines(floor).map(chip)),
       floor.about && h('p', floor.about),
       floor.story && h('p.muted', floor.story),
@@ -1504,7 +1543,7 @@ async function boot() {
     // Control is off unless serve.py says it is on; then the panel follows what waits for you.
     let seen = '';
     control.watch((s) => {
-      const sig = JSON.stringify([s.on, s.asks.map((a) => a.id), s.runs.map((r) => [r.key, r.state, r.answered]), s.projects.length]);
+      const sig = JSON.stringify([s.on, s.asks.map((a) => a.id), s.runs.map((r) => [r.key, r.state, r.answered]), s.projects.length, s.paused, s.allowed]);
       if (sig === seen) return;
       seen = sig;
       refresh();

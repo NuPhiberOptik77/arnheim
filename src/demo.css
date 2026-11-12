@@ -271,3 +271,11 @@ a.floor-card:hover, a.room-tile:hover { transform: translateY(-1px); }
 .memory-row .row-main { flex: 1; }
 .memory .control-say { margin-top: 10px; }
 .decided p { margin: 0 0 6px; }
+
+/* A budget per floor (budget.js): how full today's is, and every agent paused. */
+.spend-bar { display: block; height: 4px; margin-top: 6px; border-radius: 2px; background: var(--surface-2); overflow: hidden; }
+.spend-bar span { display: block; height: 100%; background: var(--check); }
+.spend-bar span.over { background: var(--fail); }
+.panel-card.pause.paused { border-color: var(--fail); background: var(--fail-bg); }
+.panel-card.pause p { margin: 0 0 8px; }
+.spend-row .row-main { flex: 1; }

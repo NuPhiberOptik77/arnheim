@@ -213,6 +213,30 @@ Then, through the hooks of step 2:
 
 Ask the receptionist "what have we decided?" to hear the memory. With the brain on, they know it too.
 
+## 7. A budget per floor, and pausing everyone
+
+Arnheim counts what each conversation spends each day, from Claude Code's own record of it: the new
+tokens of each reply, that is what Claude read fresh, wrote to its cache, and wrote back. Re-reading
+its cache is left out, since that is the same context again, and so is the work of its sub-agents.
+The Overview shows each floor's total for today under "Spent today", and each floor's page says it too.
+
+Give a floor a budget for a day, in new tokens, or give the company one for every floor:
+
+```json
+{ "company": "Example Studio", "budget": 3000000,
+  "floors": [{ "id": "lantern", "label": "Lantern", "folder": "~/code/lantern", "budget": 1000000 }] }
+```
+
+When a floor's agents pass it, the one at work stops at its next step, and the list of what waits on
+you asks whether they may go on. **Let them go on** (with control on) gives them as much again, for
+today; or leave them, and the budget starts afresh tomorrow. Each conversation is stopped once for each
+limit it passes, so if you carry on with it in Claude Code yourself, it lets you.
+
+With control on, **Pause everyone** on the Overview, or in the lobby, stops every agent in the
+company's folders at its next step, and a message you send one in Claude Code waits until you
+**Resume everyone**. Nothing is ever stopped in the middle of a step, and a message you send from the
+building is always handed over first.
+
 ## What is kept, and where
 
 The connectors write `data/feeds/claude-code.json` and `data/feeds/projects.json`. From Claude Code
@@ -223,7 +247,9 @@ computer, unless you serve Arnheim with `--lan`, when anyone on your network can
 
 A floor's check keeps the last lines it printed beside each conversation it checked, and a lock and
 a note for its next run in `data/feeds/proof/`. The company's memory is `data/memory.json`, and the
-feed notes when each conversation was last told it.
+feed notes when each conversation was last told it. For the budget, the feed keeps each conversation's
+new tokens for today and how far its transcript has been read; `data/control/` keeps a pause, and how
+far each floor was let go past its budget today.
 
 With control on, your messages wait in `data/control/` until Claude takes them, a permission
 request and its answer are deleted once it is answered, and each agent started from the building

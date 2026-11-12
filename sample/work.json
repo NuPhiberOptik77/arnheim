@@ -3,6 +3,7 @@
   "tasks": [
     { "id": "s1", "project": "Studio", "title": "Write the plan for next year", "status": "open" },
     { "id": "s2", "project": "Studio", "title": "Renew the Lantern domain", "status": "needs_you", "note": "It runs out at the end of the month." },
+    { "id": "budget-studio", "project": "Studio", "budget": "Studio", "title": "Studio's agents have used today's budget", "status": "needs_you", "note": "2.1 million new tokens of 2 million. Let them go on, or leave them until tomorrow." },
     { "id": "s3", "project": "Studio", "title": "Choose an accountant", "status": "waiting", "note": "Waiting on two replies." },
     { "id": "l1", "project": "Lantern", "title": "Fix the bookmark that jumps back a page", "status": "working", "says": {"now": "I'm fixing the bookmark that jumps back a page. The fix is written, and I'm testing it now.", "next": "Then it goes to the spare laptop for a last check."} },
     { "id": "l2", "project": "Lantern", "title": "Decide on the reading streak badge", "status": "needs_you", "note": "Two designs are ready. Pick one." },
@@ -25,16 +26,17 @@
     { "id": "gk2", "project": "Kitefield", "title": "Share a design with a link", "status": "open" }
   ],
   "conversations": [
-    { "id": "cs1", "project": "Studio", "title": "Planning next quarter" },
-    { "id": "cs2", "project": "Studio", "title": "Sorting the subscriptions", "check": true, "says": { "now": "I sorted the studio's subscriptions into keep and cancel. Three can go." },
+    { "id": "cs1", "project": "Studio", "title": "Planning next quarter", "check": true, "spent": { "tokens": 1800000 },
+      "says": { "now": "I stopped: Studio's agents have used today's budget.", "next": "It's your turn now." } },
+    { "id": "cs2", "project": "Studio", "title": "Sorting the subscriptions", "check": true, "spent": { "tokens": 300000 }, "says": { "now": "I sorted the studio's subscriptions into keep and cancel. Three can go." },
       "proof": { "state": "passed", "check": "The spending check" } },
-    { "id": "cl1", "project": "Lantern", "title": "Why the bookmark jumps", "working": true, "says": {"now": "I'm finding out why the bookmark jumps back a page. It saves your place before the page has finished turning, so it keeps the page you were leaving.", "next": "Next I'll save it once the turn ends, then try it on a long book.", "when": "About an hour, if the long book behaves.", "needs": "Nothing yet. If the fix changes how pages turn, I'll ask you first."} },
+    { "id": "cl1", "project": "Lantern", "title": "Why the bookmark jumps", "working": true, "spent": { "tokens": 900000 }, "says": {"now": "I'm finding out why the bookmark jumps back a page. It saves your place before the page has finished turning, so it keeps the page you were leaving.", "next": "Next I'll save it once the turn ends, then try it on a long book.", "when": "About an hour, if the long book behaves.", "needs": "Nothing yet. If the fix changes how pages turn, I'll ask you first."} },
     { "id": "cl2", "project": "Lantern", "title": "Reading streak ideas" },
     { "id": "cl3", "project": "Lantern", "title": "Pictures for the app store", "check": true, "says": { "now": "I made the five pictures for the app store." },
       "proof": { "state": "failed", "check": "The picture sizes check", "tail": "phone-1.png: 1290 x 2796, right\nphone-2.png: 1290 x 2796, right\ntablet-1.png: 2048 x 2732, should be 2064 x 2752\n1 of 5 pictures is the wrong size." } },
     { "id": "ct1", "project": "Tidepool", "title": "Rain gauge supplier" },
     { "id": "ct2", "project": "Tidepool", "title": "Wind sensor drift", "says": {"now": "I'm looking at why the wind sensor reads high after a few days. It drifts by about half a metre a second.", "next": "Next I'll compare it with the spare sensor and write down a fix.", "when": "Once the spare has run for a day."} },
-    { "id": "ck1", "project": "Kitefield", "title": "Tail physics", "working": true, "says": {"now": "I'm checking the kite's tail against the field test video. In a strong wind it swings about a third too far.", "next": "Next I'll add a little drag to the tail and run the test again.", "when": "Two more test runs, so this afternoon.", "needs": "Not yet. You may want to watch the last run with me."} },
+    { "id": "ck1", "project": "Kitefield", "title": "Tail physics", "working": true, "spent": { "tokens": 1400000 }, "says": {"now": "I'm checking the kite's tail against the field test video. In a strong wind it swings about a third too far.", "next": "Next I'll add a little drag to the tail and run the test again.", "when": "Two more test runs, so this afternoon.", "needs": "Not yet. You may want to watch the last run with me."} },
     { "id": "ck2", "project": "Kitefield", "title": "Template wish list" }
   ],
   "pullRequests": [

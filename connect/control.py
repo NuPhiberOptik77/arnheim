@@ -9,7 +9,9 @@ Then, on a walk and in the panel:
 - a permission it asks for shows in the building, with Allow and Deny;
 - you can start an agent on a floor's project with a first instruction, and stop one at work;
 - you can have a floor's check run again on an agent's work (connect/prove.py);
-- you can add to the company's memory, the decisions every agent is told, and take them out again.
+- you can add to the company's memory, the decisions every agent is told, and take them out again;
+- you can pause every agent at once and let them go on again, and let a floor's agents go past
+  today's budget (connect/budget.py).
 
 The page and Claude Code meet in data/control/, on this computer. Control, below, answers the
 page's /control/ requests for serve.py, or for a server of your own. Box is the mail between them.
@@ -32,6 +34,11 @@ import sys
 import threading
 import time
 import uuid
+
+try:
+    from . import budget  # as connect.control, from serve.py
+except ImportError:
+    import budget  # beside this file, as the hook has it
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 DATA = os.environ.get("ARNHEIM_DATA") or os.path.join(os.path.dirname(HERE), "data")
@@ -279,6 +286,30 @@ class Box:
         with open(self.path("stop", key), "w") as handle:
             handle.write(str(time.time()))
 
+    # Every agent paused at once, from the building, until you resume them.
+    def pause(self):
+        write(self.path("paused.json"), {"at": time.time()})
+
+    def resume(self):
+        gone(self.path("paused.json"))
+
+    def paused(self):
+        """When every agent was paused, or None."""
+        at = (read(self.path("paused.json")) or {}).get("at")
+        return at if isinstance(at, (int, float)) else None
+
+    # A floor's agents allowed past today's budget: as much again, each time you let them.
+    def allowances(self, day):
+        given = read(self.path("budget.json")) or {}
+        extra = given.get("extra") if given.get("day") == day else None
+        return {k: v for k, v in extra.items() if isinstance(v, int) and v > 0} if isinstance(extra, dict) else {}
+
+    def allow_more(self, project, day):
+        extra = self.allowances(day)
+        extra[project] = extra.get(project, 0) + 1
+        write(self.path("budget.json"), {"day": day, "extra": extra})
+        return extra[project]
+
     def stopping(self, key, keep=False):
         path = self.path("stop", key)
         if not os.path.exists(path):
@@ -370,6 +401,14 @@ class Control:
                 return answer(200, self.stop(given.get("key")))
             if name == "prove":
                 return answer(200, self.prove(given.get("key")))
+            if name == "pause":
+                self.box.pause()
+                return answer(200, {"ok": True, "paused": True})
+            if name == "resume":
+                self.box.resume()
+                return answer(200, {"ok": True, "paused": False})
+            if name == "allow_more":
+                return answer(200, self.allow_more(given.get("project")))
             if name == "remember":
                 return answer(200, self.remember(given.get("text")))
             if name == "forget":
@@ -388,6 +427,8 @@ class Control:
             "asks": [{k: row.get(k) for k in ("id", "key", "tool", "what", "at", "until")} for row in self.box.asks()],
             "runs": runs,
             "projects": [{k: f[k] for k in ("project", "label", "floor", "check")} for f in self.floors()],
+            "paused": self.box.paused(),
+            "allowed": self.box.allowances(budget.local_day()),
         }
 
     # ---------- talking, starting and stopping ----------
@@ -446,6 +487,15 @@ class Control:
             raise Refused(f"The check didn't start ({error.strerror or error}).")
         threading.Thread(target=proc.wait, daemon=True).start()  # so it leaves nothing behind when it ends
         return {"ok": True, "check": check["label"]}
+
+    def allow_more(self, project):
+        """Lets a floor's agents spend as much again as their budget, today."""
+        company = read(os.path.join(self.data, "company.json")) or {}
+        if not isinstance(project, str) or not budget.budget_of(company, project):
+            raise Refused("That floor has no budget.")
+        with self.lock:
+            times = self.box.allow_more(project, budget.local_day())
+        return {"ok": True, "project": project, "times": times + 1}
 
     # ---------- the company's memory ----------
 
