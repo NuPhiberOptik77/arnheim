@@ -1040,10 +1040,11 @@ def server_rack(col, h=2.0, w=0.6, d=1.0, lit=False, seed=1):
     on each server (lit=True: glowing, for the photographs; the live building lights its own), cable bundles at
     the back."""
     rnd = random.Random(seed)
-    frame = M.matte("#1E2024", 0.42, 0.35)
-    face = M.matte("#2A2D33", 0.38, 0.45)
-    mesh = M.matte("#15171A", 0.5, 0.3)
-    blank = M.matte("#1A1C1F", 0.55, 0.2)
+    # dark greys, not black, so the fronts, handles and drive bays still read in a dim room
+    frame = M.matte("#34373C", 0.42, 0.35)
+    face = M.matte("#4A4E55", 0.35, 0.45)
+    mesh = M.matte("#2B2E33", 0.5, 0.3)
+    blank = M.matte("#303338", 0.55, 0.2)
     U = 0.0445
     out = [rbox("rack top", (-w / 2, -d / 2, h - 0.04), (w / 2, d / 2, h), col, frame, 0.004),
            rbox("rack plinth", (-w / 2 + 0.02, -d / 2 + 0.02, 0), (w / 2 - 0.02, d / 2 - 0.02, 0.08), col, frame, 0.004),

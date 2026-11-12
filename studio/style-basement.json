@@ -25,7 +25,7 @@
     "floor": "concrete",
     "floor_tone": "#ADA9A1",
     "lights": "battens",
-    "cameras": [{"at": [21.6, 8.4], "look": [21.0, 1.0], "lens": 20, "height": 1.25, "exposure": 0.8, "shift_y": 0.0, "wb": 5200,
+    "cameras": [{"at": [21.0, 8.4], "look": [20.3, 1.0], "lens": 20, "height": 1.25, "exposure": 0.8, "shift_y": 0.0, "wb": 5200,
                  "about": "from the door, down the room to the bench under the high windows, the rack on the right"}]
   }
 }
