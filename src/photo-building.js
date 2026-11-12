@@ -1303,19 +1303,24 @@ export function createPhotoBuilding(canvas, org, { base, people: ownPeople, onPi
     c.height = Math.round((2048 * h) / w);
     const g = c.getContext('2d');
     const face = (px) => `${px}px "Snell Roundhand", "Apple Chancery", "Savoye LET", "Segoe Script", "URW Chancery L", cursive`;
-    const lines = (px) => {
+    const wide = c.width * 0.94;
+    const lines = (px, most = wide) => {
       g.font = face(px);
       const out = [];
       let line = '';
       for (const word of text.trim().split(/\s+/)) {
         const next = line ? `${line} ${word}` : word;
-        if (line && g.measureText(next).width > c.width * 0.94) { out.push(line); line = word; } else line = next;
+        if (line && g.measureText(next).width > most) { out.push(line); line = word; } else line = next;
       }
       return line ? [...out, line] : out;
     };
     let px = Math.round(c.height / 2.6);
     let rows = lines(px);
     while (px > 12 && rows.length * px * 1.2 + (by ? px * 0.95 : 0) > c.height * 0.96) rows = lines(--px);
+    // even lines: the narrowest wrap that needs no more lines, so no word is left alone on the last one
+    let lo = wide / 2, hi = wide;
+    for (let i = 0; i < 12; i++) { const mid = (lo + hi) / 2; if (lines(px, mid).length > rows.length) lo = mid; else hi = mid; }
+    rows = lines(px, hi);
     g.fillStyle = color;
     g.textBaseline = 'alphabetic';
     let y = (c.height - (rows.length * px * 1.2 + (by ? px * 0.95 : 0))) / 2 + px * 0.95;
