@@ -170,10 +170,13 @@ def light_wells(design, W, D, H, street, col, streets=True):
     pave = M.stone("#CFC8BC", "#B9B0A2", 0.6, 0.5)
     # the street and pavement all round, leaving the wells open (the site, blender/site.py, lays its own)
     if streets:
-        kit.box("street west", (-400, -400, street - 0.3), (sx - t, 400, street), col, pave)
-        kit.box("street south", (sx - t, -400, street - 0.3), (400, sy - t, street), col, pave)
-        kit.box("street east", (W, sy - t, street - 0.3), (400, 400, street), col, pave)
-        kit.box("street north", (sx - t, D, street - 0.3), (W, 400, street), col, pave)
+        # baked as a group of their own: hundreds of metres of pavement in a room's lightmap left the room itself
+        # a few texels a metre
+        for name, lo, hi in (("street west", (-400, -400, street - 0.3), (sx - t, 400, street)),
+                             ("street south", (sx - t, -400, street - 0.3), (400, sy - t, street)),
+                             ("street east", (W, sy - t, street - 0.3), (400, 400, street)),
+                             ("street north", (sx - t, D, street - 0.3), (W, 400, street))):
+            kit.box(name, lo, hi, col, pave)["group"] = "STREET"
         kit.box("lobby over", (0, 0, H + 0.25), (W, D, street), col, M.matte("#9C968C", 0.9))
     retaining = M.plaster("#E9E6E0")
     if south:
