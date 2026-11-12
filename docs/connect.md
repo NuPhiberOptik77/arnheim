@@ -473,8 +473,8 @@ is what really keeps it out. It uses git, beside the project's own history: your
 staged and your files are left as they are, and `git log` shows nothing new unless you ask it for
 `--all`. A folder that isn't in git gets none. The hook keeps a list of its own for each floor inside
 the repository's `.git` folder, so after the first restore point the next ones are quick. A floor's
-folder so big that saving takes longer than 20 seconds gets no restore points for six hours, so its
-agents aren't held up.
+folder so big that saving takes too long (20 seconds for one step, or 40 in all) gets no restore points
+for six hours, so its agents aren't held up.
 
 Each conversation's page and each floor's page list its restore points. With control on (step 4), **Go
 back to here** puts the floor's files as they were then: those changed since are put back and those

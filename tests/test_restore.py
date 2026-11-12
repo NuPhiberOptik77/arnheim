@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -198,11 +199,13 @@ class RestoreTest(unittest.TestCase):
                   "home/.docker/config.json", ".claude/settings.local.json", "api_key.txt", "keys/API-KEY.json", "sub/.SSH/known",
                   "Server.PEM", "deploy/.env.production"]
         ordinary = ["tokenizer.py", "reset_password.py", "design-tokens.json", "keys.py", "docker/config.json", "settings.json",
-                    "environment.md", "src/env.ts"]
+                    "environment.md", "src/env.ts", "api_key_utils.py", "ApiKeyService.swift", "secrets.py", "credentials.ts",
+                    "server.\u212aey"]  # code is always saved; and git lower-cases A to Z only, never the Kelvin sign
+        secret += ["config/secrets.yml", "client_secret_123.json", "aws_credentials.ini"]
         for name in secret + ordinary:
             self.write(name, "x\n")
         point = restore.take(self.lantern, "before", project="Lantern", data=self.data)
-        held = set(git(self.lantern, "ls-tree", "-r", "--name-only", point["commit"]).split("\n"))
+        held = set(git(self.lantern, "-c", "core.quotePath=false", "ls-tree", "-r", "--name-only", point["commit"]).split("\n"))
         for name in secret:
             self.assertNotIn(name, held)
             self.assertTrue(restore.looks_secret(name), name)  # the same answer as git's
@@ -262,6 +265,34 @@ class RestoreTest(unittest.TestCase):
                 restore.go_back(point, self.data)
         finally:
             restore.snapshot = snapshot
+        self.assertEqual(self.read("app.py"), "print('worth keeping too')\n")
+
+    def test_a_point_is_kept_whole_or_not_at_all(self):
+        point = restore.take(self.lantern, "before", project="Lantern", data=self.data, now=1000)
+        self.write("app.py", "print('worth keeping')\n")
+        snapshot = restore.snapshot
+
+        def late(*args, **kwargs):
+            made = snapshot(*args, **kwargs)
+            restore._until[0] = time.monotonic() - 1  # the time for it ran out just after saving
+            return made
+        restore.snapshot = late
+        try:
+            out = restore.go_back(point, self.data)
+        finally:
+            restore.snapshot = snapshot
+        kept = [p for p in self.points() if p["id"] == out["kept"]]
+        self.assertEqual(len(kept), 1)  # listed, and its files held by git, so going back can be undone
+        self.assertIn(kept[0]["commit"], git(self.lantern, "for-each-ref", "--format=%(objectname)", "refs/arnheim/restore/"))
+        # If git won't hold it, it isn't kept, and going back doesn't go.
+        self.write("app.py", "print('worth keeping too')\n")
+        real = restore.git
+        restore.git = lambda repo, *args, **kwargs: None if args[:1] == ("update-ref",) else real(repo, *args, **kwargs)
+        try:
+            with self.assertRaises(ValueError):
+                restore.go_back(point, self.data)
+        finally:
+            restore.git = real
         self.assertEqual(self.read("app.py"), "print('worth keeping too')\n")
 
     def test_one_slow_floor_doesnt_stop_another(self):

@@ -64,10 +64,13 @@ RISKY = re.compile(
 # .gitignore is what really keeps a secret out.
 SECRETS = (".env", ".env.*", "*.env", ".envrc", "*.pem", "*.key", "*.p8", "*.p12", "*.pfx", "*.keystore", "*.jks", "*.kdbx", "*.ovpn",
            "*.ppk", "*.keychain", "*.keychain-db", "id_rsa*", "id_dsa*", "id_ecdsa*", "id_ed25519*", ".netrc", ".npmrc", ".pypirc",
-           ".pgpass", ".htpasswd", ".git-credentials", "credentials", "credentials.*", "*-credentials.*", "*_credentials.*",
-           "secrets.*", "*.secret", "*.secrets", "client_secret*", "service-account*.json", "*service_account*.json",
-           "token.json", "*.token", "api_key*", "api-key*", "apikey*", "auth.json", "*.tfvars", "*.tfvars.json", "*.tfstate",
-           "*.tfstate.*", "settings.local.json", ".docker/config.json", ".ssh/**", ".aws/**", ".gnupg/**", ".kube/**")
+           ".pgpass", ".htpasswd", ".git-credentials", "credentials", "*.secret", "*.secrets", "service-account*.json",
+           "*service_account*.json",
+           "token.json", "*.token", "auth.json", "*.tfvars", "*.tfvars.json", "*.tfstate", "*.tfstate.*", "settings.local.json",
+           ".docker/config.json", ".ssh/**", ".aws/**", ".gnupg/**", ".kube/**") + tuple(
+    # Names code files have too (api_key_utils.py, secrets.py): only as data files, so code is always saved and put back.
+    f"{name}.{kind}" for name in ("secrets", "credentials", "*-credentials", "*_credentials", "client_secret*", "api_key*", "api-key*", "apikey*")
+    for kind in ("json", "yaml", "yml", "toml", "txt", "ini", "cfg", "conf", "xml", "plist", "properties"))
 NOT_SECRETS = [f":(top,exclude,glob,icase)**/{p}" for p in SECRETS]
 ONLY_SECRETS = [f":(top,glob,icase)**/{p}" for p in SECRETS]
 GIT_ENV = {  # who the restore points' commits are by: never the person's own name
@@ -300,18 +303,34 @@ def _take(folder, why, key, project, title, by, data, now, force):
              "key": key, "title": " ".join(str(title or "").split())[:80], "why": " ".join(str(why or "").split())[:160], "by": by,
              "at": round(now, 1), "files": files}
     path = feed_path(data)
+    # Saved: now keep it whole or not at all. Only one git call each from here, so the time for the point no
+    # longer applies; a point half kept (listed but not held by git, or the other way) is worse than a slow one.
+    held_until, _until[0] = _until[0], None
+    try:
+        return _keep(point, repo, commit, path, data)
+    except TooSlow:
+        return None
+    finally:
+        _until[0] = held_until
+
+
+def _keep(point, repo, commit, path, data):
     with Lock(path + ".lock"):  # the refs too, so one hook never lets go of another's new point
         rows = [row for row in read_points(data) if row.get("id") != point["id"]] + [point]
         rows.sort(key=lambda row: row.get("at") or 0)
         rows = rows[-KEEP:]
+        if git(repo, "update-ref", REF + commit, commit) is None:
+            return None  # git won't hold it: not kept
         try:
-            git(repo, "update-ref", REF + commit, commit)
             part = f"{path}.{os.getpid()}.part"
             with open(part, "w", encoding="utf-8") as handle:
                 json.dump({"about": "Restore points: the files as they were before an agent changed them (docs/connect.md, "
                                     "\"Restore points\"). Kept by connect/restore.py. Safe to delete: the points are then forgotten.",
                            "restore": rows}, handle, ensure_ascii=False, indent=1)
             os.replace(part, path)
+        except OSError:
+            return None  # not listed: not kept (its ref is let go of next time)
+        try:
             kept = {row.get("commit") for row in rows}
             # Let go of this repository's points that aren't kept: older ones, and any from a floor since renamed
             # or moved, or from before restore.json was deleted. git tidies their files away in its own time.
@@ -329,12 +348,15 @@ def risky(command):
     return bool(RISKY.search(" " + str(command or "")))
 
 
+ASCII_LOWER = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+
+
 def looks_secret(path):
     """Whether a path's name is one SECRETS matches, as git's own matching does (for restore points from before
     secrets git tracks were left out)."""
-    parts = path.lower().split("/")
+    parts = path.translate(ASCII_LOWER).split("/")  # A to Z only, as git does: never the Kelvin sign and the like
     for pattern in SECRETS:
-        pattern = pattern.lower()
+        pattern = pattern.translate(ASCII_LOWER)
         if pattern.endswith("/**"):
             if pattern[:-3] in parts[:-1]:
                 return True
