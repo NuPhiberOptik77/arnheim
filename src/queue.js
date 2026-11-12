@@ -9,10 +9,12 @@ import { reviewOf } from './review.js';
 
 // Reading one file. Reads inside a project's folder never ask, so the ones that do reach outside it: "allow all
 // the reads" lets them go ahead together, but never a search (Grep, Glob, LS can sweep whole folders) and never
-// a read of anything that looks like a key, a password, a token or a credentials file (SECRET). Those, like
-// commands and changes, each need their own answer.
+// a read of anything that looks like a key, a password, a token or a credentials file (SECRET), or that sits in
+// a hidden folder or file, the system's Library or AppData, where most keys and logins live (HIDDEN). Those,
+// like commands and changes, each need their own answer.
 export const READS = new Set(['Read', 'NotebookRead']);
-export const SECRET = /(?:^|[\\/\s~])(?:[^\\/\s]*\.env\w*|\.ssh|\.aws|\.gnupg|\.netrc|\.npmrc|\.pypirc|\.pgpass|\.docker|\.kube|\.git-credentials|\.config[\\/]gh|keychains?|id_(?:rsa|dsa|ecdsa|ed25519)|[^\\/\s]*\.(?:pem|key|p8|p12|pfx|keystore|jks)\b|[^\\/\s]*(?:credential|secret|password|passwd|token|api[_-]?key|service[_-]?account)|[^\\/\s]*_history\b)/i;
+export const HIDDEN = /(?:^|[\\/\s])\.(?![.\\/\s]|$)|(?:^|[\\/\s])(?:Library|AppData)(?:[\\/]|$)/;
+export const SECRET = /(?:^|[\\/\s~])(?:[^\\/\s]*\.env\w*|\.ssh|\.aws|\.gnupg|\.netrc|\.npmrc|\.pypirc|\.pgpass|\.docker|\.kube|\.git-credentials|\.config[\\/]gh|keychains?|id_(?:rsa|dsa|ecdsa|ed25519)|[^\\/\s]*\.(?:pem|key|p8|p12|pfx|keystore|jks|ppk|gpg|asc|kdbx|ovpn)\b|login data|cookies\b|[^\\/\s]*(?:credential|secret|password|passwd|token|api[_-]?key|service[_-]?account)|[^\\/\s]*_history\b)/i;
 const RANK = { permission: 0, question: 1, task: 2, turn: 3 };
 const RECENT = 2 * 3600; // seconds: an agent that finished longer ago than this is no longer waiting on you
 
@@ -45,7 +47,7 @@ export function waitingOnYou({ asks = [], runs = [], conversations = [], tasks =
     const c = talks.get(a.key) || started.get(a.key);
     asking.add(a.key);
     items.push({ kind: 'permission', id: `ask:${a.id}`, key: a.key, title: c?.title || 'An agent', project: c?.project,
-      what: wantsTo(a.tool, a.what), tool: a.tool, read: READS.has(a.tool) && !SECRET.test(String(a.what || '')), at: seconds(a.at), until: seconds(a.until), ask: a });
+      what: wantsTo(a.tool, a.what), tool: a.tool, read: READS.has(a.tool) && !SECRET.test(String(a.what || '')) && !HIDDEN.test(String(a.what || '')), at: seconds(a.at), until: seconds(a.until), ask: a });
   }
   for (const c of talks.values()) {
     if (asking.has(c.id) || c.working) continue;

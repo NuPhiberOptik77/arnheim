@@ -65,9 +65,13 @@ class HandOutTest(unittest.TestCase):
         self.assertEqual(got["out"][0][1], ["Tidepool", "update the privacy page"])
 
     def test_not_handing_out_work(self):
-        got = self.talk(["what needs me?", "get going", "start it", "ask Claude what is waiting on me", "Ask an agent how it is going",
-                         "ask Claude on Lantern whether the tests pass", "ask someone to look at the tests on Lantern?"])
-        self.assertEqual(got["out"], [None] * 7)
+        said = ["what needs me?", "get going", "start it", "ask Claude what is waiting on me", "Ask an agent how it is going",
+                "ask Claude on Lantern whether the tests pass", "ask someone to look at the tests on Lantern?", "ask Claude do the tests pass",
+                "ask an agent have the tests passed", "ask Claude am I blocked", "ask Claude shall we ship", "ask an agent may I ship it",
+                "ask Claude isn't the build broken", "ask an agent whats left"]
+        got = self.talk(said)
+        self.assertEqual(got["out"], [None] * len(said))
+        self.assertEqual(self.talk(["ask Claude to do the release notes for Tidepool"])["out"][0][1], ["Tidepool", "do the release notes"])
         self.assertEqual(got["begun"], [])
 
 

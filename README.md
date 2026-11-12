@@ -105,7 +105,7 @@ below).
   starts ("Connect your agents", below). **"What have we decided?"** reads it back.
 - **"What's waiting on me?"** reads out everything that waits on you, from every agent and your own
   tasks, most urgent first. With control on, **"allow all the reads"** lets every agent waiting to
-  read or search go ahead.
+  read an ordinary file go ahead; searches, and anything that looks private, each need an answer.
 - **Talk out loud** on a walk: with Voice on, just speak in their ring, and they answer aloud. In
   the panel, **Read aloud** has them speak their answers.
 
