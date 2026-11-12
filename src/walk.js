@@ -316,7 +316,8 @@ export function createWalk(ctx) {
     placeReceptionist(true);
     s.group.visible = true;
     look();
-    const at = spawn === 'entrance' && hall.entrance ? hall.entrance : hall.spot;
+    // off a ride in the real lift's car, you stand where you stood in it: the car is the same on every floor
+    const at = spawn === 'car' && hall.car ? { x: me.x, z: me.z, yaw: me.yaw } : spawn === 'entrance' && hall.entrance ? hall.entrance : hall.spot;
     me.x = at.x;
     me.z = at.z;
     me.yaw = me.yawGoal = at.yaw;
@@ -452,7 +453,7 @@ export function createWalk(ctx) {
       for (const [nq, nr] of [[q + 1, r], [q - 1, r], [q, r + 1], [q, r - 1]]) {
         const j = nr * cols + nq;
         if (nq < 0 || nr < 0 || nq >= cols || nr >= rows || steps[j] >= 0) continue;
-        if (blocked(x0 + (nq + 0.5) * CELL, z0 + (nr + 0.5) * CELL)) continue;
+        if (blocked(x0 + (nq + 0.5) * CELL, z0 + (nr + 0.5) * CELL, true)) continue;
         steps[j] = steps[i] + 1;
         queue.push(j);
       }
@@ -501,7 +502,7 @@ export function createWalk(ctx) {
       for (const [nq, nr] of [[q + 1, r], [q - 1, r], [q, r + 1], [q, r - 1]]) {
         const j = nr * cols + nq;
         if (nq < 0 || nr < 0 || nq >= cols || nr >= rows || open[j]) continue;
-        if (blocked(x0 + (nq + 0.5) * CELL, z0 + (nr + 0.5) * CELL)) continue;
+        if (blocked(x0 + (nq + 0.5) * CELL, z0 + (nr + 0.5) * CELL, true)) continue;
         open[j] = 1;
         queue.push(j);
       }
@@ -585,7 +586,9 @@ export function createWalk(ctx) {
 
   /* ---------- moving ---------- */
 
-  function blocked(x, z) {
+  // planning: for a route, which may pass the lift's doors, since they open as you come
+  function blocked(x, z, planning = false) {
+    if (!planning && hall?.shut?.(x, z, RADIUS)) return true; // the lift's doors, while they are shut
     const c0 = Math.floor((x - RADIUS - map.x0) / CELL);
     const c1 = Math.floor((x + RADIUS - map.x0) / CELL);
     const r0 = Math.floor((z - RADIUS - map.z0) / CELL);
@@ -639,8 +642,10 @@ export function createWalk(ctx) {
     card.hidden = true;
     me.target = null;
     input();
-    if (still()) { if (to !== here) enter(to, 'lift'); return; }
-    ride = { to, same: to === here, at, phase: 'close', t: 0 };
+    // In the real lift's car, the ride is a lift's: the doors close, it travels, and they open onto the new floor.
+    const inCar = !!hall.car && !at && to !== here && hall.inLift(me.x, me.z);
+    if (still()) { if (to !== here) enter(to, inCar ? 'car' : 'lift'); return; }
+    ride = { to, same: to === here, at, phase: 'close', t: 0, car: inCar, trip: inCar ? Math.min(4, 1.4 + 0.35 * Math.abs(order.indexOf(to) - order.indexOf(here))) : 0 };
     if (ride.same || !hall.inLift(me.x, me.z)) burnOut();
   }
 
@@ -653,7 +658,15 @@ export function createWalk(ctx) {
   function advance(dt) {
     ride.t += dt;
     if (ride.phase === 'close') {
-      if (hall.lift.open < 0.05 || ride.t > 1.2) burnOut();
+      if (hall.lift.open < 0.05 || ride.t > 1.2) {
+        if (!ride.car) burnOut();
+        else { ride.phase = 'travel'; ride.t = 0; me.dipV -= 0.12; } // it moves off, a little dip
+      }
+    } else if (ride.phase === 'travel') {
+      if (ride.t < ride.trip) return;
+      enter(ride.to, 'car'); // the same car, now at the new floor; its doors open as it stops
+      me.dipV += 0.12;
+      ride = null;
     } else if (ride.phase === 'out') {
       if (burn.running) return;
       if (!ride.same) enter(ride.to, 'lift');
@@ -756,7 +769,7 @@ export function createWalk(ctx) {
       for (const [nq, nr] of [[q + 1, r], [q - 1, r], [q, r + 1], [q, r - 1]]) {
         const j = nr * cols + nq;
         if (nq < 0 || nr < 0 || nq >= cols || nr >= rows || from[j] >= 0) continue;
-        if (blocked(x0 + (nq + 0.5) * CELL, z0 + (nr + 0.5) * CELL)) continue;
+        if (blocked(x0 + (nq + 0.5) * CELL, z0 + (nr + 0.5) * CELL, true)) continue;
         from[j] = i;
         queue.push(j);
       }
@@ -766,7 +779,7 @@ export function createWalk(ctx) {
     for (let i = from[goal]; i !== start; i = from[i]) squares.unshift({ x: x0 + ((i % cols) + 0.5) * CELL, z: z0 + (Math.floor(i / cols) + 0.5) * CELL });
     const clear = (a, b) => {
       const steps = Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / (CELL / 2));
-      for (let i = 1; i <= steps; i++) if (blocked(a.x + ((b.x - a.x) * i) / steps, a.z + ((b.z - a.z) * i) / steps)) return false;
+      for (let i = 1; i <= steps; i++) if (blocked(a.x + ((b.x - a.x) * i) / steps, a.z + ((b.z - a.z) * i) / steps, true)) return false;
       return true;
     };
     const points = [];

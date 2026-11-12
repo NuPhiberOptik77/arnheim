@@ -30,11 +30,11 @@ import shell  # noqa: E402
 def args():
     a = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     opts = {"floor": "studio", "render": "", "samples": 384, "res": "1800x1200", "out": os.path.join(STUDIO, "out", "renders"), "tag": "", "save": False, "ss": 1,
-            "bake": False, "shell": False, "bake-size": 2048, "bake-samples": 256, "bake-only": "", "extra": ""}
+            "bake": False, "shell": False, "bake-size": 2048, "bake-samples": 256, "bake-only": "", "extra": "", "lift-open": False}
     i = 0
     while i < len(a):
         k = a[i].lstrip("-")
-        if k in ("save", "bake", "shell"):
+        if k in ("save", "bake", "shell", "lift-open"):
             opts[k] = True
             i += 1
             continue
@@ -220,6 +220,8 @@ def main():
         sc.view_settings.exposure = design.get("exposure", -1.6)
         outside_site.bake_site(int(o["bake-size"]), int(o["bake-samples"]))
         return
+    if o["lift-open"]:  # a photo with the lift's doors open (lift.py)
+        design = {**design, "lift_open": True}
     if o["shell"]:  # the live building's floor: every inside door open, so a walk reaches every room
         design = {**design, "all_doors_open": True}
     shell.build_shell(plan, design, styles)

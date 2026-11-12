@@ -27,6 +27,7 @@
     "LIFT AND STAIRS": "between floors: the way to every other project's floor, the lobby and the basement",
     "CORRIDOR": "between rooms"
   },
+  "corridor": "gallery",
   "styled": [
     "GOALS",
     "WORK",

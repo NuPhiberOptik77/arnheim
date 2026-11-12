@@ -35,7 +35,14 @@ const SHELL_ROOM = {
   websites: 'RECEPTION', email: 'EMAIL', social: 'SOCIAL MEDIA', domains: 'DOMAINS',
 };
 const MACHINE_ROOMS = ['WEST MACHINE ROOM', 'MIDDLE MACHINE ROOM', 'EAST MACHINE ROOM', 'LIBRARY'];
-const PASSAGES = new Set(['CORRIDOR', 'LIFT AND STAIRS']);
+// The lift (studio/blender/lift.py), the same on every floor, in a floor's own coordinates: the car you walk
+// into, the doorway its two steel leaves close, and how far each leaf slides open. Each leaf is a baked group
+// of its own, so the walk can slide it.
+const LIFT_DOORS = ['LIFT DOOR WEST', 'LIFT DOOR EAST'];
+const CAR = { x0: 7.2, x1: 8.8, z0: -12.45, z1: -10.95 };
+const DOORWAY = { x0: 7.5, x1: 8.5, z0: -10.95, z1: -10.5 };
+const SLIDE = 0.5;
+const PASSAGES = new Set(['CORRIDOR', 'LIFT AND STAIRS', ...LIFT_DOORS]);
 const SITE_LEVEL = 0.8;
 const BASEMENT_DROP = 3.6; // studio/design-basement.json: floor to floor under the lobby
 const ROOF_SLAB = 0.35; // studio/blender/street.py: the baked roof's slab under its top
@@ -213,6 +220,15 @@ export function createPhotoBuilding(canvas, org, { base, people: ownPeople, onPi
       for (const [name, r] of shell.rooms) {
         if (used.has(name) || PASSAGES.has(name)) continue;
         for (const m of r.meshes) byName.get(m.name)?.material.color.setScalar(0.62);
+      }
+      // the company's quote, in a script hand on the corridor's long wall, where the bake left room for it
+      const q = org.quote?.text && shell.slots.find((x) => x.kind === 'quote');
+      if (q) {
+        const sign = quoteSign(String(org.quote.text), String(org.quote.by || ''), q.w, q.h);
+        sign.position.set(q.at[0] + Math.sin(q.rot) * 0.004, q.at[1], q.at[2] + Math.cos(q.rot) * 0.004);
+        sign.rotation.y = q.rot;
+        sign.name = 'quote';
+        group.add(sign);
       }
     } else {
       // A floor not baked yet (the basement): a plain concrete floor, a room each in a row.
@@ -1174,16 +1190,21 @@ export function createPhotoBuilding(canvas, org, { base, people: ownPeople, onPi
     const corridor = shell?.rooms.get('CORRIDOR')?.outline;
     const lb = liftRoom ? boundsOf(liftRoom) : { x0: box3.x0 + 0.6, x1: box3.x0 + 2.0, z0: box3.z1 - 2.2, z1: box3.z1 - 0.8 };
     const cb = corridor ? boundsOf(corridor) : null;
-    const lift = { x: (lb.x0 + lb.x1) / 2, z: (lb.z0 + lb.z1) / 2, open: 0 };
+    // A floor baked with the real lift: its leaves, which the walk slides (it stops you at them while they are shut).
+    const leaves = LIFT_DOORS.map((n) => (office ? group.children : s.meshes || []).find((m) => m.name === n)).filter(Boolean);
+    const car = leaves.length === 2 ? CAR : null;
+    for (const m of leaves) m.userData.noCollide = true;
+    const lift = car ? { x: (DOORWAY.x0 + DOORWAY.x1) / 2, z: -10.72, open: 0 } : { x: (lb.x0 + lb.x1) / 2, z: (lb.z0 + lb.z1) / 2, open: 0 };
     // out of the lift, facing the rooms across the corridor (in the office, facing the founder's desk)
     // (below ground the rooms have solid walls, so you face down the corridor, toward its far end, instead)
     const along = s.role === 'basement' && cb && cb.x1 - lift.x > lift.x - cb.x0 ? -Math.PI / 2 : s.role === 'basement' && cb ? Math.PI / 2 : null;
-    const spot = cb ? { x: lift.x, z: (cb.z0 + cb.z1) / 2, yaw: along ?? Math.PI } : office ? { x: lift.x, z: lb.z1 + 1.0, yaw: Math.PI } : { x: lift.x + 2, z: lb.z1 - 0.7, yaw: Math.PI / 2 };
+    // (with the real lift, you arrive in its car, facing its doors)
+    const spot = car ? { x: (car.x0 + car.x1) / 2, z: car.z0 + 0.55, yaw: Math.PI } : cb ? { x: lift.x, z: (cb.z0 + cb.z1) / 2, yaw: along ?? Math.PI } : office ? { x: lift.x, z: lb.z1 + 1.0, yaw: Math.PI } : { x: lift.x + 2, z: lb.z1 - 0.7, yaw: Math.PI / 2 };
     // The baked lift is a room behind a wall the walk can't pass, so its doorstep counts as the lift: the strip of
     // corridor (or office floor) in front of it. A sign over it says where it is (walk.js).
-    const front = cb && lb.z1 <= cb.z0 + 0.01 ? { x0: lb.x0, x1: lb.x1, z0: cb.z0 - 0.4, z1: cb.z0 + 0.62 }
+    const front = car ? null : cb && lb.z1 <= cb.z0 + 0.01 ? { x0: lb.x0, x1: lb.x1, z0: cb.z0 - 0.4, z1: cb.z0 + 0.62 }
       : !cb ? { x0: lb.x0, x1: lb.x1, z0: lb.z1 - 0.4, z1: lb.z1 + 1.2 } : null;
-    const liftSign = { x: lift.x, z: cb ? cb.z0 + 0.3 : lb.z1 + 0.6, y: 2.35 };
+    const liftSign = car ? { x: lift.x, z: DOORWAY.z1 + 0.2, y: 2.75 } : { x: lift.x, z: cb ? cb.z0 + 0.3 : lb.z1 + 0.6, y: 2.35 };
     const tap = new THREE.Mesh(new THREE.BoxGeometry(lb.x1 - lb.x0, 2.2, lb.z1 - lb.z0), hitMaterial);
     tap.position.set(lift.x, 1.1, lift.z);
     tap.visible = false;
@@ -1192,7 +1213,13 @@ export function createPhotoBuilding(canvas, org, { base, people: ownPeople, onPi
     const hall = {
       baked: true, group, lift, liftSign, spot, picks: [tap], sky: shell?.sky || null,
       west: box3.x0, east: box3.x1, north: box3.z0, front: box3.z1,
-      setDoors() {}, inLift: (x, z) => inside(lb, x, z) || (!!front && inside(front, x, z)),
+      car,
+      setDoors(v) {
+        leaves.forEach((m, i) => { m.position.x = (i ? SLIDE : -SLIDE) * v; m.updateMatrix(); });
+      },
+      inLift: (x, z) => (car ? inside(car, x, z) : inside(lb, x, z) || (!!front && inside(front, x, z))),
+      // whether the lift's shut doors stop a walker this wide at x, z
+      shut: (x, z, r = 0) => !!car && lift.open < 0.85 && inside(DOORWAY, x, z, r),
       dispose() { tap.geometry.dispose(); for (const m of extras) m.dispose?.(); },
     };
     if (s.role === 'lobby') {
@@ -1268,6 +1295,43 @@ export function createPhotoBuilding(canvas, org, { base, people: ownPeople, onPi
   }
 
   // The founder's name in raised gold letters over the lift doors.
+  // A quote painted on a wall: the words centred in a script hand, as many lines as they need, and who said
+  // them centred under it. Painted, so it takes no light of its own.
+  function quoteSign(text, by, w, h, color = '#2E2A26') {
+    const c = document.createElement('canvas');
+    c.width = 2048;
+    c.height = Math.round((2048 * h) / w);
+    const g = c.getContext('2d');
+    const face = (px) => `${px}px "Snell Roundhand", "Apple Chancery", "Savoye LET", "Segoe Script", "URW Chancery L", cursive`;
+    const lines = (px) => {
+      g.font = face(px);
+      const out = [];
+      let line = '';
+      for (const word of text.trim().split(/\s+/)) {
+        const next = line ? `${line} ${word}` : word;
+        if (line && g.measureText(next).width > c.width * 0.94) { out.push(line); line = word; } else line = next;
+      }
+      return line ? [...out, line] : out;
+    };
+    let px = Math.round(c.height / 2.6);
+    let rows = lines(px);
+    while (px > 12 && rows.length * px * 1.2 + (by ? px * 0.95 : 0) > c.height * 0.96) rows = lines(--px);
+    g.fillStyle = color;
+    g.textBaseline = 'alphabetic';
+    let y = (c.height - (rows.length * px * 1.2 + (by ? px * 0.95 : 0))) / 2 + px * 0.95;
+    g.textAlign = 'center';
+    g.font = face(px);
+    for (const row of rows) { g.fillText(row, c.width / 2, y); y += px * 1.2; }
+    if (by) {
+      g.font = face(Math.round(px * 0.62));
+      g.fillText(by, c.width / 2, y + px * 0.1);
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.9, depthWrite: false, toneMapped: false }));
+  }
+
   function nameSign(text, w, h, color) {
     const c = document.createElement('canvas');
     c.width = 1024;

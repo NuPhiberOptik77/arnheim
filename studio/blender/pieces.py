@@ -1308,3 +1308,61 @@ def street_tree(col, h=7.0, crown=2.6, seed=1):
         v.co = cc + Vector((v.co.x * crown * 0.8 * n, v.co.y * crown * 0.8 * n, v.co.z * crown * 0.64 * n))
     out.append(kit.obj_from_bmesh("crown core", core, col, leaves, smooth=True))
     return out
+
+
+SCRIPT_FONTS = ("/System/Library/Fonts/Supplemental/SnellRoundhand.ttc", "/System/Library/Fonts/Supplemental/Apple Chancery.ttf")
+
+
+def wrap(text, most=44):
+    """Words into lines of at most `most` characters."""
+    lines, line = [], ""
+    for word in text.split():
+        if line and len(line) + 1 + len(word) > most:
+            lines.append(line)
+            line = word
+        else:
+            line = f"{line} {word}".strip()
+    return lines + ([line] if line else [])
+
+
+def quote(col, text, by="", w=4.4, h=0.9, color="#2E2A26"):
+    """A quote painted on the wall in a script hand, each line centred, with who said it centred under it, standing on
+    y=0 and facing -Y, its middle at z=0. For the photographs only: the live building writes the company's own."""
+    font = None
+    for path in SCRIPT_FONTS:
+        try:
+            font = bpy.data.fonts.load(path, check_existing=True)
+            break
+        except (RuntimeError, OSError):
+            continue
+    lines = wrap(text, max(24, int(w / 0.1)))
+    size = min(0.17, h / (len(lines) + 0.8) / 1.25)
+    rows = [(line, size) for line in lines] + ([(by, size * 0.62)] if by else [])
+    total = sum(s * 1.25 for _, s in rows)
+    paint = M.matte(color, 0.6)
+    out = []
+    z = total / 2
+    for k, (line, s) in enumerate(rows):
+        z -= s * 1.25
+        cu = bpy.data.curves.new("quote", "FONT")
+        cu.body = line
+        cu.size = s
+        cu.align_x = "CENTER"
+        if font:
+            cu.font = font
+        ob = bpy.data.objects.new("quote", cu)
+        col.objects.link(ob)
+        ob.rotation_euler = (math.pi / 2, 0, 0)
+        ob.location = (0, -0.002, z + s * 0.3)
+        cu.materials.append(paint)
+        out.append(ob)
+    return out
+
+
+def picture_light(col, w=0.5, glow=60.0):
+    """A brass picture light on a short arm, its back on y=0, the lamp reaching out toward -Y and shining down."""
+    brass = M.matte("#9A7A4A", 0.3, 0.9)
+    return [kit.box("picture light plate", (-0.03, -0.012, -0.05), (0.03, 0, 0.05), col, brass, 0.002),
+            kit.cylinder("picture light arm", Vector((0, -0.09, 0.04)), 0.008, 0.18, col, brass, 16, axis="Y"),
+            kit.cylinder("picture light hood", Vector((0, -0.18, 0.06)), 0.026, w, col, brass, 32, axis="X"),
+            kit.box("picture light lamp", (-w / 2 + 0.02, -0.19, 0.03), (w / 2 - 0.02, -0.17, 0.036), col, M.glow("#FFE4C2", glow))]

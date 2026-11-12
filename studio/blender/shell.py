@@ -9,6 +9,7 @@ import bpy
 from mathutils import Vector
 
 import kit
+import lift
 import materials as M
 
 
@@ -53,6 +54,8 @@ def opening_heights(plan, design, o):
         return (hts["small_window_sill"] if small else hts["window_sill"]), hts["window_head"]
     if o["kind"] == "open":
         return 0.0, 2.5
+    if o["kind"] == "lift":
+        return 0.0, lift.HEAD
     return 0.0, hts["door_head"]
 
 
@@ -72,6 +75,7 @@ def build_shell(plan, design, styles):
     fl = design.get("floor", {})
     G = street_drop(design)   # how far the ground is below this floor
     walls = plan["walls"]
+    has_lift = lift.adopt(plan, rooms_beside)  # the door into the lift room becomes the lift's doorway (lift.py)
     fin = design.get("finish", {})
     mottle = fin.get("plaster_mottle", 0.0)
     plaster = M.plaster(**{k: v for k, v in (("color", fin.get("plaster_tone")), ("mottle", mottle)) if v})  # "plaster_tone": the walls' paint
@@ -128,6 +132,8 @@ def build_shell(plan, design, styles):
                 window(o, h, t, c, a, b, sill, head, col, plan["size"])
             elif o["kind"] in ("door", "double door"):
                 door(plan, design, o, h, t, c, a, b, head, col)
+            elif o["kind"] == "lift":
+                lift.entrance(o, t, c, col, design.get("lift_open", False), H)
 
     # Each room: its finished floor, the slab under it and the ceiling over it (the building is an L, so
     # nothing is laid over the open corner).
@@ -140,6 +146,8 @@ def build_shell(plan, design, styles):
         kit.polygon_slab(f"floor {r['name']} {r['id']}", r["polygon"], -0.02, 0.0, col, mat)
         kit.polygon_slab(f"slab {r['id']}", r["polygon"], -0.3, -0.02, col, M.matte("#9C968C", 0.9))
         kit.polygon_slab(f"ceiling {r['id']}", r["polygon"], H, H + 0.25, col, M.plaster("#F5F4F1", mottle=mottle) if mottle else M.plaster("#F5F4F1"))
+    if has_lift:
+        lift.car(col)
     if G < 0:
         light_wells(design, W, D, H, -G, col)
         return

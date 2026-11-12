@@ -127,6 +127,16 @@ def live_of(ob):
     return None
 
 
+def group_of(ob):
+    """The group a piece asks to be baked in, if any (lift.py's doors, which the live building moves)."""
+    p = ob
+    while p:
+        if "group" in p.keys():
+            return p["group"]
+        p = p.parent
+    return None
+
+
 def gather(plan, shell=False):
     """Every mesh that can be seen from inside the floor, sorted into a group per room, plus the glass. People go
     in a group of their own per room ("WORK PEOPLE"), with their strand hair as solid hulls; returns the people's
@@ -165,6 +175,9 @@ def gather(plan, shell=False):
             mats = [s.material.name for s in ob.material_slots if s.material]
             if any(m.startswith("window_glass") for m in mats):
                 glass.append(ob)
+                continue
+            if group_of(ob):
+                groups.setdefault(group_of(ob), []).append(ob)
                 continue
             cx, cy = (lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2
             r = room_of(plan, cx, cy) or nearest_room(plan, cx, cy)

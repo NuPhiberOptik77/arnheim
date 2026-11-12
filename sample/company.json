@@ -3,6 +3,7 @@
   "company": "Fernhollow",
   "mission": "Small, lasting things",
   "about": "A made-up studio with four small projects, here to show what Arnheim does.",
+  "quote": { "text": "Build slowly, look closely, and leave every place a little kinder than you found it.", "by": "Ellison" },
   "founder": {
     "name": "Ellison",
     "title": "made-up founder, named after the hero of Poe's story"

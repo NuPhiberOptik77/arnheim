@@ -71,6 +71,7 @@ own files show every one of them in use.
 | `lobby` | | The ground floor, Front of house: websites, email, social media and domains, with the receptionist at the front desk. Without it, the receptionist has no desk in the building, though their tab still answers. |
 | `basement` | | The machines every project shares, and the Library. |
 | `feeds` | | Files in `data/` that tools keep up to date, such as `["feeds/claude-code.json"]`. The page adds their lists to `work.json`'s and reads them every few seconds ([docs/connect.md](connect.md)). |
+| `quote` | | Words the company lives by, painted in a script hand on the long wall of each project floor's corridor in the photo-real building: `{"text": "...", "by": "who said them"}`. |
 | `sample` | only for a made-up company | A sentence saying the company is made up. While it is there, the page says "made up" wherever it shows the company. Leave it out for a real one. |
 
 ### A floor (and the lobby, and the basement)

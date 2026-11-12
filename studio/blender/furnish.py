@@ -768,8 +768,47 @@ def outside(col, design, plan=None):
             kit.box("far block", (x - w / 2, y - d / 2, gz), (x + w / 2, y + d / 2, gz + hh), col, M.facade(rnd.choice(walls), bay=3.2, storey=3.3))
 
 
+# The corridor's quote, in the photographs: ARNHEIM_QUOTE="the words|who said them" puts a company's own there. The
+# live building writes the company's own from company.json ("quote"), so the bake for it leaves this out.
+SAMPLE_QUOTE = ("Build slowly, look closely, and leave every place a little kinder than you found it.", "Ellison")
+
+
+def corridor(col, plan, design):
+    """The corridor as a gallery (design.json "corridor": "gallery"): abstract paintings on both walls, brass picture
+    lights over the two largest, a quote in a script hand on the long north wall with a slot of light in the ceiling
+    washing it, downlights down the middle, a wool runner its length and a fig by the window at its end."""
+    room = next((r for r in plan["rooms"] if r["name"] == "CORRIDOR"), None)
+    if not room:
+        return
+    x0, x1, y0, y1 = bounds(room)
+    H = design["heights"]["ceiling"]
+    cy = (y0 + y1) / 2
+    for x in (10.9, 13.3, 15.7, 18.1, 20.5, 22.9):  # east of the lift, which has its own
+        put(P.downlight(col, lit=True), x, cy, "S", "downlight", col, z=H)
+    # the north wall, facing south: a large painting, the quote, a tall painting and a pair
+    put(P.art(col, 1.7, 1.15, ("#EFE8DC", "#C2562F", "#1F2A33", "#D7A84E"), 2.3, "blobs", "black"), 11.6, y1, "S", "painting", col, z=1.55)
+    put(P.picture_light(col, 0.6), 11.6, y1, "S", "picture light", col, z=1.55 + 1.15 / 2 + 0.09)
+    given = os.environ.get("ARNHEIM_QUOTE", "")
+    text, by = given.split("|", 1) if "|" in given else SAMPLE_QUOTE
+    put(P.quote(col, text.strip(), by.strip(), 4.4, 0.9), 15.9, y1, "S", "quote", col, z=1.6,
+        live="quote", slot={"w": 4.4, "h": 0.9, "on": "wall"})
+    kit.box("quote wash", (13.7, y1 - 0.2, H - 0.006), (18.1, y1 - 0.12, H), col, M.glow("#FFE9CF", 18.0))
+    put(P.art(col, 1.1, 1.5, ("#E8E4DA", "#2F4B6E", "#C9A15A", "#8C3B2E"), 7.1, "bands", "oak"), 19.9, y1, "S", "painting", col, z=1.6)
+    put(P.picture_light(col, 0.45), 19.9, y1, "S", "picture light", col, z=1.6 + 1.5 / 2 + 0.09)
+    for k, x in enumerate((21.75, 22.55)):
+        put(P.art(col, 0.55, 0.75, ("#F0ECE4", "#5E7355", "#2D2B28", "#C7B08C"), 3.4 + 6.4 * k, "blobs", "white"), x, y1, "S", "painting", col, z=1.5)
+    # the south wall, facing north, between the opening into the work room and the door to the company room
+    put(P.art(col, 1.0, 1.3, ("#ECE6DB", "#9C4A3A", "#3B4A54", "#E0C08A"), 4.6, "blobs", "oak"), 12.0, y0, "N", "painting", col, z=1.55)
+    put(P.art(col, 1.3, 0.9, ("#EDE9E1", "#B9773F", "#2B3A2F", "#D9CFC0"), 5.2, "bands", "black"), 18.9, y0, "N", "painting", col, z=1.5)
+    # underfoot, and at the end
+    put(P.rug(col, 13.0, 0.78, "#6E5D50"), 16.6, cy, "S", "runner", col)
+    put(P.plant(col, "fig", 1.7, "#D9D2C6", 4), x1 - 0.35, y0 + 0.35, "S", "plant", col)
+
+
 def furnish(plan, design, styles):
     col = kit.collection("furniture")
+    if design.get("corridor") == "gallery":
+        corridor(col, plan, design)
     for r in plan["rooms"]:
         fn = ROOMS.get(design.get("furnish", {}).get(r["name"], r["name"]))  # a floor can furnish a room its own way
         if fn and r["name"] in design["styled"]:
