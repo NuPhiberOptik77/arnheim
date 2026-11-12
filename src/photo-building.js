@@ -38,6 +38,11 @@ const PASSAGES = new Set(['CORRIDOR', 'LIFT AND STAIRS']);
 const SITE_LEVEL = 0.8;
 const BASEMENT_DROP = 3.6; // studio/design-basement.json: floor to floor under the lobby
 const ROOF_SLAB = 0.35; // studio/blender/street.py: the baked roof's slab under its top
+
+// A look as one string, whatever order its settings were written in, to tell whether two looks are the same.
+const sameLookKey = (v) => (Array.isArray(v) ? `[${v.map(sameLookKey).join(',')}]`
+  : v && typeof v === 'object' ? `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${sameLookKey(v[k])}`).join(',')}}`
+    : JSON.stringify(v ?? null));
 const KIND_ORDER = { goals: 0, code: 1, conversations: 2, work: 3 };
 
 // A room's light, as a colour over its bake.
@@ -60,7 +65,9 @@ const THEMES = {
   },
 };
 
-export function createPhotoBuilding(canvas, org, { base, onPick, onHover, onStatus, onWalk, onNotes, labels, insets = [64, 44], talk = null } = {}) {
+// people: where a company's own receptionist and assistant were exported to (people_export.py --company), if
+// anywhere; the baked set's agents serve every company.
+export function createPhotoBuilding(canvas, org, { base, people: ownPeople, onPick, onHover, onStatus, onWalk, onNotes, labels, insets = [64, 44], talk = null } = {}) {
   const root = base || new URL('../baked/', import.meta.url).href;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'default' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO));
@@ -94,6 +101,7 @@ export function createPhotoBuilding(canvas, org, { base, onPick, onHover, onStat
   let personWake = -Infinity;
   let kit = null;
   let people = null; // the photo-real people, when they have been exported (baked/people/)
+  let own = null; // the company's own receptionist and assistant, when it has exported them (options.people)
   let walker = null; // a first-person walk, while one is going (walk.js)
   let walkStart = null;
   const shells = {};
@@ -439,18 +447,26 @@ export function createPhotoBuilding(canvas, org, { base, onPick, onHover, onStat
     tintRoom(room);
   }
 
+  // The photo-real receptionist or assistant, from the company's own set or the baked one, but only one made from
+  // the very look the company file gives them: anyone else is drawn from their look, never shown as someone else.
+  function realPerson(name, look) {
+    const want = sameLookKey(look || {});
+    return [own, people].find((set) => set?.has(name) && set.lookOf(name) && sameLookKey(set.lookOf(name)) === want) || null;
+  }
+
   // The receptionist, as the map names and dresses them, at the desk in the reception hall.
   function placeReceptionist(room, content, ctx) {
     const spec = receptionistSpec(org.receptionist || {});
     const s = room.slots.find((x) => x.kind === 'person') || { at: [12.25, 0, -5.72], rot: rad(-15) };
     // seated at the desk in the photo-real look when they have been exported, standing behind it as drawn otherwise
-    if (!room.person) room.person = people?.make('receptionist', { seed: 7 }) || buildPerson(spec);
+    const real = realPerson('receptionist', org.receptionist?.look);
+    if (!room.person) room.person = real?.make('receptionist', { seed: 7 }) || buildPerson(spec);
     const g = room.person.group;
     g.position.set(s.at[0], 0, s.at[2]);
     g.rotation.y = s.rot;
     g.traverse((o) => { o.userData.keep = true; });
     content.add(g);
-    if (people?.has('receptionist')) {
+    if (real) {
       const chair = kit.make('desk chair');
       chair.position.set(s.at[0] + Math.sin(s.rot) * 0.045, 0, s.at[2] + Math.cos(s.rot) * 0.045);
       chair.rotation.y = s.rot;
@@ -877,7 +893,7 @@ export function createPhotoBuilding(canvas, org, { base, onPick, onHover, onStat
       y -= lh / 2;
       x = clamp(x, 8, Math.max(8, width - lw - 8));
       y = clamp(y, topInset + 2, Math.max(topInset + 2, height - bottomInset - lh - 2));
-      const b = { x0: x - 3, y0: y - 3, x1: x + lw + 3, y1: y + lh + 3 };
+      const b = { x0: x - 2, y0: y - 2, x1: x + lw + 2, y1: y + lh + 2 }; // the photo floors stand closer than the drawn ones: labels may sit 4 px apart
       const clash = placedBoxes.some((p) => b.x0 < p.x1 && b.x1 > p.x0 && b.y0 < p.y1 && b.y1 > p.y0);
       if (offscreen || clash) { el.hidden = true; continue; }
       placedBoxes.push(b);
@@ -1219,11 +1235,12 @@ export function createPhotoBuilding(canvas, org, { base, onPick, onHover, onStat
     }
     const seat = slot('assistant');
     if (seat && assistant?.name) {
-      const person = people?.make('assistant', { seed: 11 }) || buildPerson(receptionistSpec(assistant));
+      const real = realPerson('assistant', assistant.look);
+      const person = real?.make('assistant', { seed: 11 }) || buildPerson(receptionistSpec(assistant));
       person.group.position.set(seat.at[0], 0, seat.at[2]);
       person.group.rotation.y = seat.rot;
       group.add(person.group);
-      if (people?.has('assistant')) {
+      if (real) {
         const chair = kit.make('desk chair');
         chair.position.set(seat.at[0] + Math.sin(seat.rot) * 0.045, 0, seat.at[2] + Math.cos(seat.rot) * 0.045);
         chair.rotation.y = seat.rot;
@@ -1359,11 +1376,13 @@ export function createPhotoBuilding(canvas, org, { base, onPick, onHover, onStat
     const [k, folk, ...loaded] = await Promise.all([
       loadKit(`${root}${index.kit}`),
       index.people ? loadPeople(`${root}${index.people}`).catch((error) => { console.warn('Arnheim: the photo-real people did not load; the drawn ones stand in.', error); return null; }) : null,
+      ownPeople ? loadPeople(ownPeople.endsWith('/') ? ownPeople : `${ownPeople}/`).catch((error) => { console.warn("Arnheim: the company's own people did not load; they are drawn instead.", error); return null; }) : null,
       ...[...roles].filter((r) => index.shells[r]).map(async (r) => [r, await loadShell(`${root}${index.shells[r]}`)]),
     ]);
     if (disposed) return;
     kit = k;
     people = folk;
+    own = loaded.shift();
     for (const [role, shell] of loaded) {
       shell.height = shellHeight(shell);
       shells[role] = shell;

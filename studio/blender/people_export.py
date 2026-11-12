@@ -3,11 +3,15 @@ the live building seats them, slimmed like the viewer's people (bake.slim, hair 
 baked into textures. Each person is two parts: the body, and the head about a pivot at the top of the neck, so the
 live building can let them breathe and turn their heads.
 
-Blender -b --factory-startup --python blender/people_export.py -- [--looks LOOKS.json] [--out DIR]
+Blender -b --factory-startup --python blender/people_export.py -- [--company COMPANY.json | --looks LOOKS.json] [--out DIR]
+Without either: the sample company's receptionist and assistant and a set of agents, into out/viewer/people/.
+--company: only that company file's receptionist and assistant (the agents come from the sample set). A private
+company's people go to a folder of their own with --out, never into this repository.
 LOOKS.json: {"people": [{"name": "...", "look": {company-file look} or "agent": "an id", "kind": "desk" | "chat",
 "seat": 0.5, "table": 0.74, "reach": 0.4, "hands": "table"}]}. A company-file look is dressed the way furnish.py
-dresses the assistant and receptionist. Without --looks: the sample company's receptionist and a set of agents,
-into out/viewer/people/. A private company's people go to a folder of their own with --looks and --out.
+dresses the assistant and receptionist.
+people.json keeps, for each person made from a company file, the look they were made from, so the live building
+uses them only for a company that gives the same look (src/photo-building.js), and draws anyone else.
 """
 import json
 import os
@@ -30,15 +34,15 @@ AGENTS = 6  # agents' looks; the live building picks one by the work's id
 
 def options():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    o = {"looks": "", "out": os.path.join(STUDIO, "out", "viewer", "people")}
+    o = {"looks": "", "company": "", "out": os.path.join(STUDIO, "out", "viewer", "people")}
     for i, a in enumerate(argv):
         if a.startswith("--") and a[2:] in o and i + 1 < len(argv):
             o[a[2:]] = argv[i + 1]
     return o
 
 
-def default_people():
-    org = json.load(open(os.path.join(os.path.dirname(STUDIO), "sample", "company.json")))
+def company_people(path=os.path.join(os.path.dirname(STUDIO), "sample", "company.json"), agents=True):
+    org = json.load(open(path))
     out = []
     r = org.get("receptionist")
     if r:
@@ -46,7 +50,7 @@ def default_people():
     a = org.get("assistant")
     if a:  # the founder's assistant, at their desk in the founder's office
         out.append({"name": "assistant", "look": a.get("look", {}), "dress": "assistant", "kind": "desk", "seat": 0.52, "table": 0.75, "reach": 0.345})
-    for i in range(AGENTS):  # as furnish.py seats them: at a desk on a task chair, and on a chair at the meeting table
+    for i in range(AGENTS if agents else 0):  # as furnish.py seats them: at a desk on a task chair, and on a chair at the meeting table
         for kind, seat, reach in (("desk", 0.52, 0.345), ("chat", 0.47, 0.31)):
             out.append({"name": f"agent-{i}-{kind}", "agent": f"agent {i}", "kind": kind, "seat": seat, "table": 0.74, "reach": reach})
     return out
@@ -60,7 +64,10 @@ def look_of(p):
         look = {**look, "trousers": "#2B2A2E"}
     elif p.get("dress") == "assistant":
         look = {**look, "trousers": "#3A4456"}  # as furnish.everyone dresses the assistant
-    return {**look, **{k: p["look"][k] for k in ("collar", "nod") if k in p.get("look", {})}}
+    extra = {k: p["look"][k] for k in ("collar", "nod") if k in p.get("look", {})}
+    if not isinstance(extra.get("collar", 0), int):  # a company file's "round" collar is a cardigan's: one low row, no stand
+        extra["collar"] = 1
+    return {**look, **extra}
 
 
 def web_ready(objs, hulls):
@@ -120,7 +127,8 @@ def main():
     sc.render.engine = "CYCLES"
     sc.view_settings.view_transform = "Standard"
     os.makedirs(o["out"], exist_ok=True)
-    wanted = json.load(open(o["looks"]))["people"] if o["looks"] else default_people()
+    wanted = (json.load(open(o["looks"]))["people"] if o["looks"]
+              else company_people(o["company"], agents=False) if o["company"] else company_people())
     hulls = kit.collection("people hulls")
     manifest = {"about": "People for the live building (blender/people_export.py): each a body and a head, float32 positions, normals and uv "
                          "(n x 8) then uint32 indices, three.js axes, metres, the middle of their seat at the origin, facing +z. "
@@ -140,6 +148,8 @@ def main():
         body = [ob for ob in parts if ob.get("part") != "head"]
         pivot = list(head[0]["pivot"]) if head else [0.0, 0.0, 1.1]
         entry = {"kind": p.get("kind", "desk"), "seat": p.get("seat", 0.5), "pivot": [round(pivot[0], 4), round(pivot[2], 4), round(-pivot[1], 4)]}
+        if "agent" not in p:
+            entry["look"] = p.get("look", {})  # the company file's look, as given: the live building matches on it
         entry["body"] = write_part(bake.flatten(body, f"{p['name']} body", col), o["out"], f"{p['name']}-body", (0, 0, 0))
         if head:
             entry["head"] = write_part(bake.flatten(head, f"{p['name']} head", col), o["out"], f"{p['name']}-head", pivot)

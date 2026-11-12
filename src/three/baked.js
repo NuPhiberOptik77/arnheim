@@ -133,7 +133,7 @@ export async function loadPeople(base) {
       return { geo, material: new THREE.MeshStandardMaterial({ map, roughness: 0.72, metalness: 0 }) };
     };
     const [body, head] = await Promise.all([part(e.body), part(e.head)]);
-    people[name] = { body, head, pivot: e.pivot, kind: e.kind };
+    people[name] = { body, head, pivot: e.pivot, kind: e.kind, look: e.look };
   }));
   // someone, with tick(t) to breathe and look about a little (as buildPerson's people do)
   function make(name, { seed = 0 } = {}) {
@@ -158,7 +158,8 @@ export async function loadPeople(base) {
       },
     };
   }
-  return { make, has: (name) => !!people[name], names: Object.keys(people) };
+  // lookOf: the company-file look a receptionist or assistant was made from (people_export.py), else undefined
+  return { make, has: (name) => !!people[name], lookOf: (name) => people[name]?.look, names: Object.keys(people) };
 }
 
 // The light the live pieces stand in: the sky from above, the bounce from the floor, and the sun along the
