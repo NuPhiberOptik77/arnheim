@@ -133,6 +133,29 @@ class BrakeTest(unittest.TestCase):
         with self.assertRaises(control.Refused):
             building.allow_more("Studio")
 
+    def test_ended_conversations_still_count(self):
+        self.spend("a", 900)
+        self.assertIsNone(self.hook())
+        self.assertIsNone(self.hook(hook_event_name="SessionEnd"))  # it ends, and leaves the feed
+        self.assertEqual(self.feed()["conversations"], [])
+        self.assertEqual(self.feed()["ended"]["talks"]["cc-abc123def456"]["tokens"], 900)
+        other = os.path.join(self.base, "other.jsonl")
+        with open(other, "w", encoding="utf-8") as handle:
+            handle.write(reply("b", 0, 0, 900))
+        out = self.hook(session_id="fff999eee888-1", transcript_path=other)  # 1,800 of 1,000 today
+        self.assertEqual(out["continue"], False)
+        [ask] = [t for t in self.feed()["tasks"] if t["id"] == "budget-lantern"]
+        self.assertTrue(ask["note"].startswith("2 thousand new tokens of 1 thousand"))
+
+        self.spend("c", 50)  # the first comes back: its 900 go on from where they were, never counted twice
+        self.hook(hook_event_name="SessionStart", source="resume", tool_name=None)
+        self.hook()
+        feed = self.feed()
+        mine = next(c for c in feed["conversations"] if c["id"] == "cc-abc123def456")
+        self.assertEqual(mine["spent"], {"day": TODAY, "tokens": 950})
+        self.assertNotIn("cc-abc123def456", feed["ended"]["talks"])
+        self.assertEqual(budget.spent_today(feed["conversations"], "Lantern", TODAY, feed["ended"]), 1850)
+
     def test_never_instead_of_your_message(self):
         self.spend("a", 5000)
         self.box.post("cc-abc123def456", "Wrap up now")

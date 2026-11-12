@@ -122,7 +122,7 @@ const kindOf = (floor, room) => room.kind || (floor === org.basement ? (room.id 
 const machineLabel = (id) => org.basement?.rooms.find((r) => r.id === id)?.label || id;
 // Everything waiting on you, from every agent and the work, most urgent first (queue.js).
 // What a floor's agents have spent today against its budget (budget.js), as far as control has let them go.
-const spendOf = (floor) => (floor?.project ? floorSpend(org, floor, work.conversations, control.on ? control.timesAllowed(floor.project) : 1) : null);
+const spendOf = (floor) => (floor?.project ? floorSpend(org, floor, work.conversations, control.on ? control.timesAllowed(floor.project) : 1, localDay(), work.ended || []) : null);
 // The brief: what happened since your last visit. Your own company's last visit is kept in this browser
 // (the sample's story is the same every time, so it always starts twelve hours back).
 const SEEN = 'arnheim-seen';
@@ -1673,6 +1673,7 @@ async function readWork() {
   });
   if (!now || typeof now !== 'object' || Array.isArray(now)) throw problem(`${dir}/work.json: it should be one object, between { and }.`);
   for (const key of LISTS) if (!Array.isArray(now[key])) now[key] = [];
+  now.ended = []; // what conversations that left the feeds today spent (connect/budget.py)
   for (const path of feeds) {
     let feed = lastFeed.get(path) || null;
     try {
@@ -1683,6 +1684,7 @@ async function readWork() {
     if (!feed || typeof feed !== 'object') continue;
     lastFeed.set(path, feed);
     for (const key of LISTS) if (Array.isArray(feed[key])) now[key].push(...feed[key].filter((x) => x && typeof x === 'object'));
+    if (feed.ended && typeof feed.ended === 'object') now.ended.push(feed.ended);
   }
   now.memory = await readMemory();
   if (dir !== 'data') now.pullRequests = now.pullRequests.map((p) => (p.waited ? { ...p, updated: OPENED - p.waited * 86400 } : p)); // the sample's: days waited

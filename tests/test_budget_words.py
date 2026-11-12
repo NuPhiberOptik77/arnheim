@@ -21,6 +21,9 @@ const out = {
   said: [900, 12400, 2000000, 1250000].map(b.tokensSaid),
   day: b.localDay(new Date(2026, 10, 2, 23, 59)),
   floors: org.floors.map((f) => b.floorSpend(org, f, talks, f.id === 'kite' ? 2 : 1, '2026-11-12')),
+  ended: b.spentToday(talks, 'Kite', '2026-11-12', [
+    { day: '2026-11-12', talks: { 'cc-a': { project: 'Kite', tokens: 600 }, 'cc-b': { project: 'Shop', tokens: 5 } } },
+    { day: '2026-11-11', talks: { 'cc-c': { project: 'Kite', tokens: 99999 } } }, { day: '2026-11-12' }, null]),
 };
 console.log(JSON.stringify(out));
 """
@@ -50,6 +53,7 @@ class BudgetWordsTest(unittest.TestCase):
         self.assertEqual((lab["spent"], lab["limit"], lab["over"], lab["share"]), (2500, 5000, False, 0.5))
         self.assertEqual((kite["limit"], kite["over"]), (2000, False))  # let go on once: as much again
         self.assertEqual((quiet["limit"], quiet["over"], quiet["text"]), (1000, False, "0 of 1 thousand tokens today"))
+        self.assertEqual(got["ended"], 2100)  # the conversations that left today still count; yesterday's don't
 
 
 if __name__ == "__main__":

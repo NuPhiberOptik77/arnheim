@@ -84,14 +84,41 @@ def budget_of(company, project):
     return None
 
 
-def spent_today(talks, project, day):
-    """What a floor's conversations have spent on `day`."""
+def spent_today(talks, project, day, ended=None):
+    """What a floor's conversations have spent on `day`, with what those that left the feed today spent
+    (`ended`, the feed's, from leave())."""
     total = 0
     for c in talks:
         spent = c.get("spent") if isinstance(c, dict) and c.get("project") == project else None
         if isinstance(spent, dict) and spent.get("day") == day and isinstance(spent.get("tokens"), int):
             total += spent["tokens"]
+    if isinstance(ended, dict) and ended.get("day") == day and isinstance(ended.get("talks"), dict):
+        for t in ended["talks"].values():
+            if isinstance(t, dict) and t.get("project") == project and isinstance(t.get("tokens"), int):
+                total += t["tokens"]
     return total
+
+
+def leave(feed, talks, day):
+    """Conversations leaving the feed (ended, or not heard from for long): what each spent today, and how
+    far its transcript was read, kept in the feed's "ended" for the day, so the floor's total still counts
+    them and one that comes back carries on from there (come_back)."""
+    ended = feed.get("ended") if isinstance(feed.get("ended"), dict) and feed["ended"].get("day") == day else {}
+    kept = dict(ended["talks"]) if isinstance(ended.get("talks"), dict) else {}
+    for c in talks:
+        spent = c.get("spent") if isinstance(c.get("spent"), dict) else {}
+        tokens = spent.get("tokens") if spent.get("day") == day and isinstance(spent.get("tokens"), int) else 0
+        if c.get("id") and tokens > 0:
+            kept[c["id"]] = {"project": c.get("project"), "tokens": tokens, "read": c.get("read")}
+    feed["ended"] = {"day": day, "talks": kept}
+
+
+def come_back(feed, key, day):
+    """A conversation back in the feed today: what it had spent and read when it left, or None."""
+    ended = feed.get("ended") if isinstance(feed.get("ended"), dict) and feed["ended"].get("day") == day else None
+    talks = ended.get("talks") if ended and isinstance(ended.get("talks"), dict) else {}
+    back = talks.pop(key, None)
+    return back if isinstance(back, dict) else None
 
 
 def tokens(n):

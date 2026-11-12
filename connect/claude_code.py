@@ -153,6 +153,8 @@ def change(event, feed, project, now, extra=None):
     ends = name == "SessionEnd" and not extra.get("started_here")  # one started from the building stays, to talk to
     if ends:
         gone.add(key)
+    day = budget.local_day()
+    budget.leave(feed, [c for c in talks if c.get("id") in gone], day)  # what they spent today still counts
     talks = [c for c in talks if c.get("id") not in gone]
     tasks = [t for t in tasks if t.get("session") not in gone]
     if ends:
@@ -161,6 +163,9 @@ def change(event, feed, project, now, extra=None):
     talk = next((c for c in talks if c.get("id") == key), None)
     if talk is None:
         talk = {"id": key, "project": project, "title": NEW, "working": False, "check": False, "says": {}}
+        back = budget.come_back(feed, key, day)
+        if back:  # one that left earlier today: its spending goes on from where it was
+            talk.update(spent={"day": day, "tokens": back.get("tokens") or 0}, read=back.get("read"))
         talks.append(talk)
     talk.update(project=project, at=now)
     if event.get("session_title"):
@@ -269,7 +274,8 @@ def edit_feed(edit, path=None, about=None):
     path = path or FEED
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with Lock(path + ".lock"):
-        out = edit(read_feed(path))
+        feed = read_feed(path)
+        out = edit(feed)
         if out is None:
             return
         talks, tasks = out
@@ -278,6 +284,8 @@ def edit_feed(edit, path=None, about=None):
             "conversations": talks,
             "tasks": tasks,
         }
+        if isinstance(feed.get("ended"), dict):  # today's spending by conversations that have left (connect/budget.py)
+            out["ended"] = feed["ended"]
         part = f"{path}.{os.getpid()}.part"
         with open(part, "w", encoding="utf-8") as handle:
             json.dump(out, handle, ensure_ascii=False, indent=1)
@@ -305,7 +313,7 @@ def update(event, extra=None):
         talks, tasks = change(event, feed, where, time.time(), extra)
         talk = next((c for c in talks if c.get("id") == key_of(event)), None)
         if talk is not None:
-            weigh(event, talk, talks, tasks, where, extra or {}, verdict)
+            weigh(event, talk, talks, tasks, where, extra or {}, verdict, feed.get("ended"))
         try:
             if talk is not None or before is not None:  # one that ended has left the feed: log it as it was
                 log(event, talk if talk is not None else before, where, extra or {}, verdict)
@@ -406,7 +414,7 @@ def halt(talk, words):
     talk.update(working=False, check=True, says={"now": words, "next": "It's your turn now."})
 
 
-def weigh(event, talk, talks, tasks, project, extra, verdict):
+def weigh(event, talk, talks, tasks, project, extra, verdict, ended=None):
     """What the conversation has spent today, its floor's budget, and every agent paused (connect/budget.py)."""
     name = event.get("hook_event_name")
     day = budget.local_day()
@@ -425,7 +433,7 @@ def weigh(event, talk, talks, tasks, project, extra, verdict):
     except (OSError, ValueError):
         per_day = None
     limit = per_day * (1 + box.allowances(day).get(project, 0)) if per_day else None
-    used = budget.spent_today(talks, project, day)
+    used = budget.spent_today(talks, project, day, ended)
     if not limit or used < limit:
         tasks[:] = [t for t in tasks if t.get("id") != tid]  # under budget again: nothing to ask
     if name == "PostToolUse" and event.get("tool_name") in CHANGES:
