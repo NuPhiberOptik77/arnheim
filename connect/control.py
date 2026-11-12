@@ -38,7 +38,13 @@ import uuid
 try:
     from . import budget  # as connect.control, from serve.py
 except ImportError:
-    import budget  # beside this file, as the hook has it
+    try:
+        import budget  # beside this file, as the hook has it
+    except ImportError:  # loaded by its path alone, by another server (python3 -I, no folder on the path): budget.py by its path too
+        import importlib.util
+        _spec = importlib.util.spec_from_file_location("arnheim_budget", os.path.join(os.path.dirname(os.path.realpath(__file__)), "budget.py"))
+        budget = importlib.util.module_from_spec(_spec)
+        _spec.loader.exec_module(budget)
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 DATA = os.environ.get("ARNHEIM_DATA") or os.path.join(os.path.dirname(HERE), "data")

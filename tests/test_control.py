@@ -289,5 +289,27 @@ class WordsTest(unittest.TestCase):
         self.assertIn('(1) "a" (2) "b"', two)
 
 
+
+class LoadedByPathTest(unittest.TestCase):
+    """Another server can load control.py by its path alone, as a page of its own would: no package, and
+    under python3 -I no folder of Arnheim's on the import path."""
+
+    def test_loads_by_its_path(self):
+        script = (
+            "import importlib.util, sys\n"
+            "spec = importlib.util.spec_from_file_location('another_name', sys.argv[1])\n"
+            "module = importlib.util.module_from_spec(spec)\n"
+            "spec.loader.exec_module(module)\n"
+            "module.Control(data=sys.argv[2], claude=['true'])\n"
+            "print(module.budget.local_day())\n")
+        base = tempfile.mkdtemp()
+        try:
+            done = subprocess.run([sys.executable, "-I", "-c", script, os.path.join(ROOT, "connect", "control.py"), base],
+                                  capture_output=True, text=True, timeout=30, cwd=base)
+        finally:
+            shutil.rmtree(base)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertRegex(done.stdout.strip(), r"^\d{4}-\d{2}-\d{2}$")
+
 if __name__ == "__main__":
     unittest.main()
