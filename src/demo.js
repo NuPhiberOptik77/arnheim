@@ -193,7 +193,7 @@ function roomModel(floor, room) {
       detail: [checks.length ? `open, ${checks.length} to check` : 'open', failed && `${failed} not proven`].filter(Boolean).join(', '),
       items: list.map((c) => {
         const pr = proofs.get(c.id);
-        const now = c.working ? 'Working now' : c.check ? 'To check' : 'Quiet';
+        const now = [c.working ? 'Working now' : c.check ? 'To check' : 'Quiet', c.agent].filter(Boolean).join('. ');
         return { id: c.id, title: c.title, working: !!c.working, check: !!c.check, proof: pr?.state || null, sub: pr && !c.working ? `${now}. ${pr.word}` : now,
           mood: c.working ? 'working' : proofMood(pr) || undefined, href: convoHref(c) };
       }),
@@ -820,7 +820,8 @@ const allowReads = (ids) => (!ids.length ? Promise.resolve('Nothing is waiting t
   }));
 
 function waitingItem(i) {
-  const where = i.project ? (floorOf(i.project)?.label || i.project) : '';
+  const agent = i.key ? work.conversations.find((c) => c.id === i.key)?.agent : null; // another agent than Claude Code
+  const where = [i.project ? (floorOf(i.project)?.label || i.project) : '', agent].filter(Boolean).join('. ');
   const href = waitingHref(i);
   const head = waitingHead(i);
   const what = i.kind === 'task' ? null : i.kind === 'permission' ? `It wants ${i.what}` : i.proof ? `${i.proof.word}. ${i.what}` : i.what;
@@ -1066,7 +1067,7 @@ function viewItem(floor, room, id) {
   if (kind === 'conversations') {
     const c = work.conversations.find((x) => x.id === id && x.project === floor.project);
     const pr = c && proofOf(c);
-    return c ? show(c.title, [['Now', c.working ? 'Working' : c.check ? 'To check' : 'Quiet'], ['Project', c.project], ['Last said', c.says?.now || control.run(c.id)?.said],
+    return c ? show(c.title, [['Now', c.working ? 'Working' : c.check ? 'To check' : 'Quiet'], ['Agent', c.agent || (REACHABLE.test(c.id) ? 'Claude Code' : null)], ['Project', c.project], ['Last said', c.says?.now || control.run(c.id)?.said],
       ['Its work', pr && `${pr.word}. ${pr.line}`]], [proofPart(c, pr), control.on ? convoControls(c) : null]) : gone();
   }
   if (kind === 'code') {

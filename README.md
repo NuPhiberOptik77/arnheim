@@ -164,8 +164,11 @@ the building you can talk to your agents for real, answer their permission reque
 Deny, stop them, and start new ones on a project, by typing or out loud. It answers only the page on
 your computer ([docs/connect.md](docs/connect.md), step 4).
 
-Five things no single agent can do for itself:
+Six things no single agent can do for itself:
 
+- **Any agent, not just Claude Code.** OpenAI's Codex CLI, and any agent or script that can run a
+  command, sit in the same building and the same list of what waits on you
+  ([docs/connect.md](docs/connect.md), step 9).
 - **One list of what waits on you.** The Overview puts every agent's permission requests and
   questions, your own tasks, and agents that have just finished in one list, most urgent first, each
   with its answer beside it.

@@ -241,33 +241,34 @@ def change(event, feed, project, now, extra=None):
     return talks, tasks
 
 
-def read_feed():
+def read_feed(path=None):
     try:
-        with open(FEED, encoding="utf-8") as handle:
+        with open(path or FEED, encoding="utf-8") as handle:
             feed = json.load(handle)
     except (OSError, ValueError):
         feed = {}
     return feed if isinstance(feed, dict) else {}
 
 
-def edit_feed(edit):
+def edit_feed(edit, path=None, about=None):
     """Changes the feed, one writer at a time: edit(feed) gives the new conversations and tasks, or None
-    to leave it as it is."""
-    os.makedirs(os.path.dirname(FEED), exist_ok=True)
-    with Lock(FEED + ".lock"):
-        out = edit(read_feed())
+    to leave it as it is. Another connector's feed can be named by `path`, with its own `about`."""
+    path = path or FEED
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with Lock(path + ".lock"):
+        out = edit(read_feed(path))
         if out is None:
             return
         talks, tasks = out
         out = {
-            "about": "Kept up to date by connect/claude_code.py, from Claude Code's hooks (docs/connect.md). Safe to delete.",
+            "about": about or "Kept up to date by connect/claude_code.py, from Claude Code's hooks (docs/connect.md). Safe to delete.",
             "conversations": talks,
             "tasks": tasks,
         }
-        part = f"{FEED}.{os.getpid()}.part"
+        part = f"{path}.{os.getpid()}.part"
         with open(part, "w", encoding="utf-8") as handle:
             json.dump(out, handle, ensure_ascii=False, indent=1)
-        os.replace(part, FEED)  # whole, so the page never reads half a file
+        os.replace(part, path)  # whole, so the page never reads half a file
 
 
 def update(event, extra=None):
@@ -338,7 +339,11 @@ def log(event, talk, project, extra, verdict):
     found = moment(event, talk, extra, verdict)
     if not found:
         return
-    kind, what = found
+    add_moment(talk, project, *found)
+
+
+def add_moment(talk, project, kind, what):
+    """Adds a moment to today's history, for the replay. Any connector can (connect/agents.py)."""
     now = time.time()
     day = budget.local_day()
     path = os.path.join(HISTORY, day + ".json")

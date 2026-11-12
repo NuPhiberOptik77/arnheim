@@ -248,6 +248,36 @@ you and what it said when it finished. Tap a moment to read that conversation, o
 It needs only step 2's hooks. A file changed inside a floor's folder is named by its path there; one
 outside it, by its name alone.
 
+## 9. Any agent, not just Claude Code
+
+Other agents can sit in the building too, in the same rooms, the same list of what waits on you and
+the same replay. Add their feed to `data/company.json`'s `feeds`, beside Claude Code's:
+
+```json
+"feeds": ["feeds/claude-code.json", "feeds/agents.json", "feeds/projects.json"]
+```
+
+**OpenAI's Codex CLI** runs a program when it finishes a turn. In `~/.codex/config.toml`:
+
+```toml
+notify = ["python3", "/path/to/arnheim/connect/codex.py"]
+```
+
+Each Codex conversation in a floor's folder then shows on that floor when a turn ends, finished and
+waiting for your next step. Codex says nothing while it works, so the building doesn't see it at work.
+
+**Any other agent, script or tool** can say where it is with one command, from its own hooks or
+wrapper, each time something changes:
+
+```bash
+python3 connect/agents.py --agent Gemini --session 42 --cwd ~/code/lantern --state working --says "Fixing the login"
+```
+
+`--state` is `working`, `asking` (it shows in the list of what waits on you), `finished` or `ended`.
+`--session` is the conversation's own id, the same each time. The building names the agent on each
+conversation. Answering, stopping and starting work from the building (step 4) is for Claude Code
+alone, since only it lets another program hand it words.
+
 ## What is kept, and where
 
 The connectors write `data/feeds/claude-code.json` and `data/feeds/projects.json`. From Claude Code

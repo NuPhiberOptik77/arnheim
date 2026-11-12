@@ -31,7 +31,7 @@
     { "id": "cs2", "project": "Studio", "title": "Sorting the subscriptions", "check": true, "spent": { "tokens": 300000 }, "says": { "now": "I sorted the studio's subscriptions into keep and cancel. Three can go." },
       "proof": { "state": "passed", "check": "The spending check" } },
     { "id": "cl1", "project": "Lantern", "title": "Why the bookmark jumps", "working": true, "spent": { "tokens": 900000 }, "says": {"now": "I'm finding out why the bookmark jumps back a page. It saves your place before the page has finished turning, so it keeps the page you were leaving.", "next": "Next I'll save it once the turn ends, then try it on a long book.", "when": "About an hour, if the long book behaves.", "needs": "Nothing yet. If the fix changes how pages turn, I'll ask you first."} },
-    { "id": "cl2", "project": "Lantern", "title": "Reading streak ideas" },
+    { "id": "cl2", "project": "Lantern", "title": "Reading streak ideas", "agent": "Codex" },
     { "id": "cl3", "project": "Lantern", "title": "Pictures for the app store", "check": true, "says": { "now": "I made the five pictures for the app store." },
       "proof": { "state": "failed", "check": "The picture sizes check", "tail": "phone-1.png: 1290 x 2796, right\nphone-2.png: 1290 x 2796, right\ntablet-1.png: 2048 x 2732, should be 2064 x 2752\n1 of 5 pictures is the wrong size." } },
     { "id": "ct1", "project": "Tidepool", "title": "Rain gauge supplier" },
