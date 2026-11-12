@@ -81,6 +81,9 @@ export function createControl({ base = BASE, headers = () => ({}), every = 3000,
     answer: (id, behavior) => after(call('answer', { id, behavior })),
     begin: (project, text) => after(call('start', { project, text })),
     halt: (key) => after(call('stop', { key })),
+    // Done means proven (connect/prove.py): the name of a floor's check, if it has one, and running it again.
+    checkOf: (project) => state.projects.find((p) => p.project === project)?.check || null,
+    prove: (key) => after(call('prove', { key })),
     refresh: poll,
   };
 }

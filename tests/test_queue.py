@@ -110,6 +110,13 @@ class QueueTest(unittest.TestCase):
         self.assertEqual([i[3] for i in got], ["to run npm test", "to use Frobnicate on the widget", "to use a tool", "to use WebFetch",
                                                "to read notes.md", "to run git status", "to use Glob", "to run Read: not its own tool"])
 
+    def test_a_finished_agent_with_its_proof(self):
+        done = talk("c4", "Stock count", check=True, stopped=NOW - 300, changed=NOW - 400,
+                    proof={"check": "The tests", "state": "failed", "at": NOW - 350, "tail": "1 failed"})
+        got = self.run_js([["say", {"now": NOW, "conversations": [done]}]])
+        self.assertEqual(got[0], "One thing is waiting on you. Stock count on the Shop floor has finished and waits for your next step. "
+                                 "The tests failed.")
+
     def test_allow_all_the_reads(self):
         said = ["allow all the reads", "Please approve every read request.", "Allow all of the reads please!",
                 "allow all", "don't allow all the reads", "allow all the reads and the tests", "allow everything"]

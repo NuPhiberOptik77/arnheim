@@ -124,7 +124,7 @@ class ControlTest(unittest.TestCase):
         self.assertEqual(self.call("GET", "here", token="a guess")[0], 403)
         self.assertEqual(self.call("GET", "here")[0], 200)
         self.assertTrue(self.box.watched())
-        self.assertEqual(state["projects"], [{"project": "Lantern", "label": "Lantern", "floor": "lantern"}])
+        self.assertEqual(state["projects"], [{"project": "Lantern", "label": "Lantern", "floor": "lantern", "check": None}])
         self.assertNotIn(self.lantern, json.dumps(state))  # no folders in what the page is given
 
     # ---------- messages ----------

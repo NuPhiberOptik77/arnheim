@@ -16,6 +16,10 @@ It keeps a title for each conversation (its own, or the first line of your first
 first sentences of the last thing Claude said, your latest message's first words and task titles,
 all in data/, on this computer. Any trouble goes to data/feeds/claude-code.log, and Claude carries on.
 
+When a conversation changes files and its floor names a check (docs/connect.md, "Done means proven"), it
+starts that check in the background as the turn ends (connect/prove.py), and the building shows whether
+the work is proven.
+
 With control switched on (serve.py --control, and connect/control.py), it also hands Claude what you
 say to it in the building, at its next step; while the building is open, it shows a permission
 Claude asks for there and waits a while for your answer; and it stops Claude when you ask. Otherwise
@@ -36,6 +40,7 @@ FEED = os.path.join(DATA, "feeds", "claude-code.json")
 LOG = os.path.join(DATA, "feeds", "claude-code.log")
 KEEP = 12 * 3600  # a conversation not heard from for this long has gone
 ASKS = {"permission_prompt", "elicitation_dialog", "agent_needs_input"}  # Claude waits for you to decide
+CHANGES = {"Edit", "MultiEdit", "Write", "NotebookEdit"}  # tools that change files: then its floor's check is due
 NEW = "A new conversation"
 
 
@@ -163,6 +168,8 @@ def change(event, feed, project, now, extra=None):
     elif name == "PostToolUse":
         talk.update(working=True, check=False)
         drop(ask)
+        if event.get("tool_name") in CHANGES:
+            talk["changed"] = now
         given = event.get("tool_input") if isinstance(event.get("tool_input"), dict) else {}
         if event.get("tool_name") == "TaskUpdate":  # its own task list: in progress, done or deleted
             tid = given.get("taskId") or given.get("task_id")
@@ -213,26 +220,24 @@ def change(event, feed, project, now, extra=None):
     return talks, tasks
 
 
-def update(event, extra=None):
-    if not event.get("session_id"):
-        return
-    project = project_for(event.get("cwd"))
-    if not project and not os.path.isfile(FEED):
-        return  # a conversation in a folder no floor names: not part of this company
+def read_feed():
+    try:
+        with open(FEED, encoding="utf-8") as handle:
+            feed = json.load(handle)
+    except (OSError, ValueError):
+        feed = {}
+    return feed if isinstance(feed, dict) else {}
+
+
+def edit_feed(edit):
+    """Changes the feed, one writer at a time: edit(feed) gives the new conversations and tasks, or None
+    to leave it as it is."""
     os.makedirs(os.path.dirname(FEED), exist_ok=True)
     with Lock(FEED + ".lock"):
-        try:
-            with open(FEED, encoding="utf-8") as handle:
-                feed = json.load(handle)
-        except (OSError, ValueError):
-            feed = {}
-        feed = feed if isinstance(feed, dict) else {}
-        if not project:  # one already in the building that has moved out of its folder stays where it was
-            seat = next((c for c in feed.get("conversations") or [] if isinstance(c, dict) and c.get("id") == key_of(event)), None)
-            project = seat and seat.get("project")
-            if not project:
-                return
-        talks, tasks = change(event, feed, project, time.time(), extra)
+        out = edit(read_feed())
+        if out is None:
+            return
+        talks, tasks = out
         out = {
             "about": "Kept up to date by connect/claude_code.py, from Claude Code's hooks (docs/connect.md). Safe to delete.",
             "conversations": talks,
@@ -242,6 +247,45 @@ def update(event, extra=None):
         with open(part, "w", encoding="utf-8") as handle:
             json.dump(out, handle, ensure_ascii=False, indent=1)
         os.replace(part, FEED)  # whole, so the page never reads half a file
+
+
+def update(event, extra=None):
+    if not event.get("session_id"):
+        return
+    project = project_for(event.get("cwd"))
+    if not project and not os.path.isfile(FEED):
+        return  # a conversation in a folder no floor names: not part of this company
+
+    def edit(feed):
+        where = project
+        if not where:  # one already in the building that has moved out of its folder stays where it was
+            seat = next((c for c in feed.get("conversations") or [] if isinstance(c, dict) and c.get("id") == key_of(event)), None)
+            where = seat and seat.get("project")
+            if not where:
+                return None
+        return change(event, feed, where, time.time(), extra)
+
+    edit_feed(edit)
+
+
+def due(talk):
+    """Whether a conversation changed files that no check has covered since."""
+    proof = talk.get("proof") if isinstance(talk.get("proof"), dict) else {}
+    try:
+        return float(talk.get("changed") or 0) > float(proof.get("at") or 0)
+    except (TypeError, ValueError):
+        return False
+
+
+def prove(event):
+    """As a turn ends: if the conversation changed files since its floor's check last ran, starts the
+    check in the background (connect/prove.py). Claude Code doesn't wait for it."""
+    try:
+        talk = next((c for c in read_feed().get("conversations") or [] if isinstance(c, dict) and c.get("id") == key_of(event)), None)
+        if talk and due(talk) and control.check_for(talk.get("project"), DATA):
+            control.prove_later(talk["project"], DATA)
+    except Exception as error:  # a check that can't start never troubles Claude Code
+        note(error)
 
 
 def note(error):
@@ -292,6 +336,8 @@ def respond(event):
     rows = box.take(key) if name in ("PostToolUse", "UserPromptSubmit") or (name == "Stop" and not stop) else []
     if not rows:
         keep(event, {"started_here": os.path.exists(box.path("runs", key + ".json"))} if name == "SessionEnd" else None)
+        if name == "Stop":
+            prove(event)
         return None
     heard = rows[-1].get("id")
     if name == "Stop":

@@ -42,6 +42,7 @@ const LAMP = {
   working: { color: '#ffb066', level: 1 },
   needs: { color: '#ff8a1e', level: 1.05 },
   check: { color: '#8fb4ff', level: 0.75 },
+  ok: { color: '#7fdc9b', level: 0.75 }, // finished, and its work proven (proof.js)
   failed: { color: '#ff5a6e', level: 0.55 },
 };
 
@@ -464,7 +465,7 @@ function createDrawnBuilding(canvas, org, { onPick, onHover, onStatus, onWalk, o
 
   function sceneGain(room) {
     let on = true;
-    if (scenePick.mode === 'needs') on = room.mood === 'needs' || room.mood === 'check';
+    if (scenePick.mode === 'needs') on = ['needs', 'check', 'ok', 'failed'].includes(room.mood);
     else if (scenePick.mode === 'working') on = room.mood === 'working' || !!room.info.working;
     else if (scenePick.mode === 'floor') on = room.floorId === scenePick.floor;
     return on ? 1 : 0.06;

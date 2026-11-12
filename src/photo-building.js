@@ -55,6 +55,7 @@ const MOOD = {
   working: { color: '#ffeedd', level: 1.04 },
   needs: { color: '#ffd29e', level: 1.08 },
   check: { color: '#e2ebff', level: 1.02 },
+  ok: { color: '#e2f6e7', level: 1.02 }, // finished, and its work proven (proof.js)
   failed: { color: '#ffc9cf', level: 1.0 },
 };
 
@@ -404,7 +405,7 @@ export function createPhotoBuilding(canvas, org, { base, people: ownPeople, onPi
 
   function sceneGain(room) {
     let on = true;
-    if (scenePick.mode === 'needs') on = room.mood === 'needs' || room.mood === 'check';
+    if (scenePick.mode === 'needs') on = ['needs', 'check', 'ok', 'failed'].includes(room.mood);
     else if (scenePick.mode === 'working') on = room.mood === 'working' || !!room.info.working;
     else if (scenePick.mode === 'floor') on = room.floorId === scenePick.floor;
     return on ? 1 : 0.3;

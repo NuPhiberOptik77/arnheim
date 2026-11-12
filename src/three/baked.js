@@ -183,6 +183,7 @@ export function sunLight(sunPlan, { strength = 2.2, sky = 1.1 } = {}) {
 const AMBER = new THREE.Color('#ffb347');
 const WARM = new THREE.Color('#ffe2bd');
 const COOL = new THREE.Color('#8fb4ff');
+const PROVEN = new THREE.Color('#6fe09a');
 const FAIL = new THREE.Color('#ff5a6e');
 const DARK = '#1f1d1b';
 
@@ -375,13 +376,14 @@ export const FILL = {
         if (person) { person.position.copy(seat.position); person.rotation.y = s.rot; g.add(person); }
       }
       if (c.working) { const p = pool(1.3, 1.3, { color: WARM, opacity: 0.3, add: true }); p.position.x = s.at[0]; p.position.z = s.at[2]; g.add(p); }
-      if (c.check) {
-        const light = new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 8), standard(COOL, { emissive: COOL, emissiveIntensity: 2.4 }));
+      if (c.check) { // blue: your turn; green: its work is proven; red: it failed its check (proof.js)
+        const lamp = c.proof === 'proven' ? PROVEN : c.proof === 'failed' ? FAIL : COOL;
+        const light = new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 8), standard(lamp, { emissive: lamp, emissiveIntensity: 2.4 }));
         light.position.set(...along({ ...s, at: [s.at[0], 0, s.at[2]] }, 0, 0.98, -0.24));
         g.add(light);
       }
       const stand = [s.at[0] + (s.table[0] - s.at[0]) * 0.1, s.at[2] + (s.at[2] > tableZ ? 0.55 : -0.55)];
-      ctx.object({ x: s.at[0], y: 0, z: s.at[2], w: 0.7, h: 1.05, d: 0.7, title: c.title, sub: c.sub, href: c.href, mood: c.working ? 'working' : c.check ? 'check' : 'quiet',
+      ctx.object({ x: s.at[0], y: 0, z: s.at[2], w: 0.7, h: 1.05, d: 0.7, title: c.title, sub: c.sub, href: c.href, mood: c.mood || (c.working ? 'working' : c.check ? 'check' : 'quiet'),
         figure: c.working || c.check ? { x: s.at[0], z: s.at[2], stand } : null });
     });
     if (list.length > talks.length) ctx.more(list.length - talks.length, seats[0].table[0], 1.0, -seats[0].table[1]);

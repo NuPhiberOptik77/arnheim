@@ -157,6 +157,36 @@ given, and never works with `--lan`. Starting agents needs Claude Code's `claude
 (`ARNHEIM_CLAUDE` names another). `ARNHEIM_CONTROL_WAIT` sets how long a permission request waits
 for an answer in the building, in seconds: keep the hook's `timeout` above it.
 
+## 5. Done means proven
+
+An agent saying it has finished isn't proof that its work holds up. Give a floor a check, the
+command that shows its work is sound (its tests, say), and Arnheim runs it for you each time an agent
+on that floor finishes a turn in which it changed files:
+
+```json
+{ "id": "lantern", "label": "Lantern", "folder": "~/code/lantern",
+  "check": { "run": ["npm", "test"], "label": "The tests", "timeout": 600 } }
+```
+
+`run` is the command and its arguments, one to a string. It runs in the floor's folder (or in
+`folder`, if the check names one), with no shell, as you, and is stopped after `timeout` seconds (ten
+minutes if left out). `label` is what the building calls it. `"check": ["npm", "test"]` is enough.
+
+Then each conversation that changed files says, in its seat's lamp, its room's light and its page in
+the panel, which of these is true:
+
+- **Proven**: the check passed after its last change. Its lamp turns green, and the room does too once
+  everything finished there is proven.
+- **Not proven**: the check failed, ran too long, or couldn't start. The lamp and the room turn red,
+  and its page shows the check's last lines.
+- **Claimed**: it changed files and nothing has checked them since, perhaps because the floor has no
+  check, or it changed more while the check ran.
+
+The check runs in the background, so Claude Code never waits for it, and one runs per floor at a
+time: turns that end meanwhile get one more run when it ends. Arnheim only notices changes made with
+Claude Code's own tools for editing files. With control on, "Check it again" on a conversation's page
+runs it once more. It needs only step 2's hooks.
+
 ## What is kept, and where
 
 The connectors write `data/feeds/claude-code.json` and `data/feeds/projects.json`. From Claude Code
@@ -164,6 +194,9 @@ they keep, for each conversation: its title, or the first line of your first mes
 words of your latest message; the first sentences of the last thing Claude said; what it asks you
 for; and its task titles. Nothing else from the conversation is kept, and nothing leaves this
 computer, unless you serve Arnheim with `--lan`, when anyone on your network can open it.
+
+A floor's check keeps the last lines it printed beside each conversation it checked, and a lock and
+a note for its next run in `data/feeds/proof/`.
 
 With control on, your messages wait in `data/control/` until Claude takes them, a permission
 request and its answer are deleted once it is answered, and each agent started from the building

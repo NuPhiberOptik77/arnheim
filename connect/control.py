@@ -7,7 +7,8 @@ Then, on a walk and in the panel:
 - what you say to an agent reaches its Claude Code conversation at its next step, and its answer
   comes back to you;
 - a permission it asks for shows in the building, with Allow and Deny;
-- you can start an agent on a floor's project with a first instruction, and stop one at work.
+- you can start an agent on a floor's project with a first instruction, and stop one at work;
+- you can have a floor's check run again on an agent's work (connect/prove.py).
 
 The page and Claude Code meet in data/control/, on this computer. Control, below, answers the
 page's /control/ requests for serve.py, or for a server of your own. Box is the mail between them.
@@ -26,6 +27,7 @@ import secrets
 import shlex
 import signal
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -38,6 +40,7 @@ MAX_TEXT = 2000
 KEY = re.compile(r"^cc-[A-Za-z0-9]{1,12}$")  # a conversation, as the feed names it (claude_code.key_of)
 ASK_ID = re.compile(r"^[A-Za-z0-9_-]{8,40}$")
 KEEP_RUNS = 30
+PROVE = os.path.join(HERE, "prove.py")
 
 
 def wait_seconds():
@@ -77,6 +80,48 @@ def gone(path):
 def one_line(text, most):
     text = " ".join(str(text or "").split())
     return text if len(text) <= most else text[: most - 1].rstrip() + "…"
+
+
+def check_of(floor):
+    """A floor's check (connect/prove.py), as data/company.json gives it: {"run": [the command and its
+    arguments], "label": what to call it, "folder": where to run it (the floor's first folder if left out),
+    "timeout": seconds}, or just the list. None if it has none, or its folder isn't on this computer."""
+    given = floor.get("check") if isinstance(floor, dict) else None
+    if isinstance(given, list):
+        given = {"run": given}
+    if not isinstance(given, dict):
+        return None
+    run = given.get("run")
+    if not isinstance(run, list) or not 0 < len(run) <= 64 or not all(isinstance(arg, str) and arg for arg in run):
+        return None
+    folders = floor.get("folders") or ([floor["folder"]] if floor.get("folder") else [])
+    where = given.get("folder") or (folders[0] if isinstance(folders, list) and folders else None)
+    if not isinstance(where, str) or not where:
+        return None
+    path = os.path.realpath(os.path.expanduser(where))
+    if not os.path.isdir(path):
+        return None
+    try:
+        wait = int(given.get("timeout") or 600)
+    except (TypeError, ValueError):
+        wait = 600
+    return {"run": list(run), "folder": path, "timeout": max(1, min(3600, wait)), "label": one_line(given.get("label") or "Its check", 60)}
+
+
+def check_for(project, data=DATA):
+    """The check of the floor whose project (or label) this is, or None."""
+    company = read(os.path.join(data, "company.json")) or {}
+    for floor in company.get("floors") or []:
+        if isinstance(floor, dict) and project and str(floor.get("project") or floor.get("label") or "") == project:
+            return check_of(floor)
+    return None
+
+
+def prove_later(project, data=DATA, also=None):
+    """Starts connect/prove.py for a floor in the background, and gives back at once."""
+    args = [sys.executable, PROVE, project] + (["--also", also] if also else [])
+    return subprocess.Popen(args, cwd=HERE, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                            env=dict(os.environ, ARNHEIM_DATA=data), close_fds=True, start_new_session=hasattr(os, "setsid"))
 
 
 def describe(tool, given):
@@ -306,6 +351,8 @@ class Control:
                 return answer(200, self.start(given.get("project"), given.get("text")))
             if name == "stop":
                 return answer(200, self.stop(given.get("key")))
+            if name == "prove":
+                return answer(200, self.prove(given.get("key")))
         except Refused as why:
             return answer(400, {"error": str(why)})
         return answer(404, {"error": "No such request."})
@@ -319,7 +366,7 @@ class Control:
             "wait": wait_seconds(),
             "asks": [{k: row.get(k) for k in ("id", "key", "tool", "what", "at", "until")} for row in self.box.asks()],
             "runs": runs,
-            "projects": [{k: f[k] for k in ("project", "label", "floor")} for f in self.floors()],
+            "projects": [{k: f[k] for k in ("project", "label", "floor", "check")} for f in self.floors()],
         }
 
     # ---------- talking, starting and stopping ----------
@@ -361,6 +408,23 @@ class Control:
                 self.send(run, signal.SIGINT)
                 threading.Timer(6, self.send, args=(run, getattr(signal, "SIGTERM", signal.SIGINT))).start()
         return {"ok": True}
+
+    def prove(self, key):
+        """Runs the conversation's floor's check again on its work, in the background (connect/prove.py)."""
+        key = self.conversation(key)
+        feed = read(os.path.join(self.data, "feeds", "claude-code.json")) or {}
+        talk = next((c for c in feed.get("conversations") or [] if isinstance(c, dict) and c.get("id") == key), None)
+        with self.lock:
+            project = (talk or {}).get("project") or (self.runs.get(key) or {}).get("project")
+        check = check_for(project, self.data) if project else None
+        if not check:
+            raise Refused('Its floor has no check to run. Give it one in data/company.json (docs/connect.md, "Done means proven").')
+        try:
+            proc = prove_later(project, self.data, also=key)
+        except OSError as error:
+            raise Refused(f"The check didn't start ({error.strerror or error}).")
+        threading.Thread(target=proc.wait, daemon=True).start()  # so it leaves nothing behind when it ends
+        return {"ok": True, "check": check["label"]}
 
     # ---------- the agents started here ----------
 
@@ -476,7 +540,9 @@ class Control:
                 path = os.path.realpath(os.path.expanduser(str(folder)))
                 if os.path.isdir(path):
                     project = str(floor.get("project") or floor.get("label") or floor.get("id") or "")
-                    out.append({"project": project, "label": str(floor.get("label") or project), "floor": str(floor.get("id") or ""), "folder": path})
+                    check = check_of(floor)
+                    out.append({"project": project, "label": str(floor.get("label") or project), "floor": str(floor.get("id") or ""), "folder": path,
+                                "check": check and check["label"]})
                     break
         return out
 
