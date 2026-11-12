@@ -34,7 +34,8 @@ else is changing it, so it can check their work first, and the building shows th
 
 When a conversation changes files and its floor names a check (docs/connect.md, "Done means proven"), it
 starts that check in the background as the turn ends (connect/prove.py), and the building shows whether
-the work is proven.
+the work is proven. On a floor with a review line, it holds the turn instead while the check and a reader
+look at the work (connect/review.py), and sends it back to Claude with the reason if it isn't ready.
 
 With control switched on (serve.py --control, and connect/control.py), it also hands Claude what you
 say to it in the building, at its next step; while the building is open, it shows a permission
@@ -184,7 +185,9 @@ def change(event, feed, project, now, extra=None):
         said = line(event.get("prompt"), 100)
         if talk["title"] == NEW and said:
             talk["title"] = line(event.get("prompt"), 70)
-        talk.update(working=True, check=False, says={"now": f'I\'m working on what you asked: "{said}".' if said else "I'm working on it."})
+        talk.update(working=True, check=False, says={"now": f'I\'m working on what you asked: "{said}".' if said else "I'm working on it."},
+                    asked=said, asked_at=now)
+        talk.pop("review", None)  # a new piece of work: the review line starts afresh
         drop(ask)
     elif name == "PostToolUse" and extra.get("stopped"):
         talk.update(working=False, check=True, says={"now": "I stopped, as you asked.", "next": "It's your turn now."})
@@ -470,6 +473,76 @@ def prove(event):
         note(error)
 
 
+def edit_talk(event, change_it):
+    """Changes one conversation in the feed: change_it(talk) under the feed's lock."""
+    def edit(feed):
+        talks = [c for c in feed.get("conversations") or [] if isinstance(c, dict)]
+        talk = next((c for c in talks if c.get("id") == key_of(event)), None)
+        if talk is None:
+            return None
+        change_it(talk)
+        return talks, [t for t in feed.get("tasks") or [] if isinstance(t, dict)]
+    edit_feed(edit)
+
+
+def review(event):
+    """As a turn ends on a floor with a review line (connect/review.py): holds it while the floor's check and
+    the reader look at what changed. What Claude Code hears back: the work sent back with the reason, or None,
+    when it passed, failed as often as allowed (it reaches you anyway), or the floor has no line."""
+    try:
+        import review as line  # noqa: E402  (beside this file; only when a turn ends)
+        talk = next((c for c in read_feed().get("conversations") or [] if isinstance(c, dict) and c.get("id") == key_of(event)), None)
+        project = talk and talk.get("project")
+        floor = project and line.floor_of(project, DATA)
+        given = line.review_of(floor)
+        if not given or not line.due(talk):
+            return None
+        check = control.check_of(floor)
+        now = time.time()
+        said = dict(talk.get("says") or {})
+        before = dict(talk.get("review") or {}) if isinstance(talk.get("review"), dict) else {}
+        until = now + (check["timeout"] if check else 0) + (given["timeout"] if given["read"] else 0)
+
+        def held(t):
+            t.update(working=True, check=False, says={"now": "The review line is checking my work before it reaches you."},
+                     review={**before, "state": "reviewing", "at": now, "until": until})
+            if check:
+                t["proof"] = {"state": "checking", "check": check["label"], "at": now, "until": now + check["timeout"]}
+        edit_talk(event, held)
+        try:
+            result = line.run(event, talk, project, DATA)
+        except Exception as error:  # noted, and the work reaches you unreviewed rather than stuck
+            note(error)
+            result = None
+        if result is None:
+            result = {"state": "error", "by": "The review line", "said": "It met an error (see data/feeds/claude-code.log).", "at": now}
+        why = result.get("why") or ""
+
+        def done(t):
+            t["review"] = {k: result[k] for k in ("state", "by", "said", "why", "times", "most", "at") if result.get(k) not in (None, "")}
+            t["review"]["done"] = time.time()
+            if result.get("proof"):
+                t["proof"] = result["proof"]
+            if result.get("tokens"):
+                day = budget.local_day()
+                had = t.get("spent") if isinstance(t.get("spent"), dict) and t["spent"].get("day") == day else {}
+                t["spent"] = {"day": day, "tokens": int(had.get("tokens") or 0) + int(result["tokens"])}
+            if result["state"] == "sent back":
+                t.update(working=True, check=False, says={"now": f"The review line sent my work back, so I'm fixing it: {why.splitlines()[0] if why else ''}"})
+                add_moment(t, project, "working", f"The review line sent it back: {why.splitlines()[0] if why else ''}")
+            else:
+                t.update(working=False, check=True, says=said)
+                if result["state"] == "passed":
+                    add_moment(t, project, "finished", f"It passed the review line ({result.get('by')}).")
+                elif result["state"] == "failed":
+                    add_moment(t, project, "finished", f"It reached you after failing the review line: {why.splitlines()[0] if why else ''}")
+        edit_talk(event, done)
+        return {"decision": "block", "reason": line.sent_back(result)} if result["state"] == "sent back" else None
+    except Exception as error:  # the review line's trouble never keeps Claude from finishing
+        note(error)
+        return None
+
+
 def note(error):
     """Trouble goes to the log, never to Claude Code."""
     try:
@@ -519,8 +592,8 @@ def respond(event):
     messages from the building, your answer there to a permission, or your request to stop.
     None means nothing: Claude Code carries on as usual."""
     name = event.get("hook_event_name")
-    if not event.get("session_id"):
-        return None
+    if not event.get("session_id") or os.environ.get("ARNHEIM_REVIEWER"):
+        return None  # the review line's own reader is never a conversation of its own
     key = key_of(event)
     box = control.Box(DATA)
     if name == "PermissionRequest":
@@ -557,6 +630,10 @@ def respond(event):
         verdict = keep(event, {**extra, **told} or None)
         if verdict.get("stop"):
             return {"continue": False, "stopReason": verdict["stop"]}
+        if name == "Stop" and not stop:
+            held = review(event)
+            if held:
+                return held
         if name == "Stop":
             prove(event)
         words = "\n\n".join(w for w in (memo[0] if memo else None, verdict.get("warn")) if w)

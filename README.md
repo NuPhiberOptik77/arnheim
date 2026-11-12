@@ -167,7 +167,7 @@ the building you can talk to your agents for real, answer their permission reque
 Deny, stop them, and start new ones on a project, by typing or out loud. It answers only the page on
 your computer ([docs/connect.md](docs/connect.md), step 4).
 
-Seven things no single agent can do for itself:
+Eight things no single agent can do for itself:
 
 - **Any agent, not just Claude Code.** OpenAI's Codex CLI, and any agent or script that can run a
   command, sit in the same building and the same list of what waits on you
@@ -178,6 +178,9 @@ Seven things no single agent can do for itself:
 - **Done means proven.** Give a floor a check, such as its tests, and Arnheim runs it each time an
   agent there changes files. The work shows as proven in green, not proven in red with what failed,
   or merely claimed ([docs/connect.md](docs/connect.md), step 5).
+- **A review line.** A floor can say every change gets checked before it reaches you: its check,
+  then a second Claude Code that reads what changed. Work that isn't ready goes back to the agent
+  with the reason, and only what passes lands on your desk ([docs/connect.md](docs/connect.md), step 12).
 - **A company memory.** Tell the receptionist "remember that we never push on a Friday", and every
   agent in the company's folders is told it as it starts, and one already at work with your next
   message. When an agent asks something you've decided before, the list shows your decision with a

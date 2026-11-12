@@ -7,6 +7,7 @@ import { createBrain } from './brain.js';
 import { agentControls, agentReply, createControl, deskControls, deskStart } from './control.js';
 import { allowReadsAsked, sayWaiting, together, waitingOnYou } from './queue.js';
 import { inner, proofMood, proofOf } from './proof.js';
+import { reviewMood, reviewOf } from './review.js';
 import { MEMORY_ASKED, decidedFor, rememberAsked, sayMemory } from './memory.js';
 import { floorSpend, localDay } from './budget.js';
 import { clashesOf, sayClash, waitWords } from './clashes.js';
@@ -185,8 +186,9 @@ function roomModel(floor, room) {
     const working = list.filter((c) => c.working).length;
     const checks = list.filter((c) => c.check);
     const proofs = new Map(list.map((c) => [c.id, proofOf(c)]));
-    const failed = list.filter((c) => !c.working && proofs.get(c.id)?.state === 'failed').length;
-    const proven = checks.filter((c) => proofs.get(c.id)?.state === 'proven').length;
+    const reviews = new Map(list.map((c) => [c.id, reviewOf(c)]));
+    const failed = list.filter((c) => !c.working && (proofs.get(c.id)?.state === 'failed' || reviews.get(c.id)?.state === 'failed')).length;
+    const proven = checks.filter((c) => proofs.get(c.id)?.state === 'proven' || (reviews.get(c.id)?.state === 'passed' && proofs.get(c.id)?.state !== 'failed')).length;
     // Its light: red while any work there failed its check, green once all that's finished is proven.
     const state = failed ? 'failed' : checks.length ? (proven === checks.length ? 'ok' : 'check') : working ? 'working' : 'quiet';
     return {
@@ -194,9 +196,11 @@ function roomModel(floor, room) {
       detail: [checks.length ? `open, ${checks.length} to check` : 'open', failed && `${failed} not proven`].filter(Boolean).join(', '),
       items: list.map((c) => {
         const pr = proofs.get(c.id);
-        const now = [c.working ? 'Working now' : c.check ? 'To check' : 'Quiet', c.agent].filter(Boolean).join('. ');
-        return { id: c.id, title: c.title, working: !!c.working, check: !!c.check, proof: pr?.state || null, sub: pr && !c.working ? `${now}. ${pr.word}` : now,
-          mood: c.working ? 'working' : proofMood(pr) || undefined, href: convoHref(c) };
+        const rv = reviews.get(c.id);
+        const now = [c.working ? (rv?.state === 'reviewing' ? 'In the review line' : rv?.state === 'sent back' ? 'Sent back, fixing it' : 'Working now') : c.check ? 'To check' : 'Quiet', c.agent].filter(Boolean).join('. ');
+        const word = c.working ? null : rv?.word || pr?.word;
+        return { id: c.id, title: c.title, working: !!c.working, check: !!c.check, proof: pr?.state || null, sub: word ? `${now}. ${word}` : now,
+          mood: c.working ? 'working' : reviewMood(rv) || proofMood(pr) || undefined, href: convoHref(c) };
       }),
     };
   }
@@ -476,6 +480,7 @@ function brainFacts() {
           says.when && `  When: ${says.when}`,
           c.at && `  Last heard from at ${clock(c.at)}.`,
           proofOf(c) && `  Its work: ${proofOf(c).word.toLowerCase()}. ${proofOf(c).line}`,
+          reviewOf(c) && `  The review line: ${reviewOf(c).line}`,
         ];
       }),
       some(started, (r) => [
@@ -863,9 +868,10 @@ function waitingItem(i) {
   const where = [i.project ? (floorOf(i.project)?.label || i.project) : '', agent].filter(Boolean).join('. ');
   const href = waitingHref(i);
   const head = waitingHead(i);
-  const what = i.kind === 'task' ? null : i.kind === 'permission' ? `It wants ${i.what}` : i.proof ? `${i.proof.word}. ${i.what}` : i.what;
+  const marked = i.review || i.proof;
+  const what = i.kind === 'task' ? null : i.kind === 'permission' ? `It wants ${i.what}` : marked ? `${marked.word}. ${i.what}` : i.what;
   const sub = [what, where].filter(Boolean).map((part, n, all) => (n < all.length - 1 && !/[.?!]$/.test(part) ? `${part}.` : part)).join(' ');
-  const li = row(href, head, sub, i.kind === 'turn' ? proofMood(i.proof) || 'check' : 'needs');
+  const li = row(href, head, sub, i.kind === 'turn' ? reviewMood(i.review) || proofMood(i.proof) || 'check' : 'needs');
   if (i.kind === 'permission' && control.on) {
     li.append(h('div.control-row.waiting-do',
       btn('Allow', () => controlDone(answerAsk(i.ask.id, 'allow'), () => 'Allowed, just this once.'), '.primary'),
@@ -1108,7 +1114,7 @@ function viewItem(floor, room, id) {
     const c = work.conversations.find((x) => x.id === id && x.project === floor.project);
     const pr = c && proofOf(c);
     return c ? show(c.title, [['Now', c.working ? 'Working' : c.check ? 'To check' : 'Quiet'], ['Agent', c.agent || (REACHABLE.test(c.id) ? 'Claude Code' : null)], ['Project', c.project], ['Last said', c.says?.now || control.run(c.id)?.said],
-      ['Its work', pr && `${pr.word}. ${pr.line}`]], [proofPart(c, pr), control.on ? convoControls(c) : null]) : gone();
+      ['Its work', pr && `${pr.word}. ${pr.line}`], ['Review line', reviewOf(c)?.line]], [proofPart(c, pr), control.on ? convoControls(c) : null]) : gone();
   }
   if (kind === 'code') {
     const [what, key] = id.split('/');

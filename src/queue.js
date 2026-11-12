@@ -5,6 +5,7 @@
 // only, so tests/test_queue.py can run it under Node.
 
 import { proofOf } from './proof.js';
+import { reviewOf } from './review.js';
 
 // Tools that only look: reading files and searching. Allowing them all at once changes nothing.
 export const READS = new Set(['Read', 'Glob', 'Grep', 'LS', 'NotebookRead']);
@@ -29,7 +30,7 @@ const seconds = (at) => {
 
 // asks and runs: the permissions waiting and the agents started from the page (control state), conversations
 // and tasks: as the page reads them (feeds included). A run names an agent whose conversation isn't in a feed
-// yet. Each item: { kind, id, key?, title, project?, what, at, until?, read?, ask?, task?, proof? }.
+// yet. Each item: { kind, id, key?, title, project?, what, at, until?, read?, ask?, task?, proof?, review? }.
 export function waitingOnYou({ asks = [], runs = [], conversations = [], tasks = [], now = Date.now() / 1000, recent = RECENT } = {}) {
   const items = [];
   const talks = new Map(conversations.filter((c) => c && c.id).map((c) => [c.id, c]));
@@ -48,7 +49,7 @@ export function waitingOnYou({ asks = [], runs = [], conversations = [], tasks =
       items.push({ kind: 'question', id: `talk:${c.id}`, key: c.id, title: c.title, project: c.project, what: c.says.needs, at: seconds(c.at) });
     } else if (c.check && now - seconds(c.stopped || c.at) < recent) {
       items.push({ kind: 'turn', id: `turn:${c.id}`, key: c.id, title: c.title, project: c.project, what: c.says?.now || 'It has finished for now.',
-        at: seconds(c.stopped || c.at), proof: proofOf(c, now) });
+        at: seconds(c.stopped || c.at), proof: proofOf(c, now), review: reviewOf(c, now) });
     }
   }
   for (const t of tasks) {
@@ -74,7 +75,7 @@ export function sayWaiting(items, label = (p) => p, most = 4) {
     permission: (i) => `${i.title}${i.project ? ` on ${label(i.project)}` : ''} wants your permission ${i.what}`,
     question: (i) => `${i.title}${i.project ? ` on ${label(i.project)}` : ''} is asking: ${i.what}`,
     task: (i) => `your task "${i.title}"${i.project ? ` on ${label(i.project)}` : ''}`,
-    turn: (i) => `${i.title}${i.project ? ` on ${label(i.project)}` : ''} has finished and waits for your next step${i.proof ? `. ${i.proof.line}` : ''}`,
+    turn: (i) => `${i.title}${i.project ? ` on ${label(i.project)}` : ''} has finished and waits for your next step${i.review ? `. ${i.review.line}` : i.proof ? `. ${i.proof.line}` : ''}`,
   };
   const lines = items.slice(0, most).map((i) => kinds[i.kind](i));
   const more = items.length > most ? ` And ${items.length - most} more in the panel.` : '';

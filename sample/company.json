@@ -51,6 +51,7 @@
       "palette": "terracotta",
       "icon": "building-2",
       "about": "The studio itself: its plans, its notes and how it runs.",
+      "review": true,
       "extraRooms": [
         {
           "id": "company",
@@ -65,7 +66,8 @@
       "project": "Lantern",
       "palette": "harbour",
       "icon": "library",
-      "about": "A reading app that remembers where you stopped, on every device."
+      "about": "A reading app that remembers where you stopped, on every device.",
+      "review": true
     },
     {
       "id": "tidepool",

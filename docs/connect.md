@@ -287,6 +287,58 @@ on the same files", and the floor says so. With control on, "Make ... wait" tell
 until the other has finished. It needs only step 2's hooks, and sees changes made with Claude Code's
 own tools for editing files.
 
+## 11. Hand out work by talking
+
+With control on (step 4), tell the receptionist what you want done, in everyday words: "get someone to
+fix the login bug on Lantern", "have an agent on Tidepool tidy the tests", "ask Claude to write the
+release notes". If you don't name a floor, they ask which. They tell you what they will start, and it
+starts when you say "start it" (or tap Start). It works the same on a walk and in the panel's chat.
+
+The new agent is a Claude Code conversation in the floor's folder, with your own settings. It is
+given a brief: the job, that it was started from the building by the person it works for, the
+company's memory (step 6), and, on a floor with a check (step 5), that the check must pass for the
+work to count as done. From the panel, the building turns to the Conversations room where it sits
+down.
+
+## 12. A review line
+
+A floor can say that every change gets checked before it reaches you:
+
+```json
+{ "id": "lantern", "label": "Lantern", "folder": "~/code/lantern", "review": true,
+  "check": { "run": ["npm", "test"], "label": "The tests" } }
+```
+
+Then, when a Claude Code conversation there finishes a turn in which it changed files, Arnheim holds
+the turn while the work goes through the line:
+
+1. the floor's check (step 5), if it has one, and, if that passes,
+2. a reader: a second Claude Code, which can only read files, is shown what changed (from git) and
+   what you asked for, and says whether the work is ready for you.
+
+Work that passes reaches you as usual, and its page says it passed and what the reader thought.
+Work that doesn't goes back to the agent with the reason, and it carries on fixing it; meanwhile it
+isn't listed as waiting on you. After two sends back it reaches you anyway, marked as having failed,
+so nothing goes round for ever.
+
+`"review": { "read": false }` leaves the reader out, so only the check decides. `"times"` sets how
+often work can be sent back (0 to 5, two if left out), and `"timeout"` the reader's time limit in
+seconds (five minutes if left out). The reader runs with Claude Code's `claude` command
+(`ARNHEIM_CLAUDE` names another), in the floor's folder, with only the tools that read and search
+files, no MCP servers, and nothing saved to your Claude Code history. What it spends counts towards
+the floor's budget (step 7): a few thousand new tokens for a small change.
+
+The line runs while Claude Code waits for the turn to end, so give step 2's Stop hook a time limit
+longer than the check's and the reader's together:
+
+```json
+"Stop": [{ "hooks": [{ "type": "command", "command": "python3 /path/to/arnheim/connect/claude_code.py", "timeout": 1200 }] }]
+```
+
+If the limit runs out first, the turn ends as usual and the building says the work wasn't reviewed.
+A conversation you stop from the building isn't reviewed. Agents other than Claude Code (step 9)
+aren't held, since the building only hears from them once they have finished.
+
 ## What is kept, and where
 
 The connectors write `data/feeds/claude-code.json` and `data/feeds/projects.json`. From Claude Code
@@ -299,7 +351,8 @@ A floor's check keeps the last lines it printed beside each conversation it chec
 a note for its next run in `data/feeds/proof/`. The company's memory is `data/memory.json`, and the
 feed notes when each conversation was last told it. For the budget, the feed keeps each conversation's
 new tokens for today and how far its transcript has been read; `data/control/` keeps a pause, and how
-far each floor was let go past its budget today. The replay's moments are kept a file a day in
+far each floor was let go past its budget today. On a floor with a review line, the feed also
+keeps what the line made of each conversation's work. The replay's moments are kept a file a day in
 `data/feeds/history/`, for a week.
 
 With control on, your messages wait in `data/control/` until Claude takes them, a permission
