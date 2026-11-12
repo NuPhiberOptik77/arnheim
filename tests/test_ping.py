@@ -89,7 +89,7 @@ class PingTest(unittest.TestCase):
         self.assertTrue(row["ok"])
         self.assertEqual(self.sent(), ['Arnheim: your morning brief\nSince 07:00: 1 agent was at work. One finished: "Fix the login", proven.\n\n'
                                        '3 things wait on you:\n'
-                                       '- "Run the tests" on Lantern wants your permission: Bash: npm test\n'
+                                       '- "Run the tests" on Lantern wants your permission to run a command\n'
                                        '- "Pick a colour" on Lantern asks: Blue or green?\n'
                                        '- Your task "Renew the domain" on Studio'])
         self.assertIsNone(ping.tick(self.data, at(0, "08:05")))  # the same time: once
@@ -100,6 +100,7 @@ class PingTest(unittest.TestCase):
         row = ping.tick(self.data, at(0, "17:02"))
         self.assertEqual(row["title"], "Arnheim: 4 decisions wait on you")
         self.assertIn('- "Name the release" on Studio asks: Which name?', self.sent()[-1])
+        self.assertNotIn("npm test", "".join(self.sent()))  # a permission's command never leaves this computer
         with open(os.path.join(self.data, "feeds", "pings.json"), encoding="utf-8") as handle:
             kept = json.load(handle)
         self.assertEqual([b["title"] for b in kept["bundles"]], ["Arnheim: your morning brief", "Arnheim: 4 decisions wait on you"])
@@ -117,11 +118,16 @@ class PingTest(unittest.TestCase):
         self.assertEqual(len(self.sent()), 1)
 
     def test_settings_that_cant_be_used(self):
-        for given in ({"ntfy": "ftp://example.org/x"}, {"run": "notify"}, {"ntfy": "https://ntfy.sh/topic", "at": ["25:00"]}, ["08:00"]):
+        for given in ({"ntfy": "ftp://example.org/x"}, {"ntfy": "http://ntfy.sh/topic"}, {"run": "notify"},
+                      {"ntfy": "https://ntfy.sh/topic", "at": ["25:00"]}, ["08:00"]):
             self.company(given)
             self.assertIsInstance(ping.settings(self.data), str, given)
         self.company({"ntfy": "https://ntfy.sh/a-long-topic", "at": "07:30"})
         self.assertEqual(ping.settings(self.data), {"ntfy": "https://ntfy.sh/a-long-topic", "at": [(7, 30)]})
+        self.company({"ntfy": "http://127.0.0.1:8080/a-topic"})  # plain http only to a server on this computer
+        self.assertEqual(ping.settings(self.data)["ntfy"], "http://127.0.0.1:8080/a-topic")
+        self.assertEqual([ping.permission(t) for t in ("Bash", "Edit", "Read", "WebFetch", "mcp__x__y", "rm -rf /")],
+                         ["run a command", "change a file", "read files", "use the web", "use mcp__x__y", "use a tool"])
 
     def test_a_test_ping(self):
         done = subprocess.run([sys.executable, os.path.join(ROOT, "connect", "ping.py"), "--test"], capture_output=True, text=True,

@@ -94,6 +94,38 @@ class ServeTest(unittest.TestCase):
         self.assertEqual(self.ask("/control/say", method="POST", headers={"Origin": own}, body=b"{}")[0], 404)
 
 
+class CompanyServeTest(unittest.TestCase):
+    """data/company.json reaches the page without "pings": its ntfy topic reads like a password."""
+
+    def test_the_page_never_gets_the_pings(self):
+        company = {"company": "Example Studio", "pings": {"ntfy": "https://ntfy.sh/a-secret-topic"}, "floors": []}
+        shown = json.loads(serve.without_pings(json.dumps(company).encode()))
+        self.assertEqual(shown, {"company": "Example Studio", "floors": []})
+        self.assertEqual(serve.without_pings(b'{"company": "x"}'), b'{"company": "x"}')  # nothing to take out: as it is
+        self.assertEqual(serve.without_pings(b"not json"), b"not json")
+        with tempfile.TemporaryDirectory() as base:
+            os.makedirs(os.path.join(base, "data"))
+            with open(os.path.join(base, "data", "company.json"), "w", encoding="utf-8") as handle:
+                json.dump(company, handle)
+            root = serve.ROOT
+            serve.ROOT = os.path.realpath(base)
+            server = serve.Server(("127.0.0.1", 0), serve.Handler)
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+            try:
+                conn = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=10)
+                conn.request("GET", "/data/company.json", headers={"Host": f"127.0.0.1:{server.server_address[1]}"})
+                reply = conn.getresponse()
+                body = reply.read()
+                conn.close()
+            finally:
+                serve.ROOT = root
+                server.shutdown()
+                server.server_close()
+        self.assertEqual(reply.status, 200)
+        self.assertNotIn(b"secret", body)
+        self.assertEqual(json.loads(body)["company"], "Example Studio")
+
+
 class ControlServeTest(ServeTest):
     """With --control: only its own page on this computer, and only with the page's token."""
 

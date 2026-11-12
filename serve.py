@@ -22,6 +22,7 @@ import argparse
 import errno
 import http.server
 import io
+import io
 import ipaddress
 import json
 import os
@@ -47,6 +48,19 @@ TYPES = {
 }
 PORT_TAKEN = {errno.EADDRINUSE, getattr(errno, "WSAEADDRINUSE", errno.EADDRINUSE)}
 HERE_ONLY = ("127.0.0.1", "::1", "::ffff:127.0.0.1")  # what this computer's own requests come from
+
+
+def without_pings(raw):
+    """data/company.json as the page gets it: without "pings" (connect/ping.py), which only this server
+    needs and whose ntfy topic is as good as a password, since anyone who knows it can read the pings."""
+    try:
+        company = json.loads(raw.decode("utf-8-sig"))
+    except ValueError:
+        return raw
+    if not isinstance(company, dict) or "pings" not in company:
+        return raw
+    company.pop("pings")
+    return json.dumps(company, ensure_ascii=False, indent=2).encode("utf-8")
 
 
 VOICE = Voice()
@@ -204,6 +218,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if not kind or not full.startswith(ROOT + os.sep) or not os.path.isfile(full):
             self.send_error(404)
             return None
+        if full == os.path.realpath(os.path.join(ROOT, "data", "company.json")):
+            with open(full, "rb") as handle:
+                body = without_pings(handle.read())
+            self.send_response(200)
+            self.send_header("Content-Type", kind)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            return io.BytesIO(body)
         handle = open(full, "rb")
         self.send_response(200)
         self.send_header("Content-Type", kind)

@@ -61,12 +61,12 @@ def settings(data=None):
     out = {}
     url = given.get("ntfy")
     run = given.get("run")
-    if isinstance(url, str) and re.match(r"^https?://[^\s/]+/[^\s]+$", url.strip()):
+    if isinstance(url, str) and re.match(r"^(?:https://[^\s/]+|http://(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?)/[^\s]+$", url.strip()):
         out["ntfy"] = url.strip()
     elif isinstance(run, list) and 0 < len(run) <= 64 and all(isinstance(a, str) and a for a in run):
         out["run"] = list(run)
     else:
-        return '"pings" needs "ntfy", a web address such as https://ntfy.sh/your-topic, or "run", a command as a list.'
+        return '"pings" needs "ntfy", an https address such as https://ntfy.sh/your-topic, or "run", a command as a list.'
     times = given.get("at", ["08:00"])
     times = [times] if isinstance(times, str) else times
     out["at"] = []
@@ -118,6 +118,20 @@ def labels(data):
     return out
 
 
+def permission(tool):
+    """What a permission is for, in a few words and never its command or file: that stays on this computer."""
+    tool = str(tool or "")
+    if tool == "Bash":
+        return "run a command"
+    if tool in ("Edit", "Write", "MultiEdit", "NotebookEdit"):
+        return "change a file"
+    if tool in ("Read", "Grep", "Glob", "LS"):
+        return "read files"
+    if tool in ("WebFetch", "WebSearch"):
+        return "use the web"
+    return f"use {tool}" if re.match(r"^[A-Za-z][A-Za-z0-9_.-]{0,40}$", tool) else "use a tool"
+
+
 def decisions(data, work=None):
     """What waits on you to decide, as [{id, line}]: permissions asked for, questions, and tasks that need you."""
     work = work or work_of(data)
@@ -131,7 +145,7 @@ def decisions(data, work=None):
     for a in control.Box(data).asks():
         c = talks.get(a.get("key")) or {}
         asking.add(a.get("key"))
-        out.append({"id": f"ask:{a.get('id')}", "line": f"{on(c.get('title'), c.get('project'))} wants your permission: {control.one_line(a.get('what') or a.get('tool') or 'a tool', 120)}"})
+        out.append({"id": f"ask:{a.get('id')}", "line": f"{on(c.get('title'), c.get('project'))} wants your permission to {permission(a.get('tool'))}"})
     for c in talks.values():
         needs = (c.get("says") or {}).get("needs") if isinstance(c.get("says"), dict) else None
         if needs and not c.get("working") and c.get("id") not in asking:

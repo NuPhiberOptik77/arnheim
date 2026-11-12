@@ -418,10 +418,14 @@ night sends nothing.
 ```
 
 [ntfy](https://ntfy.sh) is free and open source: install its app on your phone and subscribe to the
-same topic. The words go to that server, which hands them to the app: they are the titles of your
-agents' work and what they ask you, so pick a topic name nobody could guess, or run your own ntfy
-server. Or send them your own way: `"run": ["/path/to/your/notifier"]` gets each ping on its
-standard input, its first line the title.
+same topic. The words go to that server, which hands them to the app. They are the counts in the
+brief, the titles of your agents' work and the floors they are on, the questions agents stop to ask
+you in their own words, the titles of your tasks that need you, and for a permission only its kind
+("wants your permission to run a command"), never the command or the file. Anyone who knows the
+topic can read them, so pick a name nobody could guess, or run your own ntfy server. The address
+must be https, or plain http to a server on this computer, and the page is never shown the topic:
+serve.py leaves "pings" out of the company.json it gives the page. Or send them your own way:
+`"run": ["/path/to/your/notifier"]` gets each ping on its standard input, its first line the title.
 
 ```bash
 python3 serve.py --pings
