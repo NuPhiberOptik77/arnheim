@@ -139,6 +139,7 @@ export function createWalk(ctx) {
   let here = null;
   let hall = null;
   let map = null;
+  let doors = new Map(); // a baked room's key -> [x, z] of its doorway, and [x, z] just outside it (findDoors)
   let ride = null;
   let inLift = false;
   let press = null;
@@ -324,6 +325,7 @@ export function createWalk(ctx) {
     me.target = null;
     free();
     placeSpots();
+    findDoors();
     hall.lift.open = 0;
     hall.setDoors(0);
     inLift = hall.inLift(me.x, me.z);
@@ -430,6 +432,60 @@ export function createWalk(ctx) {
   let heldOff = false; // a re-seat ended a talk: no new one until the walker steps off the ring
 
   // Every square of this floor's plan the walker can reach from where they stand.
+  // Each baked room's doorway, from the floor plan that stops you: the squares inside the room you can walk to
+  // that touch squares outside it, the first ones you'd come to on foot from where you came in. Its name hangs
+  // there on a walk, so it can be read before you go in, not only from inside.
+  function findDoors() {
+    doors = new Map();
+    if (!map || !here) return;
+    const { cols, rows, x0, z0 } = map;
+    const steps = new Int32Array(cols * rows).fill(-1); // how many squares away on foot, -1 for out of reach
+    const qs = Math.floor((me.x - x0) / CELL);
+    const rs = Math.floor((me.z - z0) / CELL);
+    if (qs < 0 || rs < 0 || qs >= cols || rs >= rows) return;
+    const queue = [rs * cols + qs];
+    steps[queue[0]] = 0;
+    for (let head = 0; head < queue.length; head++) {
+      const i = queue[head];
+      const q = i % cols;
+      const r = (i - q) / cols;
+      for (const [nq, nr] of [[q + 1, r], [q - 1, r], [q, r + 1], [q, r - 1]]) {
+        const j = nr * cols + nq;
+        if (nq < 0 || nr < 0 || nq >= cols || nr >= rows || steps[j] >= 0) continue;
+        if (blocked(x0 + (nq + 0.5) * CELL, z0 + (nr + 0.5) * CELL)) continue;
+        steps[j] = steps[i] + 1;
+        queue.push(j);
+      }
+    }
+    const centre = (q, r) => [x0 + (q + 0.5) * CELL, z0 + (r + 0.5) * CELL];
+    for (const room of here.rooms) {
+      const b = room.box;
+      if (room.g || !b) continue;
+      const within = (x, z) => x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1;
+      const edge = []; // [x, z, outward x, outward z]
+      const q0 = Math.max(0, Math.floor((b.x0 - x0) / CELL)), q1 = Math.min(cols - 1, Math.floor((b.x1 - x0) / CELL));
+      const r0 = Math.max(0, Math.floor((b.z0 - z0) / CELL)), r1 = Math.min(rows - 1, Math.floor((b.z1 - z0) / CELL));
+      for (let r = r0; r <= r1; r++) {
+        for (let q = q0; q <= q1; q++) {
+          const [x, z] = centre(q, r);
+          if (steps[r * cols + q] < 0 || !within(x, z)) continue;
+          for (const [nq, nr] of [[q + 1, r], [q - 1, r], [q, r + 1], [q, r - 1]]) {
+            if (nq < 0 || nr < 0 || nq >= cols || nr >= rows || steps[nr * cols + nq] < 0) continue;
+            const [nx, nz] = centre(nq, nr);
+            if (!within(nx, nz)) edge.push([x, z, nx - x, nz - z, steps[r * cols + q]]);
+          }
+        }
+      }
+      if (!edge.length) continue;
+      const near = edge.reduce((a, e) => (e[4] < a[4] ? e : a));
+      const one = edge.filter((e) => Math.hypot(e[0] - near[0], e[1] - near[1]) < 1.6); // that doorway only
+      const sum = one.reduce((s, e) => [s[0] + e[0], s[1] + e[1], s[2] + e[2], s[3] + e[3]], [0, 0, 0, 0]);
+      const [x, z] = [sum[0] / one.length, sum[1] / one.length];
+      const out = Math.hypot(sum[2], sum[3]) || 1;
+      doors.set(room.key, [x, z, x + (sum[2] / out) * 0.6, z + (sum[3] / out) * 0.6]);
+    }
+  }
+
   function reach() {
     const { cols, rows, x0, z0 } = map;
     const open = new Uint8Array(cols * rows);
@@ -948,9 +1004,10 @@ export function createWalk(ctx) {
     const out = [];
     camera.getWorldDirection(ahead);
     for (const room of here.rooms) {
-      // over a drawn room's open front; over the middle of a baked one
-      const local = room.g ? [W / 2, H - 0.3, D + 0.02] : [room.centre[0], 2.3, room.centre[1]];
-      const seenAt = room.g ? [room.g.position.x + W / 2, D + 0.02] : room.centre;
+      // over a drawn room's open front; over a baked one's doorway, so it reads before you go in (its middle if none)
+      const door = doors.get(room.key);
+      const local = room.g ? [W / 2, H - 0.3, D + 0.02] : door ? [door[0], 2.3, door[1]] : [room.centre[0], 2.3, room.centre[1]];
+      const seenAt = room.g ? [room.g.position.x + W / 2, D + 0.02] : door ? [door[2], door[3]] : room.centre;
       ctx.roomWorld(room, v, ...local);
       const d = v.distanceTo(camera.position);
       if (d > 16 || v.sub(camera.position).normalize().dot(ahead) < 0.35 || !inView(...seenAt)) continue;
@@ -1071,7 +1128,7 @@ export function createWalk(ctx) {
   }
 
   // For tests: whether a spot on this floor stops the walker, and the squares they can reach from where they stand.
-  const debug = { blocked: (x, z) => blocked(x, z), reach: () => reach(), map: () => map, me: () => ({ x: me.x, z: me.z }),
+  const debug = { blocked: (x, z) => blocked(x, z), reach: () => reach(), map: () => map, me: () => ({ x: me.x, z: me.z }), doors: () => Object.fromEntries(doors),
     // walks you to a spot on this floor, round whatever is in the way (for tests)
     go(x, z) { const way = wayTo(x, z); if (way) { me.target = { ...way.shift(), next: way }; ctx.wake(2); } return !!way; } };
   return { update, labels, info, dispose, setNotes: notes.set, debug };
