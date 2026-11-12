@@ -233,8 +233,8 @@ today; or leave them, and the budget starts afresh tomorrow. Each conversation i
 limit it passes, so if you carry on with it in Claude Code yourself, it lets you.
 
 With control on, **Pause everyone** on the Overview, or in the lobby, stops every agent in the
-company's folders at its next step, and a message you send one in Claude Code waits until you
-**Resume everyone**. Nothing is ever stopped in the middle of a step, and a message you send from the
+company's folders at its next step, and a message you send one in Claude Code is turned away with a
+note saying so: send it again after you **Resume everyone**. Nothing is ever stopped in the middle of a step, and a message you send from the
 building is always handed over first.
 
 ## 8. Replay the day

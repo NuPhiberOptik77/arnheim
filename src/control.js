@@ -200,10 +200,14 @@ const projectNamed = (list, name) => {
     || list.find((x) => asked && (x.label.toLowerCase().startsWith(asked) || asked.startsWith(x.label.toLowerCase()))) || null;
 };
 
+// A question to pass on, not work to hand out: "ask Claude what is waiting on me", "ask an agent how it's going".
+const ASKS = /^(?:what|what's|how|how's|whether|if|where|when|why|who|whom|which|about|is|are|was|were)\b/i;
+
 // The job and its floor from handed-out words: the floor is the last "on/for/in <a floor's name>".
 export function handedOut(words, list) {
-  const m = HAND_OUT.exec(String(words || '').trim());
-  if (!m) return null;
+  const said = String(words || '').trim();
+  const m = HAND_OUT.exec(said);
+  if (!m || /\?$/.test(said) || ASKS.test(m[2].trim())) return null;
   if (m[1]) return { project: projectNamed(list, m[1]), job: m[2], named: m[1] };
   const job = m[2];
   const at = [...job.matchAll(/\s(?:on|for|in)\s+(?:the\s+)?/gi)].reverse();

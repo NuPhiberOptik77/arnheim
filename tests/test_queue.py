@@ -123,6 +123,14 @@ class QueueTest(unittest.TestCase):
         got = self.run_js([["allow", BUSY, text] for text in said] + [["allow", {"now": NOW}, "allow all the reads"]])
         self.assertEqual(got, [["a2", "a3"], ["a2", "a3"], ["a2", "a3"], None, None, None, None, []])
 
+    def test_never_a_secret_read_together(self):
+        secrets = ["~/.ssh/id_rsa", "/Users/x/.aws/credentials", ".env", "/srv/app/.env.local", "deploy.pem", "~/.netrc",
+                   "notes/passwords.txt", "api_token", "Library/Keychains/login.keychain-db", "~/.git-credentials"]
+        plain = ["notes.md", "../other/README.md", "/srv/app/main.py", "TODO", "docs/tokenizer-notes.md"]
+        asks = [ask(f"s{i}", "c2", "Read", w) for i, w in enumerate(secrets)] + [ask(f"p{i}", "c2", "Read", w) for i, w in enumerate(plain)]
+        (got,) = self.run_js([["allow", {"now": NOW, "asks": asks, "conversations": [talk("c2", "Price list")]}, "allow all the reads"]])
+        self.assertEqual(sorted(got), sorted(f"p{i}" for i in range(len(plain))))
+
 
 if __name__ == "__main__":
     unittest.main()

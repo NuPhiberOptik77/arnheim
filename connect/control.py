@@ -525,11 +525,12 @@ class Control:
         if not row:
             raise Refused("There's no such routine. Routines are listed under each floor in data/company.json.")
         try:
-            subprocess.Popen([sys.executable, ROUTINES, "--run", key], cwd=HERE, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                             stderr=subprocess.DEVNULL, env=dict(os.environ, ARNHEIM_DATA=self.data), close_fds=True,
-                             start_new_session=hasattr(os, "setsid"))
+            proc = subprocess.Popen([sys.executable, ROUTINES, "--run", key], cwd=HERE, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL, env=dict(os.environ, ARNHEIM_DATA=self.data), close_fds=True,
+                                    start_new_session=hasattr(os, "setsid"))
         except OSError as error:
             raise Refused(f"It didn't start ({error.strerror or error}).")
+        threading.Thread(target=proc.wait, daemon=True).start()  # so it leaves nothing behind when it ends
         return {"ok": True, "routine": one_line(row.get("label") or key, 60)}
 
     def prove(self, key):

@@ -7,8 +7,11 @@
 import { proofOf } from './proof.js';
 import { reviewOf } from './review.js';
 
-// Tools that only look: reading files and searching. Allowing them all at once changes nothing.
+// Tools that only look: reading files and searching. Reads inside a project's folder never ask, so the ones
+// that do reach outside it: "allow all the reads" lets them go ahead together, but never a read of anything
+// that looks like a key, a password or a credentials file (SECRET), which you answer one at a time.
 export const READS = new Set(['Read', 'Glob', 'Grep', 'LS', 'NotebookRead']);
+export const SECRET = /(?:^|[\/\s~.])(?:\.env\b|\.ssh\b|\.aws\b|\.gnupg\b|\.netrc\b|\.npmrc\b|\.pypirc\b|\.docker\b|\.kube\b|\.git-credentials\b|keychains?\b|id_(?:rsa|dsa|ecdsa|ed25519)\b|[^\s\/]*\.(?:pem|key|p12|pfx|keystore)\b|[^\s\/]*(?:credential|secret|password|passwd|token)s?\b)/i;
 const RANK = { permission: 0, question: 1, task: 2, turn: 3 };
 const RECENT = 2 * 3600; // seconds: an agent that finished longer ago than this is no longer waiting on you
 
@@ -41,7 +44,7 @@ export function waitingOnYou({ asks = [], runs = [], conversations = [], tasks =
     const c = talks.get(a.key) || started.get(a.key);
     asking.add(a.key);
     items.push({ kind: 'permission', id: `ask:${a.id}`, key: a.key, title: c?.title || 'An agent', project: c?.project,
-      what: wantsTo(a.tool, a.what), tool: a.tool, read: READS.has(a.tool), at: seconds(a.at), until: seconds(a.until), ask: a });
+      what: wantsTo(a.tool, a.what), tool: a.tool, read: READS.has(a.tool) && !SECRET.test(String(a.what || '')), at: seconds(a.at), until: seconds(a.until), ask: a });
   }
   for (const c of talks.values()) {
     if (asking.has(c.id) || c.working) continue;

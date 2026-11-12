@@ -180,7 +180,8 @@ Eleven things no single agent can do for itself:
   or merely claimed ([docs/connect.md](docs/connect.md), step 5).
 - **A review line.** A floor can say every change gets checked before it reaches you: its check,
   then a second Claude Code that reads what changed. Work that isn't ready goes back to the agent
-  with the reason, and only what passes lands on your desk ([docs/connect.md](docs/connect.md), step 12).
+  with the reason; after two sends back it reaches you anyway, marked with what the review found
+  ([docs/connect.md](docs/connect.md), step 12).
 - **A company memory.** Tell the receptionist "remember that we never push on a Friday", and every
   agent in the company's folders is told it as it starts, and one already at work with your next
   message. When an agent asks something you've decided before, the list shows your decision with a
